@@ -52,10 +52,10 @@ const toggleTitle = computed(() => props.transaction.paid
           <span class="truncate">
             {{ meta }}<template v-if="meta"> · </template><span :class="statusClass">{{ dueLabel(transaction) }}</span><span v-if="showAccount" class="hidden sm:inline"> · {{ transaction.accountName }}</span>
           </span>
-          <Money :value="transaction.amount" :type="transaction.type" signed :muted="transaction.paid" class="text-sm font-semibold sm:hidden" />
+          <Money :value="transaction.amount" :type="transaction.type" signed class="text-sm font-semibold sm:hidden" />
         </span>
       </span>
-      <Money :value="transaction.amount" :type="transaction.type" signed :muted="transaction.paid" class="hidden text-sm font-semibold sm:inline" />
+      <Money :value="transaction.amount" :type="transaction.type" signed class="hidden text-sm font-semibold sm:inline" />
     </button>
     <button
       type="button"
