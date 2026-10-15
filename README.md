@@ -68,6 +68,7 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/imports/preview` (multipart `file`, `accountId`) | Lê o arquivo e sugere categorias |
 | POST | `/api/imports/confirm` | Cria os lançamentos selecionados |
 | GET | `/api/imports` | Histórico de importações |
+| DELETE | `/api/imports/{id}` | Exclui a importação e todos os lançamentos gerados por ela |
 | GET/POST/DELETE | `/api/category-rules` | Regras de categorização |
 | GET | `/api/dashboard?month=AAAA-MM` | Totais, categorias, vencidos, próximos 7 dias, 6 meses |
 

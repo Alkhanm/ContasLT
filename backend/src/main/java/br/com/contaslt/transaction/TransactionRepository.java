@@ -28,6 +28,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     void deleteByRecurringBillIdAndPaidFalse(@Param("billId") Long billId);
 
     @Modifying
+    @Query("delete from Transaction t where t.importBatch.id = :batchId")
+    int deleteByImportBatchId(@Param("batchId") Long batchId);
+
+    @Modifying
     @Query("update Transaction t set t.recurringBill = null where t.recurringBill.id = :billId")
     void detachFromRecurringBill(@Param("billId") Long billId);
 

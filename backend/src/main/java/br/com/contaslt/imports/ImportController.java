@@ -1,10 +1,13 @@
 package br.com.contaslt.imports;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,5 +50,11 @@ public class ImportController {
     @GetMapping
     public List<ImportBatchDto> history() {
         return imports.history(currentUser.id());
+    }
+
+    /** Exclui a importação e todos os lançamentos gerados por ela. */
+    @DeleteMapping("/{id}")
+    public Map<String, Integer> delete(@PathVariable Long id) {
+        return Map.of("removed", imports.delete(currentUser.id(), id));
     }
 }

@@ -21,6 +21,7 @@ import br.com.contaslt.category.Category;
 import br.com.contaslt.category.CategoryRepository;
 import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.BusinessException;
+import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TextNormalizer;
 import br.com.contaslt.imports.ImportDtos.ConfirmRow;
 import br.com.contaslt.imports.ImportDtos.ImportBatchDto;
@@ -156,6 +157,16 @@ public class ImportService {
             .map(b -> new ImportBatchDto(b.getId(), b.getSource(), b.getFilename(), b.getAccount().getId(),
                 b.getAccount().getName(), b.getImportedCount(), b.getCreatedAt()))
             .toList();
+    }
+
+    /** Exclui o lote e todos os lançamentos criados por ele. Retorna quantos lançamentos foram removidos. */
+    @Transactional
+    public int delete(Long userId, Long batchId) {
+        ImportBatch batch = batches.findByIdAndUserId(batchId, userId)
+            .orElseThrow(() -> new NotFoundException("Importação não encontrada"));
+        int removed = transactions.deleteByImportBatchId(batch.getId());
+        batches.delete(batch);
+        return removed;
     }
 
     private void learn(User user, Category category, String description) {

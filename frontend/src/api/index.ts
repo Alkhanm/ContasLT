@@ -63,6 +63,7 @@ export const importsApi = {
   },
   confirm: (req: ImportConfirmRequest) => api<ImportResult>('/api/imports/confirm', { method: 'POST', body: req }),
   history: () => api<ImportBatch[]>('/api/imports'),
+  remove: (id: number) => api<{ removed: number }>(`/api/imports/${id}`, { method: 'DELETE' }),
 }
 
 export const rulesApi = {

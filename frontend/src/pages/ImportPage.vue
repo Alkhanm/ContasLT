@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { CheckCircle2, FileSpreadsheet, FileText, Upload } from 'lucide-vue-next'
+import { CheckCircle2, FileSpreadsheet, FileText, Trash2, Upload } from 'lucide-vue-next'
 import { importsApi } from '@/api'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
+import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import FormField from '@/components/app/FormField.vue'
 import Money from '@/components/app/Money.vue'
 import SectionTitle from '@/components/app/SectionTitle.vue'
@@ -34,6 +35,7 @@ const preview = ref<ImportPreview | null>(null)
 const rows = ref<ReviewRow[]>([])
 const result = ref<ImportResult | null>(null)
 const history = ref<ImportBatch[]>([])
+const toDelete = ref<ImportBatch | null>(null)
 
 onMounted(async () => {
   await catalog.load()
@@ -108,6 +110,21 @@ async function confirm() {
   }
 }
 
+async function removeBatch() {
+  if (!toDelete.value) return
+  try {
+    const { removed } = await importsApi.remove(toDelete.value.id)
+    notifySuccess(`Importação excluída, ${removed} ${removed === 1 ? 'lançamento removido' : 'lançamentos removidos'}`)
+    ui.dataChanged()
+    catalog.reloadAccounts()
+    loadHistory()
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    toDelete.value = null
+  }
+}
+
 function reset() {
   step.value = 'upload'
   file.value = null
@@ -165,9 +182,22 @@ function reset() {
               <span class="block text-xs text-muted-foreground">{{ b.accountName }} · {{ dateTime(b.createdAt) }}</span>
             </span>
             <span class="text-xs text-muted-foreground">{{ b.importedCount }} {{ b.importedCount === 1 ? 'lançamento' : 'lançamentos' }}</span>
+            <Button variant="ghost" size="icon-sm" class="text-muted-foreground hover:text-destructive" title="Excluir importação" aria-label="Excluir importação" @click="toDelete = b">
+              <Trash2 />
+            </Button>
           </li>
         </ul>
       </section>
+
+      <ConfirmDialog
+        :open="toDelete !== null"
+        title="Excluir importação?"
+        :description="toDelete ? `Os ${toDelete.importedCount} lançamentos criados por “${toDelete.filename ?? 'este arquivo'}” serão apagados. As regras de categoria aprendidas continuam.` : ''"
+        confirm-label="Excluir tudo"
+        destructive
+        @update:open="(v) => !v && (toDelete = null)"
+        @confirm="removeBatch"
+      />
     </template>
 
     <template v-else-if="step === 'review' && preview">

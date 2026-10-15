@@ -208,6 +208,23 @@ class ApiFlowTest {
 
     @Test
     @Order(6)
+    void deletingImportRemovesItsTransactions() {
+        JsonNode history = body(mvc.get().uri("/api/imports").headers(auth()).exchange());
+        assertThat(history.size()).isGreaterThanOrEqualTo(1);
+        long batchId = history.get(history.size() - 1).get("id").asLong();
+        int before = body(mvc.get().uri("/api/transactions?month=2026-10").headers(auth()).exchange()).get("items").size();
+
+        MvcTestResult res = mvc.delete().uri("/api/imports/" + batchId).headers(auth()).exchange();
+        assertThat(res).hasStatusOk();
+        assertThat(body(res).get("removed").asInt()).isEqualTo(3);
+
+        int after = body(mvc.get().uri("/api/transactions?month=2026-10").headers(auth()).exchange()).get("items").size();
+        assertThat(after).isEqualTo(before - 3);
+        assertThat(mvc.delete().uri("/api/imports/" + batchId).headers(auth()).exchange()).hasStatus(404);
+    }
+
+    @Test
+    @Order(7)
     void validationErrorsAreProblemDetails() {
         MvcTestResult res = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"description\":\"\",\"amount\":-1}").exchange();
