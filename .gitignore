@@ -1,0 +1,13 @@
+# Dependências e builds
+node_modules/
+dist/
+target/
+# Ambiente
+.env
+.env.local
+*.log
+# IDE / SO
+.idea/
+.vscode/
+*.iml
+.DS_Store
