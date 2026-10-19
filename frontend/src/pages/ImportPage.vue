@@ -111,9 +111,10 @@ async function confirm() {
 }
 
 async function removeBatch() {
-  if (!toDelete.value) return
+  const target = toDelete.value
+  if (!target) return
   try {
-    const { removed } = await importsApi.remove(toDelete.value.id)
+    const { removed } = await importsApi.remove(target.id)
     notifySuccess(`Importação excluída, ${removed} ${removed === 1 ? 'lançamento removido' : 'lançamentos removidos'}`)
     ui.dataChanged()
     catalog.reloadAccounts()

@@ -44,9 +44,10 @@ async function toggleArchive(a: Account) {
 }
 
 async function remove() {
-  if (!toDelete.value) return
+  const target = toDelete.value
+  if (!target) return
   try {
-    await accountsApi.remove(toDelete.value.id)
+    await accountsApi.remove(target.id)
     await catalog.reloadAccounts()
     notifySuccess('Conta excluída')
   } catch (err) {

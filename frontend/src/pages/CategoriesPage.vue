@@ -46,9 +46,10 @@ async function toggleArchive(c: Category) {
 }
 
 async function remove() {
-  if (!toDelete.value) return
+  const target = toDelete.value
+  if (!target) return
   try {
-    await categoriesApi.remove(toDelete.value.id)
+    await categoriesApi.remove(target.id)
     await catalog.reloadCategories()
     notifySuccess('Categoria excluída')
   } catch (err) {

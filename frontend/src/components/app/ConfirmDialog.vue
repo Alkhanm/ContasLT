@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 withDefaults(defineProps<{
   open: boolean
@@ -15,6 +14,14 @@ withDefaults(defineProps<{
 }>(), { confirmLabel: 'Confirmar', destructive: false })
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; confirm: [] }>()
+
+// O AlertDialogAction do reka-ui fecha o diálogo antes de disparar o nosso click,
+// o que zerava o item selecionado no pai antes da confirmação. Aqui a ordem é explícita:
+// primeiro confirma, depois fecha.
+function onConfirm() {
+  emit('confirm')
+  emit('update:open', false)
+}
 </script>
 
 <template>
@@ -26,9 +33,9 @@ const emit = defineEmits<{ 'update:open': [value: boolean]; confirm: [] }>()
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-        <AlertDialogAction :class="cn(destructive && buttonVariants({ variant: 'destructive' }))" @click="emit('confirm')">
+        <Button :variant="destructive ? 'destructive' : 'default'" @click="onConfirm">
           {{ confirmLabel }}
-        </AlertDialogAction>
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
