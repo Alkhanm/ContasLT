@@ -56,9 +56,17 @@ public class DashboardService {
         BigDecimal expense = BigDecimal.ZERO;
         BigDecimal paidIncome = BigDecimal.ZERO;
         BigDecimal paidExpense = BigDecimal.ZERO;
+        BigDecimal transfers = BigDecimal.ZERO;
         Map<Category, List<Transaction>> byCategory = new LinkedHashMap<>();
         List<Transaction> uncategorized = new ArrayList<>();
         for (Transaction t : items) {
+            if (t.isTransfer()) {
+                // Movimentação interna: não é receita nem despesa. Conta-se só a perna de saída.
+                if (t.getType() == TransactionType.EXPENSE) {
+                    transfers = transfers.add(t.getAmount());
+                }
+                continue;
+            }
             if (t.getType() == TransactionType.INCOME) {
                 income = income.add(t.getAmount());
                 if (t.isPaid()) {
@@ -100,7 +108,7 @@ public class DashboardService {
             BigDecimal inc = BigDecimal.ZERO;
             BigDecimal exp = BigDecimal.ZERO;
             for (Transaction t : historyItems) {
-                if (YearMonth.from(t.getDueDate()).equals(ym)) {
+                if (!t.isTransfer() && YearMonth.from(t.getDueDate()).equals(ym)) {
                     if (t.getType() == TransactionType.INCOME) {
                         inc = inc.add(t.getAmount());
                     } else {
@@ -112,7 +120,7 @@ public class DashboardService {
         }
 
         return new Dashboard(month.toString(), income, expense, income.subtract(expense), paidIncome, paidExpense,
-            income.subtract(paidIncome), expense.subtract(paidExpense), currentBalance, accountList, categoryTotals,
+            income.subtract(paidIncome), expense.subtract(paidExpense), transfers, currentBalance, accountList, categoryTotals,
             transactions.findOverdue(user.getId(), today).stream().map(TransactionMapper::toDto).toList(),
             transactions.findUpcoming(user.getId(), today, today.plusDays(7)).stream().map(TransactionMapper::toDto).toList(),
             history);

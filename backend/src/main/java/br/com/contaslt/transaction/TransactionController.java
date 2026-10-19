@@ -43,9 +43,10 @@ public class TransactionController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) Boolean paid,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean transfers) {
         YearMonth ym = month == null || month.isBlank() ? YearMonth.now() : YearMonth.parse(month);
-        return transactions.list(currentUser.get(), new Filter(ym, accountId, categoryId, type, paid, search));
+        return transactions.list(currentUser.get(), new Filter(ym, accountId, categoryId, type, paid, search, transfers));
     }
 
     @GetMapping("/{id}")

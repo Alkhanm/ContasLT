@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { CalendarCheck, ChevronRight, Wallet } from 'lucide-vue-next'
+import { ArrowLeftRight, CalendarCheck, ChevronRight, Wallet } from 'lucide-vue-next'
 import { dashboardApi, transactionsApi } from '@/api'
 import type { CategoryTotal, Dashboard, Transaction } from '@/api/types'
 import CategoryBars from '@/components/app/CategoryBars.vue'
@@ -104,6 +104,15 @@ function openCategory(item: CategoryTotal) {
             <template v-if="data.pendingExpense > 0"> · faltam <Money :value="data.pendingExpense" class="font-semibold text-foreground" /></template>
           </p>
         </div>
+        <RouterLink
+          v-if="data.transfers > 0"
+          :to="{ name: 'transactions', query: { tipo: 'TRANSFER' } }"
+          class="mt-3 flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
+        >
+          <ArrowLeftRight class="size-3.5 shrink-0" />
+          <span class="flex-1"><Money :value="data.transfers" class="font-semibold text-foreground" /> movimentados entre suas contas, fora do resultado</span>
+          <ChevronRight class="size-3.5 shrink-0" />
+        </RouterLink>
       </section>
 
       <section>

@@ -14,7 +14,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long>, JpaSpecificationExecutor<Transaction> {
 
-    @EntityGraph(attributePaths = {"account", "category", "recurringBill"})
+    @EntityGraph(attributePaths = {"account", "category", "recurringBill", "transfer"})
     Optional<Transaction> findByIdAndUserId(Long id, Long userId);
 
     boolean existsByAccountId(Long accountId);
@@ -39,16 +39,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     Set<LocalDate> findDueDatesByRecurringBill(@Param("billId") Long billId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    @EntityGraph(attributePaths = {"account", "category"})
+    @EntityGraph(attributePaths = {"account", "category", "transfer"})
     @Query("select t from Transaction t where t.user.id = :userId and t.dueDate between :from and :to order by t.dueDate desc, t.id desc")
     List<Transaction> findByUserAndPeriod(@Param("userId") Long userId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    @EntityGraph(attributePaths = {"account", "category"})
+    @EntityGraph(attributePaths = {"account", "category", "transfer"})
     @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate < :today order by t.dueDate asc")
     List<Transaction> findOverdue(@Param("userId") Long userId, @Param("today") LocalDate today);
 
-    @EntityGraph(attributePaths = {"account", "category"})
+    @EntityGraph(attributePaths = {"account", "category", "transfer"})
     @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate between :from and :to order by t.dueDate asc")
     List<Transaction> findUpcoming(@Param("userId") Long userId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
@@ -65,4 +65,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("to") LocalDate to);
 
     boolean existsByAccountIdAndExternalId(Long accountId, String externalId);
+
+    /** Lançamentos ainda não vinculados a nenhuma transferência, candidatos ao cruzamento entre contas. */
+    @EntityGraph(attributePaths = {"account", "category"})
+    @Query("select t from Transaction t where t.user.id = :userId and t.transfer is null and t.dueDate >= :from order by t.dueDate asc, t.id asc")
+    List<Transaction> findUnlinkedSince(@Param("userId") Long userId, @Param("from") LocalDate from);
 }

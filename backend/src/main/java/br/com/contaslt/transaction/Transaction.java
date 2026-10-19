@@ -9,6 +9,7 @@ import br.com.contaslt.category.Category;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.imports.ImportBatch;
 import br.com.contaslt.recurring.RecurringBill;
+import br.com.contaslt.transfer.Transfer;
 import br.com.contaslt.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,6 +51,11 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "import_batch_id")
     private ImportBatch importBatch;
+
+    /** Preenchido quando o lançamento é uma perna de transferência entre contas. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_id")
+    private Transfer transfer;
 
     @Column(nullable = false)
     private String description;
@@ -98,6 +104,9 @@ public class Transaction {
     public void setRecurringBill(RecurringBill recurringBill) { this.recurringBill = recurringBill; }
     public ImportBatch getImportBatch() { return importBatch; }
     public void setImportBatch(ImportBatch importBatch) { this.importBatch = importBatch; }
+    public Transfer getTransfer() { return transfer; }
+    public void setTransfer(Transfer transfer) { this.transfer = transfer; }
+    public boolean isTransfer() { return transfer != null; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getAmount() { return amount; }

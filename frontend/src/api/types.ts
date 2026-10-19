@@ -67,6 +67,11 @@ export interface Transaction {
   installmentNumber: number | null
   installmentTotal: number | null
   externalId: string | null
+  /** Preenchidos quando o lançamento é uma perna de transferência entre contas. */
+  transferId: number | null
+  transferPeerTransactionId: number | null
+  transferPeerAccountId: number | null
+  transferPeerAccountName: string | null
 }
 
 export interface TransactionInput {
@@ -86,6 +91,9 @@ export interface Summary {
   balance: number
   pendingIncome: number
   pendingExpense: number
+  /** Movimentação interna entre contas, fora de receitas/despesas. */
+  transferOut: number
+  transferIn: number
   count: number
 }
 
@@ -101,6 +109,30 @@ export interface TransactionFilter {
   type?: TransactionType | null
   paid?: boolean | null
   search?: string
+  /** true = só transferências, false = sem transferências, null/undefined = tudo. */
+  transfers?: boolean | null
+}
+
+export interface TransferInput {
+  fromAccountId: number
+  toAccountId: number
+  amount: number
+  date: string
+  description: string | null
+  paid: boolean
+}
+
+export interface Transfer {
+  id: number
+  from: Transaction
+  to: Transaction
+}
+
+export interface TransferSuggestion {
+  from: Transaction
+  to: Transaction
+  daysApart: number
+  score: number
 }
 
 export interface RecurringBill {
@@ -228,6 +260,8 @@ export interface Dashboard {
   paidExpense: number
   pendingIncome: number
   pendingExpense: number
+  /** Total transferido entre contas no mês; não entra em receitas nem despesas. */
+  transfers: number
   currentBalance: number
   accounts: Account[]
   byCategory: CategoryTotal[]

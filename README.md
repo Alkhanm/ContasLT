@@ -49,6 +49,8 @@ No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
 
 **Categorização na importação** usa três fontes, nesta ordem: nome de categoria vindo da planilha, regras "palavra-chave → categoria" do usuário, e o histórico de lançamentos já categorizados (descrição idêntica, depois por tokens). Ao confirmar uma importação, as categorias escolhidas viram regras automaticamente. Duplicados são detectados por `FITID` (OFX) ou por data + valor + descrição.
 
+**Transferências entre contas** são pares de lançamentos vinculados: a saída (despesa) na conta de origem e a entrada (receita) na de destino. Cada perna continua valendo para o saldo da própria conta, mas o par é ignorado em receitas, despesas, categorias e histórico, porque é só movimentação interna (ex.: PJ → PF). O cruzamento automático sugere pares com mesmo valor, contas diferentes e até 3 dias de distância, priorizando datas próximas e descrições do tipo "transferência/Pix/TED"; o usuário confirma, e pode também vincular manualmente, criar uma transferência direto no formulário ou desvincular. Excluir uma perna desfaz o vínculo e mantém a outra como lançamento comum.
+
 **Excel:** a primeira planilha é lida; a linha de cabeçalho é detectada por nomes como *Data*, *Descrição/Histórico*, *Valor* (opcionais: *Tipo*, *Categoria*). Sem cabeçalho, assume-se a ordem data | descrição | valor. Valores negativos ou coluna *Tipo* = débito viram despesas.
 
 ## API (resumo)
@@ -61,7 +63,7 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | GET | `/api/auth/me` | Usuário atual |
 | GET/POST/PUT/DELETE | `/api/accounts` | Contas (saldo calculado dos lançamentos pagos) |
 | GET/POST/PUT/DELETE | `/api/categories` | Categorias (cor + ícone) |
-| GET | `/api/transactions?month=AAAA-MM&accountId&categoryId&type&paid&search` | Lançamentos do mês + resumo |
+| GET | `/api/transactions?month=AAAA-MM&accountId&categoryId&type&paid&search&transfers` | Lançamentos do mês + resumo (`transfers=true` só transferências, `false` sem elas) |
 | POST/PUT/DELETE | `/api/transactions/{id}` | CRUD de lançamentos |
 | PATCH | `/api/transactions/{id}/paid` | Marcar pago/pendente |
 | GET/POST/PUT/DELETE | `/api/recurring-bills` | Contas recorrentes |
@@ -69,6 +71,10 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/imports/confirm` | Cria os lançamentos selecionados |
 | GET | `/api/imports` | Histórico de importações |
 | DELETE | `/api/imports/{id}` | Exclui a importação e todos os lançamentos gerados por ela |
+| POST | `/api/transfers` | Cria uma transferência entre contas (gera as duas pernas já vinculadas) |
+| POST | `/api/transfers/link` | Vincula uma despesa e uma receita existentes como transferência |
+| GET | `/api/transfers/suggestions` | Pares candidatos: mesmo valor, contas diferentes, até 3 dias de diferença |
+| DELETE | `/api/transfers/{id}` | Desvincula; os dois lançamentos continuam como despesa/receita comuns |
 | GET/POST/DELETE | `/api/category-rules` | Regras de categorização |
 | GET | `/api/dashboard?month=AAAA-MM` | Totais, categorias, vencidos, próximos 7 dias, 6 meses |
 

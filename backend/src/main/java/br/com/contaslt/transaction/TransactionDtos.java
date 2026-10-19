@@ -32,11 +32,17 @@ public final class TransactionDtos {
     public record TransactionDto(Long id, String description, BigDecimal amount, TransactionType type,
             LocalDate dueDate, boolean paid, String notes, Long accountId, String accountName,
             Long categoryId, String categoryName, String categoryColor, String categoryIcon,
-            Long recurringBillId, Integer installmentNumber, Integer installmentTotal, String externalId) {
+            Long recurringBillId, Integer installmentNumber, Integer installmentTotal, String externalId,
+            Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName) {
     }
 
+    /**
+     * Totais da listagem. Receitas e despesas ignoram pernas de transferência; transferOut/transferIn
+     * somam, separadamente, o que saiu e o que entrou por movimentação interna entre as contas listadas.
+     */
     public record Summary(BigDecimal income, BigDecimal expense, BigDecimal balance,
-            BigDecimal pendingIncome, BigDecimal pendingExpense, int count) {
+            BigDecimal pendingIncome, BigDecimal pendingExpense, BigDecimal transferOut, BigDecimal transferIn,
+            int count) {
     }
 
     public record TransactionPage(List<TransactionDto> items, Summary summary) {

@@ -224,6 +224,104 @@ class ApiFlowTest {
     }
 
     @Test
+    @Order(8)
+    void transfersBetweenAccountsAreNeutral() {
+        // Segunda conta para receber a transferência.
+        MvcTestResult acc = mvc.post().uri("/api/accounts").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("name", "Conta PJ", "type", "CHECKING", "initialBalance", 0)))
+            .exchange();
+        assertThat(acc).hasStatus(201);
+        long pjId = body(acc).get("id").asLong();
+
+        String month = "2027-03";
+        // Receita real de 1000 no mês, para comparar os totais.
+        assertThat(mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("description", "Cliente", "amount", 1000, "type", "INCOME",
+                "dueDate", month + "-01", "paid", true, "accountId", pjId, "categoryId", incomeCategoryId)))
+            .exchange()).hasStatus(201);
+
+        // 1) Transferência criada diretamente: duas pernas vinculadas.
+        MvcTestResult created = mvc.post().uri("/api/transfers").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("fromAccountId", pjId, "toAccountId", accountId,
+                "amount", 600, "date", month + "-05", "description", "Pró-labore")))
+            .exchange();
+        assertThat(created).hasStatus(201);
+        JsonNode tr = body(created);
+        assertThat(tr.get("from").get("type").asString()).isEqualTo("EXPENSE");
+        assertThat(tr.get("to").get("type").asString()).isEqualTo("INCOME");
+        assertThat(tr.get("to").get("transferPeerAccountId").asLong()).isEqualTo(pjId);
+
+        // Além dos lançamentos acima, o aluguel recorrente do teste 3 (1600) é materializado neste mês.
+        JsonNode page = body(mvc.get().uri("/api/transactions?month=" + month).headers(auth()).exchange());
+        assertThat(page.get("items")).hasSize(4);
+        assertThat(page.get("summary").get("income").decimalValue()).isEqualByComparingTo("1000");
+        assertThat(page.get("summary").get("expense").decimalValue()).isEqualByComparingTo("1600");
+        assertThat(page.get("summary").get("transferOut").decimalValue()).isEqualByComparingTo("600");
+        assertThat(page.get("summary").get("transferIn").decimalValue()).isEqualByComparingTo("600");
+        // O saldo de cada conta continua considerando as pernas.
+        JsonNode accounts = body(mvc.get().uri("/api/accounts").headers(auth()).exchange());
+        for (JsonNode a : accounts) {
+            if (a.get("id").asLong() == pjId) {
+                assertThat(a.get("balance").decimalValue()).isEqualByComparingTo("400");
+            }
+        }
+        // Filtro "só transferências".
+        assertThat(body(mvc.get().uri("/api/transactions?month=" + month + "&transfers=true").headers(auth()).exchange())
+            .get("items")).hasSize(2);
+
+        // 2) Cruzamento automático: saída numa conta e entrada de mesmo valor na outra, 1 dia depois.
+        long outId = body(mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("description", "Transferência enviada pelo Pix", "amount", 250,
+                "type", "EXPENSE", "dueDate", month + "-10", "paid", true, "accountId", pjId)))
+            .exchange()).get("id").asLong();
+        long inId = body(mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("description", "Transferência recebida", "amount", 250,
+                "type", "INCOME", "dueDate", month + "-11", "paid", true, "accountId", accountId)))
+            .exchange()).get("id").asLong();
+        // Ruído: receita de mesmo valor na MESMA conta da saída não pode ser sugerida.
+        mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("description", "Reembolso", "amount", 250,
+                "type", "INCOME", "dueDate", month + "-10", "paid", true, "accountId", pjId)))
+            .exchange();
+
+        JsonNode suggestions = body(mvc.get().uri("/api/transfers/suggestions").headers(auth()).exchange()).get("items");
+        assertThat(suggestions).hasSize(1);
+        assertThat(suggestions.get(0).get("from").get("id").asLong()).isEqualTo(outId);
+        assertThat(suggestions.get(0).get("to").get("id").asLong()).isEqualTo(inId);
+        assertThat(suggestions.get(0).get("daysApart").asInt()).isEqualTo(1);
+
+        MvcTestResult linked = mvc.post().uri("/api/transfers/link").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("transactionId", inId, "otherTransactionId", outId)))
+            .exchange();
+        assertThat(linked).hasStatus(201);
+        long transferId = body(linked).get("id").asLong();
+        assertThat(body(linked).get("from").get("id").asLong()).isEqualTo(outId);
+
+        JsonNode dash = body(mvc.get().uri("/api/dashboard?month=" + month).headers(auth()).exchange());
+        assertThat(dash.get("income").decimalValue()).isEqualByComparingTo("1250");
+        assertThat(dash.get("expense").decimalValue()).isEqualByComparingTo("1600");
+        assertThat(dash.get("transfers").decimalValue()).isEqualByComparingTo("850");
+        assertThat(body(mvc.get().uri("/api/transfers/suggestions").headers(auth()).exchange()).get("items")).isEmpty();
+
+        // Vincular de novo é recusado; valores diferentes também.
+        assertThat(mvc.post().uri("/api/transfers/link").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("transactionId", inId, "otherTransactionId", outId)))
+            .exchange()).hasStatus(422);
+
+        // 3) Desvincular devolve os dois lançamentos ao resultado.
+        assertThat(mvc.delete().uri("/api/transfers/" + transferId).headers(auth()).exchange()).hasStatus(204);
+        dash = body(mvc.get().uri("/api/dashboard?month=" + month).headers(auth()).exchange());
+        assertThat(dash.get("income").decimalValue()).isEqualByComparingTo("1500");
+        assertThat(dash.get("expense").decimalValue()).isEqualByComparingTo("1850");
+
+        // 4) Excluir uma perna desfaz o vínculo e deixa a outra solta.
+        assertThat(mvc.delete().uri("/api/transactions/" + tr.get("from").get("id").asLong()).headers(auth()).exchange())
+            .hasStatus(204);
+        JsonNode other = body(mvc.get().uri("/api/transactions/" + tr.get("to").get("id").asLong()).headers(auth()).exchange());
+        assertThat(other.get("transferId").isNull()).isTrue();
+    }
+
+    @Test
     @Order(7)
     void validationErrorsAreProblemDetails() {
         MvcTestResult res = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)

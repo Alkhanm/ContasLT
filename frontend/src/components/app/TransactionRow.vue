@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Check, Repeat } from 'lucide-vue-next'
+import { ArrowLeftRight, Check, Repeat } from 'lucide-vue-next'
 import type { Transaction } from '@/api/types'
 import CategoryIcon from './CategoryIcon.vue'
 import Money from './Money.vue'
@@ -25,11 +25,17 @@ const statusClass = computed(() => ({
   scheduled: 'text-muted-foreground',
 }[status.value]))
 
+const isTransfer = computed(() => props.transaction.transferId !== null)
+
 const meta = computed(() => {
   const t = props.transaction
   const parts: string[] = []
   if (props.showDate) parts.push(dateShort(t.dueDate))
-  if (t.categoryName) parts.push(t.categoryName)
+  if (isTransfer.value && t.transferPeerAccountName) {
+    parts.push(t.type === 'EXPENSE' ? `Para ${t.transferPeerAccountName}` : `De ${t.transferPeerAccountName}`)
+  } else if (t.categoryName) {
+    parts.push(t.categoryName)
+  }
   if (t.installmentNumber && t.installmentTotal) parts.push(`${t.installmentNumber}/${t.installmentTotal}`)
   return parts.join(' · ')
 })
@@ -42,7 +48,10 @@ const toggleTitle = computed(() => props.transaction.paid
 <template>
   <div class="group flex items-center gap-3 py-2.5">
     <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none rounded-md focus-visible:ring-3 focus-visible:ring-ring/50" @click="emit('open', transaction)">
-      <CategoryIcon :icon="transaction.categoryIcon" :color="transaction.categoryColor" />
+      <span v-if="isTransfer" class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-label="Transferência entre contas">
+        <ArrowLeftRight class="size-[18px]" />
+      </span>
+      <CategoryIcon v-else :icon="transaction.categoryIcon" :color="transaction.categoryColor" />
       <span class="min-w-0 flex-1">
         <span class="flex items-center gap-1.5">
           <span :class="cn('truncate font-semibold', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
@@ -50,12 +59,12 @@ const toggleTitle = computed(() => props.transaction.paid
         </span>
         <span class="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
           <span class="truncate">
-            {{ meta }}<template v-if="meta"> · </template><span :class="statusClass">{{ dueLabel(transaction) }}</span><span v-if="showAccount" class="hidden sm:inline"> · {{ transaction.accountName }}</span>
+            {{ meta }}<template v-if="meta"> · </template><span :class="statusClass">{{ isTransfer && transaction.paid ? 'Efetuada' : dueLabel(transaction) }}</span><span v-if="showAccount" class="hidden sm:inline"> · {{ transaction.accountName }}</span>
           </span>
-          <Money :value="transaction.amount" :type="transaction.type" signed class="text-sm font-semibold sm:hidden" />
+          <Money :value="transaction.amount" :type="isTransfer ? 'NEUTRAL' : transaction.type" :signed="!isTransfer" :muted="isTransfer" class="text-sm font-semibold sm:hidden" />
         </span>
       </span>
-      <Money :value="transaction.amount" :type="transaction.type" signed class="hidden text-sm font-semibold sm:inline" />
+      <Money :value="transaction.amount" :type="isTransfer ? 'NEUTRAL' : transaction.type" :signed="!isTransfer" :muted="isTransfer" class="hidden text-sm font-semibold sm:inline" />
     </button>
     <button
       type="button"

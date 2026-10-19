@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { CheckCircle2, FileSpreadsheet, FileText, Trash2, Upload } from 'lucide-vue-next'
-import { importsApi } from '@/api'
+import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Trash2, Upload } from 'lucide-vue-next'
+import { importsApi, transfersApi } from '@/api'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
@@ -35,6 +35,7 @@ const preview = ref<ImportPreview | null>(null)
 const rows = ref<ReviewRow[]>([])
 const result = ref<ImportResult | null>(null)
 const history = ref<ImportBatch[]>([])
+const transferHints = ref(0)
 const toDelete = ref<ImportBatch | null>(null)
 
 onMounted(async () => {
@@ -103,6 +104,7 @@ async function confirm() {
     ui.dataChanged()
     catalog.reloadAccounts()
     loadHistory()
+    transfersApi.suggestions().then((r) => { transferHints.value = r.items.length }).catch(() => { transferHints.value = 0 })
   } catch (err) {
     notifyError(err)
   } finally {
@@ -265,6 +267,14 @@ function reset() {
           {{ result.imported }} {{ result.imported === 1 ? 'lançamento importado' : 'lançamentos importados' }}<template v-if="result.skipped">, {{ result.skipped }} ignorados por já existirem</template>.
           As categorias escolhidas serão sugeridas nas próximas importações.
         </p>
+        <RouterLink
+          v-if="transferHints"
+          :to="{ name: 'transactions', query: { cruzar: '1' } }"
+          class="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm"
+        >
+          <ArrowLeftRight class="size-4 shrink-0 text-primary" />
+          <span>{{ transferHints }} {{ transferHints === 1 ? 'possível transferência entre contas encontrada' : 'possíveis transferências entre contas encontradas' }}. <span class="font-semibold text-primary">Revisar</span></span>
+        </RouterLink>
         <div class="mt-3 flex gap-2">
           <Button variant="outline" @click="reset">Importar outro arquivo</Button>
           <Button as-child>

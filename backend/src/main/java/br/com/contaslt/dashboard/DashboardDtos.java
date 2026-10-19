@@ -20,7 +20,7 @@ public final class DashboardDtos {
 
     public record Dashboard(String month, BigDecimal income, BigDecimal expense, BigDecimal balance,
             BigDecimal paidIncome, BigDecimal paidExpense, BigDecimal pendingIncome, BigDecimal pendingExpense,
-            BigDecimal currentBalance, List<AccountDto> accounts, List<CategoryTotal> byCategory,
+            BigDecimal transfers, BigDecimal currentBalance, List<AccountDto> accounts, List<CategoryTotal> byCategory,
             List<TransactionDto> overdue, List<TransactionDto> upcoming, List<MonthTotal> history) {
     }
 }

@@ -2,7 +2,7 @@ import { api } from './client'
 import type {
   Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryRule, Dashboard,
   ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, RecurringBill, RecurringBillInput,
-  Transaction, TransactionFilter, TransactionInput, TransactionPage, User,
+  Transaction, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
 } from './types'
 
 export const authApi = {
@@ -37,6 +37,7 @@ export const transactionsApi = {
         type: filter.type,
         paid: filter.paid,
         search: filter.search,
+        transfers: filter.transfers,
       },
     }),
   create: (input: TransactionInput) => api<Transaction>('/api/transactions', { method: 'POST', body: input }),
@@ -64,6 +65,14 @@ export const importsApi = {
   confirm: (req: ImportConfirmRequest) => api<ImportResult>('/api/imports/confirm', { method: 'POST', body: req }),
   history: () => api<ImportBatch[]>('/api/imports'),
   remove: (id: number) => api<{ removed: number }>(`/api/imports/${id}`, { method: 'DELETE' }),
+}
+
+export const transfersApi = {
+  create: (input: TransferInput) => api<Transfer>('/api/transfers', { method: 'POST', body: input }),
+  link: (transactionId: number, otherTransactionId: number) =>
+    api<Transfer>('/api/transfers/link', { method: 'POST', body: { transactionId, otherTransactionId } }),
+  suggestions: () => api<{ items: TransferSuggestion[] }>('/api/transfers/suggestions'),
+  unlink: (id: number) => api<void>(`/api/transfers/${id}`, { method: 'DELETE' }),
 }
 
 export const rulesApi = {

@@ -23,6 +23,8 @@ import br.com.contaslt.transaction.TransactionDtos.Summary;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
 import br.com.contaslt.transaction.TransactionDtos.TransactionPage;
 import br.com.contaslt.transaction.TransactionDtos.TransactionRequest;
+import br.com.contaslt.transfer.Transfer;
+import br.com.contaslt.transfer.TransferRepository;
 import br.com.contaslt.user.User;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -30,21 +32,24 @@ import jakarta.persistence.criteria.Predicate;
 @Service
 public class TransactionService {
 
+    /** {@code transfers}: null = tudo, true = só pernas de transferência, false = sem transferências. */
     public record Filter(YearMonth month, Long accountId, Long categoryId, TransactionType type, Boolean paid,
-            String search) {
+            String search, Boolean transfers) {
     }
 
     private final TransactionRepository transactions;
     private final AccountService accounts;
     private final CategoryService categories;
     private final RecurringBillService recurring;
+    private final TransferRepository transfers;
 
     public TransactionService(TransactionRepository transactions, AccountService accounts,
-            CategoryService categories, RecurringBillService recurring) {
+            CategoryService categories, RecurringBillService recurring, TransferRepository transfers) {
         this.transactions = transactions;
         this.accounts = accounts;
         this.categories = categories;
         this.recurring = recurring;
+        this.transfers = transfers;
     }
 
     @Transactional
@@ -84,7 +89,15 @@ public class TransactionService {
 
     @Transactional
     public void delete(Long userId, Long id) {
-        transactions.delete(require(userId, id));
+        Transaction t = require(userId, id);
+        Transfer tr = t.getTransfer();
+        if (tr != null) {
+            // Desfaz o vínculo antes: a outra perna continua existindo como lançamento comum.
+            tr.getFromTransaction().setTransfer(null);
+            tr.getToTransaction().setTransfer(null);
+            transfers.delete(tr);
+        }
+        transactions.delete(t);
     }
 
     public Transaction require(Long userId, Long id) {
@@ -97,7 +110,17 @@ public class TransactionService {
         BigDecimal expense = BigDecimal.ZERO;
         BigDecimal pendingIncome = BigDecimal.ZERO;
         BigDecimal pendingExpense = BigDecimal.ZERO;
+        BigDecimal transferOut = BigDecimal.ZERO;
+        BigDecimal transferIn = BigDecimal.ZERO;
         for (Transaction t : items) {
+            if (t.isTransfer()) {
+                if (t.getType() == TransactionType.INCOME) {
+                    transferIn = transferIn.add(t.getAmount());
+                } else {
+                    transferOut = transferOut.add(t.getAmount());
+                }
+                continue;
+            }
             if (t.getType() == TransactionType.INCOME) {
                 income = income.add(t.getAmount());
                 if (!t.isPaid()) {
@@ -110,12 +133,16 @@ public class TransactionService {
                 }
             }
         }
-        return new Summary(income, expense, income.subtract(expense), pendingIncome, pendingExpense, items.size());
+        return new Summary(income, expense, income.subtract(expense), pendingIncome, pendingExpense, transferOut,
+            transferIn, items.size());
     }
 
     private void apply(Long userId, Transaction t, TransactionRequest req) {
         Account account = accounts.require(userId, req.accountId());
         Category category = categories.requireOrNull(userId, req.categoryId());
+        if (t.isTransfer() && req.type() != t.getType()) {
+            throw new BusinessException("Este lançamento faz parte de uma transferência; desvincule antes de mudar o tipo");
+        }
         if (category != null && category.getType() != req.type()) {
             throw new BusinessException("A categoria escolhida não é do mesmo tipo do lançamento");
         }
@@ -135,6 +162,7 @@ public class TransactionService {
                 root.fetch("account", JoinType.LEFT);
                 root.fetch("category", JoinType.LEFT);
                 root.fetch("recurringBill", JoinType.LEFT);
+                root.fetch("transfer", JoinType.LEFT);
             }
             List<Predicate> p = new ArrayList<>();
             p.add(cb.equal(root.get("user").get("id"), userId));
@@ -152,6 +180,9 @@ public class TransactionService {
             }
             if (f.paid() != null) {
                 p.add(cb.equal(root.get("paid"), f.paid()));
+            }
+            if (f.transfers() != null) {
+                p.add(f.transfers() ? cb.isNotNull(root.get("transfer")) : cb.isNull(root.get("transfer")));
             }
             if (f.search() != null && !f.search().isBlank()) {
                 p.add(cb.like(cb.lower(root.get("description")), "%" + f.search().trim().toLowerCase() + "%"));
