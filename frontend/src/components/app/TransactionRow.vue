@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeftRight, Check, Repeat } from 'lucide-vue-next'
+import { ArrowLeftRight, Check, Receipt, Repeat } from 'lucide-vue-next'
 import type { Transaction } from '@/api/types'
 import CategoryIcon from './CategoryIcon.vue'
 import Money from './Money.vue'
@@ -37,6 +37,7 @@ const meta = computed(() => {
     parts.push(t.categoryName)
   }
   if (t.installmentNumber && t.installmentTotal) parts.push(`${t.installmentNumber}/${t.installmentTotal}`)
+  if (t.items?.length) parts.push(`${t.items.length} ${t.items.length === 1 ? 'item' : 'itens'}`)
   return parts.join(' · ')
 })
 
@@ -56,6 +57,7 @@ const toggleTitle = computed(() => props.transaction.paid
         <span class="flex items-center gap-1.5">
           <span :class="cn('truncate font-semibold', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
           <Repeat v-if="transaction.recurringBillId" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Recorrente" />
+          <Receipt v-if="transaction.receiptFile" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Com comprovante" />
         </span>
         <span class="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
           <span class="truncate">

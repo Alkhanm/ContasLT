@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, Repeat, Trash2 } from 'lucide-vue-next'
-import { transactionsApi, transfersApi } from '@/api'
-import type { TransactionInput, TransactionType } from '@/api/types'
+import { ArrowLeftRight, Camera, ChevronDown, Repeat, Trash2 } from 'lucide-vue-next'
+import { receiptsApi, transactionsApi, transfersApi } from '@/api'
+import type { TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -14,8 +14,10 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import FormField from './FormField.vue'
 import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
+import ReceiptItemsEditor from './ReceiptItemsEditor.vue'
 import TypeToggle, { type FormKind } from './TypeToggle.vue'
-import { todayIso } from '@/lib/format'
+import { dateShort, todayIso } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { useCatalogStore } from '@/stores/catalog'
 import { useUiStore } from '@/stores/ui'
@@ -34,8 +36,74 @@ const form = reactive({
   toAccountId: null as number | null,
   paid: false,
   notes: '',
+  merchant: '' as string,
+  receiptFile: null as string | null,
+  receiptAccessKey: null as string | null,
+  items: [] as TransactionItemInput[],
 })
 const errors = ref<Record<string, string>>({})
+const scanning = ref(false)
+const showItems = ref(false)
+const receiptUrl = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function revokeReceiptUrl() {
+  if (receiptUrl.value) URL.revokeObjectURL(receiptUrl.value)
+  receiptUrl.value = null
+}
+onBeforeUnmount(revokeReceiptUrl)
+
+async function loadReceiptImage(file: string | null) {
+  revokeReceiptUrl()
+  if (!file) return
+  try {
+    receiptUrl.value = await receiptsApi.imageUrl(file)
+  } catch {
+    receiptUrl.value = null
+  }
+}
+
+function pickReceipt() {
+  fileInput.value?.click()
+}
+
+function openReceipt() {
+  if (receiptUrl.value) window.open(receiptUrl.value, '_blank')
+}
+
+async function onReceiptPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  scanning.value = true
+  try {
+    const scan = await receiptsApi.scan(file)
+    form.kind = 'EXPENSE'
+    form.receiptFile = scan.receiptFile
+    form.receiptAccessKey = scan.accessKey
+    form.merchant = scan.merchant
+    if (scan.total != null) form.amount = scan.total
+    if (scan.merchant && !form.description.trim()) form.description = scan.merchant
+    if (scan.date) form.dueDate = scan.date
+    if (!form.categoryId && scan.suggestedCategoryId) form.categoryId = scan.suggestedCategoryId
+    form.items = scan.items.map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
+    showItems.value = form.items.length > 0
+    form.paid = true
+    loadReceiptImage(scan.receiptFile)
+    if (scan.duplicateOfTransactionId) {
+      notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
+    } else {
+      notifySuccess(scan.items.length
+        ? `Comprovante lido: ${scan.items.length} ${scan.items.length === 1 ? 'item' : 'itens'}`
+        : 'Comprovante lido. Confira os dados.')
+    }
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    scanning.value = false
+  }
+}
 const saving = ref(false)
 const confirmDelete = ref(false)
 const confirmUnlink = ref(false)
@@ -64,6 +132,12 @@ watch(() => ui.transactionFormOpen, async (open) => {
     form.paid = tx.paid
     form.notes = tx.notes ?? ''
     form.toAccountId = null
+    form.merchant = tx.merchant ?? ''
+    form.receiptFile = tx.receiptFile
+    form.receiptAccessKey = tx.receiptAccessKey
+    form.items = (tx.items ?? []).map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
+    showItems.value = form.items.length > 0
+    loadReceiptImage(tx.receiptFile)
   } else {
     const d = ui.formDefaults
     form.kind = d.type ?? 'EXPENSE'
@@ -75,6 +149,12 @@ watch(() => ui.transactionFormOpen, async (open) => {
     form.toAccountId = null
     form.paid = false
     form.notes = ''
+    form.merchant = ''
+    form.receiptFile = null
+    form.receiptAccessKey = null
+    form.items = []
+    showItems.value = false
+    revokeReceiptUrl()
   }
 })
 
@@ -125,6 +205,10 @@ async function save() {
         notes: form.notes.trim() || null,
         accountId: form.accountId!,
         categoryId: form.categoryId,
+        merchant: form.merchant.trim() || null,
+        receiptFile: form.receiptFile,
+        receiptAccessKey: form.receiptAccessKey,
+        items: form.items.filter((i) => i.description.trim()).map((i) => ({ ...i, description: i.description.trim(), total: i.total || 0 })),
       }
       if (editing.value) {
         await transactionsApi.update(editing.value.id, input)
@@ -191,6 +275,18 @@ async function unlink() {
         <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" />
       </FormField>
 
+      <div v-if="!isTransfer && !linked && form.kind === 'EXPENSE'" class="flex items-center gap-3">
+        <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onReceiptPicked">
+        <Button type="button" variant="outline" class="h-10" :disabled="scanning" @click="pickReceipt">
+          <Camera /> {{ scanning ? 'Lendo comprovante…' : form.receiptFile ? 'Trocar comprovante' : 'Ler comprovante' }}
+        </Button>
+        <button v-if="receiptUrl" type="button" class="group relative size-10 shrink-0 overflow-hidden rounded-md border" title="Abrir comprovante" @click="openReceipt">
+          <img :src="receiptUrl" alt="Comprovante" class="size-full object-cover">
+        </button>
+        <span v-else-if="scanning" class="text-xs text-muted-foreground">Pode levar alguns segundos.</span>
+        <span v-else class="text-xs text-muted-foreground">Foto do cupom: itens e valor preenchidos sozinhos.</span>
+      </div>
+
       <template v-if="isTransfer">
         <div class="grid grid-cols-2 gap-3">
           <FormField label="De" for="tx-account" :error="errors.accountId">
@@ -237,6 +333,16 @@ async function unlink() {
         <FormField v-if="!linked" label="Categoria" for="tx-category" :error="errors.categoryId">
           <CategorySelect id="tx-category" v-model="form.categoryId" :type="type" />
         </FormField>
+
+        <div v-if="type === 'EXPENSE'" class="rounded-lg border">
+          <button type="button" class="flex w-full items-center justify-between px-4 py-2.5 text-sm font-semibold" :aria-expanded="showItems" @click="showItems = !showItems">
+            <span>Itens<span v-if="form.items.length" class="ml-1 font-normal text-muted-foreground">({{ form.items.length }})</span></span>
+            <ChevronDown :class="cn('size-4 text-muted-foreground transition-transform', showItems && 'rotate-180')" />
+          </button>
+          <div v-if="showItems" class="border-t px-3 py-3">
+            <ReceiptItemsEditor v-model="form.items" :amount="form.amount" @use-sum="form.amount = $event" />
+          </div>
+        </div>
 
         <label class="flex items-center justify-between rounded-lg border px-4 py-3">
           <span class="text-sm font-semibold">{{ type === 'INCOME' ? 'Já recebido' : 'Já pago' }}</span>

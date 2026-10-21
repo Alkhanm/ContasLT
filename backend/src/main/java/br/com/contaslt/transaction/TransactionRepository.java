@@ -66,6 +66,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     boolean existsByAccountIdAndExternalId(Long accountId, String externalId);
 
+    /**
+     * Lançamentos criados à mão (não vindos de importação nem de transferência) num período: candidatos a serem
+     * vinculados a linhas de um extrato importado.
+     */
+    @EntityGraph(attributePaths = {"account", "category"})
+    @Query("select t from Transaction t where t.user.id = :userId and t.importBatch is null and t.externalId is null "
+        + "and t.transfer is null and t.recurringBill is null and t.dueDate between :from and :to")
+    List<Transaction> findImportCandidates(@Param("userId") Long userId, @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    Optional<Transaction> findFirstByUserIdAndReceiptAccessKey(Long userId, String receiptAccessKey);
+
+    @Modifying
+    @Query("update Transaction t set t.importBatch = null, t.externalId = null, t.linkedImport = false "
+        + "where t.importBatch.id = :batchId and t.linkedImport = true")
+    int detachLinkedFromImportBatch(@Param("batchId") Long batchId);
+
     /** Lançamentos ainda não vinculados a nenhuma transferência, candidatos ao cruzamento entre contas. */
     @EntityGraph(attributePaths = {"account", "category"})
     @Query("select t from Transaction t where t.user.id = :userId and t.transfer is null and t.dueDate >= :from order by t.dueDate asc, t.id asc")

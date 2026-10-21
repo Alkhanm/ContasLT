@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Trash2, Upload } from 'lucide-vue-next'
+import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Link2, Receipt, Trash2, Upload } from 'lucide-vue-next'
 import { importsApi, transfersApi } from '@/api'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
@@ -21,6 +21,8 @@ import { useUiStore } from '@/stores/ui'
 interface ReviewRow extends PreviewRow {
   selected: boolean
   categoryId: number | null
+  /** Quando há um lançamento manual parecido: vincular a ele (true) ou criar um novo (false). */
+  link: boolean
 }
 
 const catalog = useCatalogStore()
@@ -69,7 +71,9 @@ async function analyze() {
   busy.value = true
   try {
     preview.value = await importsApi.preview(accountId.value, file.value)
-    rows.value = preview.value.rows.map((r) => ({ ...r, selected: !r.duplicate, categoryId: r.suggestedCategoryId }))
+    rows.value = preview.value.rows.map((r) => ({
+      ...r, selected: !r.duplicate, categoryId: r.suggestedCategoryId, link: r.matchTransactionId !== null,
+    }))
     step.value = 'review'
   } catch (err) {
     notifyError(err)
@@ -79,6 +83,7 @@ async function analyze() {
 }
 
 const selected = computed(() => rows.value.filter((r) => r.selected))
+const linkedCount = computed(() => selected.value.filter((r) => r.link && r.matchTransactionId !== null).length)
 const selectedTotal = computed(() => selected.value.reduce((s, r) => s + (r.type === 'INCOME' ? r.amount : -r.amount), 0))
 const allSelected = computed(() => rows.value.length > 0 && rows.value.every((r) => r.selected))
 
@@ -94,13 +99,20 @@ async function confirm() {
       accountId: preview.value.accountId,
       source: preview.value.source,
       filename: preview.value.filename,
-      rows: selected.value.map((r) => ({
-        date: r.date, description: r.description, amount: r.amount, type: r.type,
-        categoryId: r.categoryId, externalId: r.externalId, paid: true, learnRule: r.categoryId !== null,
-      })),
+      rows: selected.value.map((r) => {
+        const linking = r.link && r.matchTransactionId !== null
+        return {
+          date: r.date, description: r.description, amount: r.amount, type: r.type,
+          categoryId: linking ? null : r.categoryId, externalId: r.externalId, paid: true,
+          learnRule: !linking && r.categoryId !== null,
+          linkTransactionId: linking ? r.matchTransactionId : null,
+        }
+      }),
     })
     step.value = 'done'
-    notifySuccess(`${result.value.imported} lançamentos importados`)
+    notifySuccess(result.value.linked
+      ? `${result.value.imported} importados, ${result.value.linked} ${result.value.linked === 1 ? 'vinculado' : 'vinculados'}`
+      : `${result.value.imported} lançamentos importados`)
     ui.dataChanged()
     catalog.reloadAccounts()
     loadHistory()
@@ -208,7 +220,7 @@ function reset() {
         <div>
           <p class="font-semibold">{{ preview.filename }}</p>
           <p class="text-sm text-muted-foreground">
-            {{ preview.total }} {{ preview.total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}<template v-if="preview.duplicates">, {{ preview.duplicates }} já importados (desmarcados)</template>
+            {{ preview.total }} {{ preview.total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}<template v-if="preview.duplicates">, {{ preview.duplicates }} já importados (desmarcados)</template><template v-if="linkedCount">, {{ linkedCount }} {{ linkedCount === 1 ? 'será vinculado a um lançamento seu' : 'serão vinculados a lançamentos seus' }}</template>
           </p>
         </div>
         <Button variant="ghost" size="sm" @click="reset">Trocar arquivo</Button>
@@ -238,9 +250,26 @@ function reset() {
                   <span v-else-if="r.suggestedCategoryId && r.categoryId === r.suggestedCategoryId" class="text-[11px] text-muted-foreground">Categoria sugerida</span>
                 </span>
                 <span class="mt-2 block md:mt-0 md:w-56 md:shrink-0">
-                  <CategorySelect v-model="r.categoryId" :type="r.type" size="sm" />
+                  <span v-if="r.link && r.matchTransactionId !== null" class="flex h-8 items-center gap-1.5 rounded-md border border-dashed px-2 text-xs text-muted-foreground">
+                    <Link2 class="size-3.5 shrink-0 text-primary" />
+                    <span class="truncate">{{ r.matchCategoryName ?? 'Mantém o lançamento' }}</span>
+                  </span>
+                  <CategorySelect v-else v-model="r.categoryId" :type="r.type" size="sm" />
                 </span>
               </div>
+            </div>
+            <div v-if="r.matchTransactionId !== null && r.selected" class="mt-2 ml-7 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-primary/5 px-3 py-2 text-xs">
+              <span class="flex min-w-0 flex-1 items-center gap-1.5">
+                <Receipt v-if="r.matchHasReceipt" class="size-3.5 shrink-0 text-primary" />
+                <Link2 v-else class="size-3.5 shrink-0 text-primary" />
+                <span class="truncate">
+                  Você já lançou <strong>{{ r.matchDescription }}</strong> em {{ r.matchDate ? dateNumeric(r.matchDate) : '' }}<template v-if="r.matchItemCount"> ({{ r.matchItemCount }} {{ r.matchItemCount === 1 ? 'item' : 'itens' }})</template>
+                </span>
+              </span>
+              <span role="radiogroup" class="inline-flex rounded-md bg-muted p-0.5">
+                <button type="button" role="radio" :aria-checked="r.link" :class="cn('rounded px-2 py-1 font-semibold', r.link ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="r.link = true">Vincular</button>
+                <button type="button" role="radio" :aria-checked="!r.link" :class="cn('rounded px-2 py-1 font-semibold', !r.link ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="r.link = false">Criar novo</button>
+              </span>
             </div>
           </li>
         </ul>
@@ -264,7 +293,7 @@ function reset() {
         </span>
         <h2 class="text-xl font-bold">Importação concluída</h2>
         <p class="text-sm text-muted-foreground">
-          {{ result.imported }} {{ result.imported === 1 ? 'lançamento importado' : 'lançamentos importados' }}<template v-if="result.skipped">, {{ result.skipped }} ignorados por já existirem</template>.
+          {{ result.imported }} {{ result.imported === 1 ? 'lançamento importado' : 'lançamentos importados' }}<template v-if="result.linked">, {{ result.linked }} {{ result.linked === 1 ? 'vinculado a um lançamento que você já tinha' : 'vinculados a lançamentos que você já tinha' }}</template><template v-if="result.skipped">, {{ result.skipped }} ignorados por já existirem</template>.
           As categorias escolhidas serão sugeridas nas próximas importações.
         </p>
         <RouterLink

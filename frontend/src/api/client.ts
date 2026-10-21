@@ -92,3 +92,13 @@ function safeJson(text: string): Record<string, unknown> | null {
     return null
   }
 }
+
+/** Baixa um recurso binário autenticado (ex.: imagem de comprovante) e devolve uma URL de objeto. */
+export async function apiObjectUrl(path: string): Promise<string> {
+  const headers: Record<string, string> = {}
+  const token = tokenStorage.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const response = await fetch(BASE + path, { headers })
+  if (!response.ok) throw new ApiError(response.status, 'Não foi possível carregar a imagem')
+  return URL.createObjectURL(await response.blob())
+}

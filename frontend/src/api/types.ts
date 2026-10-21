@@ -72,6 +72,44 @@ export interface Transaction {
   transferPeerTransactionId: number | null
   transferPeerAccountId: number | null
   transferPeerAccountName: string | null
+  /** Dados do comprovante (foto de cupom), quando houver. */
+  merchant: string | null
+  receiptFile: string | null
+  receiptAccessKey: string | null
+  importBatchId: number | null
+  items: TransactionItem[]
+}
+
+export interface TransactionItem {
+  id: number | null
+  description: string
+  quantity: number | null
+  unitPrice: number | null
+  total: number
+}
+
+export interface TransactionItemInput {
+  description: string
+  quantity: number | null
+  unitPrice: number | null
+  total: number
+}
+
+/** Resultado da leitura de um comprovante pelo modelo de visão. */
+export interface ReceiptScan {
+  receiptFile: string
+  merchant: string
+  date: string | null
+  total: number | null
+  itemsTotal: number
+  paymentMethod: string
+  accessKey: string | null
+  items: { description: string; quantity: number | null; unitPrice: number | null; total: number }[]
+  suggestedCategoryId: number | null
+  suggestedCategoryName: string | null
+  duplicateOfTransactionId: number | null
+  duplicateOfDescription: string | null
+  duplicateOfDate: string | null
 }
 
 export interface TransactionInput {
@@ -83,6 +121,10 @@ export interface TransactionInput {
   notes: string | null
   accountId: number
   categoryId: number | null
+  merchant?: string | null
+  receiptFile?: string | null
+  receiptAccessKey?: string | null
+  items?: TransactionItemInput[]
 }
 
 export interface Summary {
@@ -181,6 +223,15 @@ export interface PreviewRow {
   suggestedCategoryName: string | null
   suggestedCategoryColor: string | null
   suggestedCategoryIcon: string | null
+  /** Lançamento manual (ex.: de comprovante) que parece ser esta mesma compra. */
+  matchTransactionId: number | null
+  matchDescription: string | null
+  matchDate: string | null
+  matchAccountName: string | null
+  matchItemCount: number
+  matchHasReceipt: boolean
+  matchCategoryId: number | null
+  matchCategoryName: string | null
 }
 
 export interface ImportPreview {
@@ -201,6 +252,8 @@ export interface ConfirmRow {
   externalId: string | null
   paid: boolean
   learnRule: boolean
+  /** Vincula a linha a um lançamento existente em vez de criar um novo. */
+  linkTransactionId?: number | null
 }
 
 export interface ImportConfirmRequest {
@@ -214,6 +267,7 @@ export interface ImportResult {
   batchId: number
   imported: number
   skipped: number
+  linked: number
 }
 
 export interface ImportBatch {

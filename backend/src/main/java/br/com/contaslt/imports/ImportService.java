@@ -3,8 +3,11 @@ package br.com.contaslt.imports;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -87,6 +90,8 @@ public class ImportService {
             .map(t -> signature(t.getDueDate(), t.getAmount(), t.getDescription()))
             .collect(Collectors.toSet());
 
+        Map<ParsedRow, Transaction> matches = matchExisting(user, account, parsed, min, max);
+
         List<PreviewRow> rows = new ArrayList<>();
         int duplicates = 0;
         int index = 0;
@@ -97,11 +102,75 @@ public class ImportService {
                 duplicates++;
             }
             Optional<Category> suggestion = suggester.suggest(p.description(), p.type(), p.categoryHint());
+            Transaction m = duplicate ? null : matches.get(p);
+            Category mc = m == null ? null : m.getCategory();
             rows.add(new PreviewRow(index++, p.date(), p.description(), p.amount(), p.type(), p.externalId(), duplicate,
                 suggestion.map(Category::getId).orElse(null), suggestion.map(Category::getName).orElse(null),
-                suggestion.map(Category::getColor).orElse(null), suggestion.map(Category::getIcon).orElse(null)));
+                suggestion.map(Category::getColor).orElse(null), suggestion.map(Category::getIcon).orElse(null),
+                m == null ? null : m.getId(), m == null ? null : m.getDescription(), m == null ? null : m.getDueDate(),
+                m == null ? null : m.getAccount().getName(), m == null ? 0 : m.getItems().size(),
+                m != null && m.getReceiptFile() != null,
+                mc == null ? null : mc.getId(), mc == null ? null : mc.getName()));
         }
         return new ImportPreview(source, filename, account.getId(), rows.size(), duplicates, rows);
+    }
+
+    /** Janela de dias entre a data do extrato e a do lançamento manual para considerá-los a mesma compra. */
+    static final int MATCH_DAYS = 3;
+
+    /**
+     * Procura, para cada linha do extrato, um lançamento criado à mão (comprovante, lançamento manual) com o
+     * mesmo valor e tipo, até {@link #MATCH_DAYS} dias de distância. Cada lançamento casa com no máximo uma linha;
+     * em caso de empate vence a mesma conta, a data mais próxima e a descrição mais parecida.
+     */
+    private Map<ParsedRow, Transaction> matchExisting(User user, Account account, List<ParsedRow> parsed,
+            LocalDate min, LocalDate max) {
+        List<Transaction> candidates = transactions.findImportCandidates(user.getId(), min.minusDays(MATCH_DAYS),
+            max.plusDays(MATCH_DAYS));
+        record Pair(ParsedRow row, Transaction tx, int score) {
+        }
+        List<Pair> pairs = new ArrayList<>();
+        for (ParsedRow row : parsed) {
+            Set<String> rowTokens = tokens(row.description());
+            for (Transaction tx : candidates) {
+                if (tx.getType() != row.type() || tx.getAmount().compareTo(row.amount()) != 0) {
+                    continue;
+                }
+                int days = (int) Math.abs(ChronoUnit.DAYS.between(tx.getDueDate(), row.date()));
+                if (days > MATCH_DAYS) {
+                    continue;
+                }
+                int score = 100 - days * 15
+                    + (tx.getAccount().getId().equals(account.getId()) ? 30 : 0)
+                    + (tx.getReceiptFile() != null || !tx.getItems().isEmpty() ? 10 : 0);
+                Set<String> txTokens = tokens(tx.getDescription() + " " + (tx.getMerchant() == null ? "" : tx.getMerchant()));
+                if (rowTokens.stream().anyMatch(txTokens::contains)) {
+                    score += 25;
+                }
+                pairs.add(new Pair(row, tx, score));
+            }
+        }
+        pairs.sort(Comparator.comparingInt(Pair::score).reversed());
+        Map<ParsedRow, Transaction> result = new HashMap<>();
+        Set<Long> usedTx = new HashSet<>();
+        for (Pair pair : pairs) {
+            if (result.containsKey(pair.row()) || usedTx.contains(pair.tx().getId())) {
+                continue;
+            }
+            result.put(pair.row(), pair.tx());
+            usedTx.add(pair.tx().getId());
+        }
+        return result;
+    }
+
+    private static Set<String> tokens(String text) {
+        Set<String> out = new HashSet<>();
+        for (String t : TextNormalizer.normalize(text).split(" ")) {
+            if (t.length() >= 4) {
+                out.add(t);
+            }
+        }
+        return out;
     }
 
     @Transactional
@@ -115,13 +184,35 @@ public class ImportService {
         batch = batches.save(batch);
 
         Set<String> seenExternal = new HashSet<>();
+        Set<Long> linkedIds = new HashSet<>();
         int imported = 0;
         int skipped = 0;
+        int linked = 0;
         for (ConfirmRow row : req.rows()) {
             String externalId = row.externalId() == null || row.externalId().isBlank() ? null : row.externalId().trim();
             if (externalId != null && (!seenExternal.add(externalId)
                     || transactions.existsByAccountIdAndExternalId(account.getId(), externalId))) {
                 skipped++;
+                continue;
+            }
+            if (row.linkTransactionId() != null) {
+                Transaction existing = transactions.findByIdAndUserId(row.linkTransactionId(), user.getId())
+                    .orElseThrow(() -> new NotFoundException("Lançamento a vincular não encontrado"));
+                if (existing.getImportBatch() != null || !linkedIds.add(existing.getId())) {
+                    throw new BusinessException("O lançamento \"" + existing.getDescription()
+                        + "\" já está vinculado a uma importação");
+                }
+                if (existing.getType() != row.type() || existing.getAmount().compareTo(row.amount()) != 0) {
+                    throw new BusinessException("O lançamento \"" + existing.getDescription()
+                        + "\" não tem o mesmo valor da linha do extrato");
+                }
+                // O lançamento manual (com itens, comprovante, categoria) passa a representar a linha do extrato.
+                existing.setAccount(account);
+                existing.setImportBatch(batch);
+                existing.setExternalId(externalId);
+                existing.setLinkedImport(true);
+                existing.setPaid(true);
+                linked++;
                 continue;
             }
             Category category = categories.requireOrNull(user.getId(), row.categoryId());
@@ -147,8 +238,8 @@ public class ImportService {
                 learn(user, category, row.description());
             }
         }
-        batch.setImportedCount(imported);
-        return new ImportResult(batch.getId(), imported, skipped);
+        batch.setImportedCount(imported + linked);
+        return new ImportResult(batch.getId(), imported, skipped, linked);
     }
 
     @Transactional(readOnly = true)
@@ -164,6 +255,8 @@ public class ImportService {
     public int delete(Long userId, Long batchId) {
         ImportBatch batch = batches.findByIdAndUserId(batchId, userId)
             .orElseThrow(() -> new NotFoundException("Importação não encontrada"));
+        // Lançamentos que já existiam e só foram vinculados ao extrato continuam; apenas perdem o vínculo.
+        transactions.detachLinkedFromImportBatch(batch.getId());
         int removed = transactions.deleteByImportBatchId(batch.getId());
         batches.delete(batch);
         return removed;

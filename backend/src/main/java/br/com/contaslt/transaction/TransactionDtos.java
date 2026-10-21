@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import br.com.contaslt.common.TransactionType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -15,6 +16,16 @@ public final class TransactionDtos {
     private TransactionDtos() {
     }
 
+    public record ItemRequest(
+        @NotBlank(message = "Informe a descrição do item") @Size(max = 140) String description,
+        BigDecimal quantity,
+        BigDecimal unitPrice,
+        @NotNull(message = "Informe o valor do item") BigDecimal total) {
+    }
+
+    public record ItemDto(Long id, String description, BigDecimal quantity, BigDecimal unitPrice, BigDecimal total) {
+    }
+
     public record TransactionRequest(
         @NotBlank(message = "Informe a descrição") @Size(max = 140) String description,
         @NotNull(message = "Informe o valor") @Positive(message = "O valor deve ser maior que zero") BigDecimal amount,
@@ -23,7 +34,11 @@ public final class TransactionDtos {
         Boolean paid,
         @Size(max = 500) String notes,
         @NotNull(message = "Escolha a conta") Long accountId,
-        Long categoryId) {
+        Long categoryId,
+        @Size(max = 120) String merchant,
+        @Size(max = 80) String receiptFile,
+        @Size(max = 44) String receiptAccessKey,
+        @Valid @Size(max = 200) List<ItemRequest> items) {
     }
 
     public record PaidRequest(@NotNull Boolean paid) {
@@ -33,7 +48,8 @@ public final class TransactionDtos {
             LocalDate dueDate, boolean paid, String notes, Long accountId, String accountName,
             Long categoryId, String categoryName, String categoryColor, String categoryIcon,
             Long recurringBillId, Integer installmentNumber, Integer installmentTotal, String externalId,
-            Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName) {
+            Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName,
+            String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items) {
     }
 
     /**

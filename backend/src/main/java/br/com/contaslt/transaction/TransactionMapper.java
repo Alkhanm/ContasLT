@@ -4,6 +4,7 @@ import br.com.contaslt.account.Account;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.recurring.RecurringBill;
 import br.com.contaslt.transfer.Transfer;
+import br.com.contaslt.transaction.TransactionDtos.ItemDto;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
 
 public final class TransactionMapper {
@@ -24,6 +25,10 @@ public final class TransactionMapper {
             r == null ? null : r.getId(), t.getInstallmentNumber(),
             r == null ? null : r.getOccurrences(), t.getExternalId(),
             tr == null ? null : tr.getId(), peer == null ? null : peer.getId(),
-            peer == null ? null : peer.getAccount().getId(), peer == null ? null : peer.getAccount().getName());
+            peer == null ? null : peer.getAccount().getId(), peer == null ? null : peer.getAccount().getName(),
+            t.getMerchant(), t.getReceiptFile(), t.getReceiptAccessKey(),
+            t.getImportBatch() == null ? null : t.getImportBatch().getId(),
+            t.getItems().stream().map(i -> new ItemDto(i.getId(), i.getDescription(), i.getQuantity(), i.getUnitPrice(),
+                i.getTotal())).toList());
     }
 }

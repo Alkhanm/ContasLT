@@ -40,6 +40,10 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
 | `CORS_ORIGINS` | `http://localhost:[*],http://127.0.0.1:[*],http://192.168.*.*:[*],...` | Origens permitidas (padrões com `*` no host e `[*]` na porta) |
 | `PORT` | `8080` | Porta HTTP |
+| `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
+| `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
+| `OLLAMA_TIMEOUT` | `PT3M` | Tempo máximo de uma leitura |
+| `STORAGE_DIR` | `./data` | Pasta das imagens de comprovantes (`receipts/`) |
 
 No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
 
@@ -50,6 +54,10 @@ No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
 **Categorização na importação** usa três fontes, nesta ordem: nome de categoria vindo da planilha, regras "palavra-chave → categoria" do usuário, e o histórico de lançamentos já categorizados (descrição idêntica, depois por tokens). Ao confirmar uma importação, as categorias escolhidas viram regras automaticamente. Duplicados são detectados por `FITID` (OFX) ou por data + valor + descrição.
 
 **Transferências entre contas** são pares de lançamentos vinculados: a saída (despesa) na conta de origem e a entrada (receita) na de destino. Cada perna continua valendo para o saldo da própria conta, mas o par é ignorado em receitas, despesas, categorias e histórico, porque é só movimentação interna (ex.: PJ → PF). O cruzamento automático sugere pares com mesmo valor, contas diferentes e até 3 dias de distância, priorizando datas próximas e descrições do tipo "transferência/Pix/TED"; o usuário confirma, e pode também vincular manualmente, criar uma transferência direto no formulário ou desvincular. Excluir uma perna desfaz o vínculo e mantém a outra como lançamento comum.
+
+**Comprovantes (foto de cupom fiscal / NFC-e):** no formulário de despesa, "Ler comprovante" envia a foto para `POST /api/receipts/scan`. O backend reduz a imagem (JPEG, lado maior 1600px), guarda em `app.storage.dir/receipts/` e pede a um modelo de visão local via Ollama (`app.ollama.url`, `app.ollama.model`, padrão `qwen3.5:9b-q8_0`) um JSON com esquema fixo: estabelecimento, data, total, forma de pagamento, chave de acesso e itens (descrição, quantidade, unitário, total). O formulário é preenchido com isso, os itens ficam editáveis e são gravados junto com o lançamento (`transaction_items`). A chave de acesso evita lançar o mesmo cupom duas vezes.
+
+**Vínculo com o extrato:** ao importar um OFX/Excel, a prévia procura lançamentos manuais (não vindos de importação, transferência ou recorrência) com o mesmo valor e tipo até 3 dias de distância; a linha mostra "Você já lançou X" com a escolha *Vincular* (padrão) ou *Criar novo*. Vincular faz o lançamento existente, com itens, comprovante e categoria, representar a linha do extrato (recebe o `FITID` e entra no lote), sem duplicar. Excluir o lote apaga só os lançamentos criados por ele; os vinculados apenas perdem o vínculo.
 
 **Excel:** a primeira planilha é lida; a linha de cabeçalho é detectada por nomes como *Data*, *Descrição/Histórico*, *Valor* (opcionais: *Tipo*, *Categoria*). Sem cabeçalho, assume-se a ordem data | descrição | valor. Valores negativos ou coluna *Tipo* = débito viram despesas.
 
@@ -64,7 +72,7 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | GET/POST/PUT/DELETE | `/api/accounts` | Contas (saldo calculado dos lançamentos pagos) |
 | GET/POST/PUT/DELETE | `/api/categories` | Categorias (cor + ícone) |
 | GET | `/api/transactions?month=AAAA-MM&accountId&categoryId&type&paid&search&transfers` | Lançamentos do mês + resumo (`transfers=true` só transferências, `false` sem elas) |
-| POST/PUT/DELETE | `/api/transactions/{id}` | CRUD de lançamentos |
+| POST/PUT/DELETE | `/api/transactions/{id}` | CRUD de lançamentos (aceita `items`, `merchant`, `receiptFile`, `receiptAccessKey`) |
 | PATCH | `/api/transactions/{id}/paid` | Marcar pago/pendente |
 | GET/POST/PUT/DELETE | `/api/recurring-bills` | Contas recorrentes |
 | POST | `/api/imports/preview` (multipart `file`, `accountId`) | Lê o arquivo e sugere categorias |
@@ -75,6 +83,8 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/transfers/link` | Vincula uma despesa e uma receita existentes como transferência |
 | GET | `/api/transfers/suggestions` | Pares candidatos: mesmo valor, contas diferentes, até 3 dias de diferença |
 | DELETE | `/api/transfers/{id}` | Desvincula; os dois lançamentos continuam como despesa/receita comuns |
+| POST | `/api/receipts/scan` (multipart `file`) | Lê a foto do comprovante com o modelo de visão e devolve itens, total, data e sugestões |
+| GET | `/api/receipts/{file}` | Imagem do comprovante (só do próprio usuário) |
 | GET/POST/DELETE | `/api/category-rules` | Regras de categorização |
 | GET | `/api/dashboard?month=AAAA-MM` | Totais, categorias, vencidos, próximos 7 dias, 6 meses |
 

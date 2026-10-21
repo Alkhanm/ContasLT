@@ -19,6 +19,7 @@ import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.recurring.RecurringBillService;
+import br.com.contaslt.transaction.TransactionDtos.ItemRequest;
 import br.com.contaslt.transaction.TransactionDtos.Summary;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
 import br.com.contaslt.transaction.TransactionDtos.TransactionPage;
@@ -154,6 +155,29 @@ public class TransactionService {
         t.setNotes(req.notes());
         t.setAccount(account);
         t.setCategory(category);
+        t.setMerchant(blankToNull(req.merchant()));
+        t.setReceiptAccessKey(blankToNull(req.receiptAccessKey()));
+        String receiptFile = blankToNull(req.receiptFile());
+        if (receiptFile != null && !receiptFile.startsWith("u" + userId + "-")) {
+            throw new BusinessException("Comprovante inválido");
+        }
+        t.setReceiptFile(receiptFile);
+        List<TransactionItem> items = new ArrayList<>();
+        if (req.items() != null) {
+            for (ItemRequest i : req.items()) {
+                TransactionItem item = new TransactionItem();
+                item.setDescription(i.description().trim());
+                item.setQuantity(i.quantity());
+                item.setUnitPrice(i.unitPrice());
+                item.setTotal(i.total());
+                items.add(item);
+            }
+        }
+        t.replaceItems(items);
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static Specification<Transaction> spec(Long userId, Filter f) {

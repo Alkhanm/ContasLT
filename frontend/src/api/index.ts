@@ -1,7 +1,7 @@
-import { api } from './client'
+import { api, apiObjectUrl } from './client'
 import type {
   Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryRule, Dashboard,
-  ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, RecurringBill, RecurringBillInput,
+  ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, ReceiptScan, RecurringBill, RecurringBillInput,
   Transaction, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
 } from './types'
 
@@ -73,6 +73,16 @@ export const transfersApi = {
     api<Transfer>('/api/transfers/link', { method: 'POST', body: { transactionId, otherTransactionId } }),
   suggestions: () => api<{ items: TransferSuggestion[] }>('/api/transfers/suggestions'),
   unlink: (id: number) => api<void>(`/api/transfers/${id}`, { method: 'DELETE' }),
+}
+
+export const receiptsApi = {
+  /** Envia a foto do comprovante para leitura pelo modelo de visão. */
+  scan: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api<ReceiptScan>('/api/receipts/scan', { method: 'POST', body: form })
+  },
+  imageUrl: (file: string) => apiObjectUrl(`/api/receipts/${encodeURIComponent(file)}`),
 }
 
 export const rulesApi = {

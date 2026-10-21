@@ -18,9 +18,15 @@ public final class ImportDtos {
     private ImportDtos() {
     }
 
+    /**
+     * Linha lida do arquivo. Quando {@code matchTransactionId} vem preenchido, já existe um lançamento manual
+     * (ex.: criado a partir de um comprovante) que parece ser esta mesma compra; o usuário decide se vincula.
+     */
     public record PreviewRow(int index, LocalDate date, String description, BigDecimal amount, TransactionType type,
             String externalId, boolean duplicate, Long suggestedCategoryId, String suggestedCategoryName,
-            String suggestedCategoryColor, String suggestedCategoryIcon) {
+            String suggestedCategoryColor, String suggestedCategoryIcon,
+            Long matchTransactionId, String matchDescription, LocalDate matchDate, String matchAccountName,
+            int matchItemCount, boolean matchHasReceipt, Long matchCategoryId, String matchCategoryName) {
     }
 
     public record ImportPreview(ImportSource source, String filename, Long accountId, int total, int duplicates,
@@ -35,7 +41,9 @@ public final class ImportDtos {
         Long categoryId,
         @Size(max = 120) String externalId,
         Boolean paid,
-        Boolean learnRule) {
+        Boolean learnRule,
+        /** Em vez de criar um lançamento, vincula esta linha ao lançamento existente informado. */
+        Long linkTransactionId) {
     }
 
     public record ImportConfirmRequest(
@@ -45,7 +53,7 @@ public final class ImportDtos {
         @NotEmpty(message = "Selecione ao menos um lançamento") @Valid List<ConfirmRow> rows) {
     }
 
-    public record ImportResult(Long batchId, int imported, int skipped) {
+    public record ImportResult(Long batchId, int imported, int skipped, int linked) {
     }
 
     public record ImportBatchDto(Long id, ImportSource source, String filename, Long accountId, String accountName,

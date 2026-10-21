@@ -322,6 +322,107 @@ class ApiFlowTest {
     }
 
     @Test
+    @Order(9)
+    void receiptTransactionWithItemsIsLinkedByOfxImport() throws Exception {
+        // Lançamento feito a partir de um comprovante (itens + estabelecimento), um dia antes da linha do extrato.
+        MvcTestResult created = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of(
+                "description", "Padaria Pão Quente", "merchant", "Padaria Pão Quente", "amount", 52.30,
+                "type", "EXPENSE", "dueDate", "2026-10-06", "paid", true, "accountId", accountId,
+                "categoryId", expenseCategoryId, "receiptAccessKey", "1".repeat(44),
+                "items", List.of(
+                    Map.of("description", "Pão francês", "quantity", 10, "unitPrice", 0.80, "total", 8.00),
+                    Map.of("description", "Bolo de cenoura", "quantity", 1, "unitPrice", 44.30, "total", 44.30)))))
+            .exchange();
+        assertThat(created).hasStatus(201);
+        JsonNode tx = body(created);
+        long txId = tx.get("id").asLong();
+        assertThat(tx.get("items")).hasSize(2);
+        assertThat(tx.get("items").get(1).get("description").asString()).isEqualTo("Bolo de cenoura");
+
+        // Comprovante de outro usuário não pode ser anexado.
+        assertThat(mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("description", "x", "amount", 1, "type", "EXPENSE",
+                "dueDate", "2026-10-06", "accountId", accountId, "receiptFile", "u999-" + java.util.UUID.randomUUID() + ".jpg")))
+            .exchange()).hasStatus(422);
+
+        // A prévia do OFX reconhece a linha de 52,30 (07/10) como a mesma compra.
+        byte[] ofx = getClass().getResourceAsStream("/samples/extrato.ofx").readAllBytes();
+        MockMultipartFile file = new MockMultipartFile("file", "extrato.ofx", "application/x-ofx", ofx);
+        JsonNode pv = body(mvc.post().uri("/api/imports/preview").headers(auth()).multipart()
+            .file(file).param("accountId", String.valueOf(accountId)).exchange());
+        JsonNode matched = null;
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        for (JsonNode r : pv.get("rows")) {
+            Map<String, Object> row = new java.util.HashMap<>(Map.of(
+                "date", r.get("date").asString(), "description", r.get("description").asString(),
+                "amount", r.get("amount").decimalValue(), "type", r.get("type").asString(),
+                "externalId", r.get("externalId").asString()));
+            if (!r.get("matchTransactionId").isNull()) {
+                matched = r;
+                row.put("linkTransactionId", r.get("matchTransactionId").asLong());
+            } else {
+                row.put("categoryId", r.get("type").asString().equals("INCOME") ? incomeCategoryId : expenseCategoryId);
+            }
+            rows.add(row);
+        }
+        assertThat(matched).isNotNull();
+        assertThat(matched.get("amount").decimalValue()).isEqualByComparingTo("52.30");
+        assertThat(matched.get("matchTransactionId").asLong()).isEqualTo(txId);
+        assertThat(matched.get("matchItemCount").asInt()).isEqualTo(2);
+        assertThat(matched.get("duplicate").asBoolean()).isFalse();
+
+        MvcTestResult confirm = mvc.post().uri("/api/imports/confirm").headers(auth())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("accountId", accountId, "source", "OFX", "filename", "extrato.ofx", "rows", rows)))
+            .exchange();
+        assertThat(confirm).hasStatus(201);
+        assertThat(body(confirm).get("linked").asInt()).isEqualTo(1);
+        assertThat(body(confirm).get("imported").asInt()).isEqualTo(2);
+        long batchId = body(confirm).get("batchId").asLong();
+
+        JsonNode after = body(mvc.get().uri("/api/transactions/" + txId).headers(auth()).exchange());
+        assertThat(after.get("externalId").asString()).isEqualTo(matched.get("externalId").asString());
+        assertThat(after.get("importBatchId").asLong()).isEqualTo(batchId);
+        assertThat(after.get("items")).hasSize(2);
+        assertThat(after.get("description").asString()).isEqualTo("Padaria Pão Quente");
+
+        // Importar o mesmo extrato de novo: a linha agora é duplicada (FITID já usado), não sugere vínculo.
+        JsonNode again = body(mvc.post().uri("/api/imports/preview").headers(auth()).multipart()
+            .file(file).param("accountId", String.valueOf(accountId)).exchange());
+        assertThat(again.get("duplicates").asInt()).isEqualTo(3);
+
+        // Excluir a importação apaga só os 2 criados por ela; o lançamento vinculado fica, sem o vínculo.
+        JsonNode del = body(mvc.delete().uri("/api/imports/" + batchId).headers(auth()).exchange());
+        assertThat(del.get("removed").asInt()).isEqualTo(2);
+        JsonNode kept = body(mvc.get().uri("/api/transactions/" + txId).headers(auth()).exchange());
+        assertThat(kept.get("importBatchId").isNull()).isTrue();
+        assertThat(kept.get("externalId").isNull()).isTrue();
+        assertThat(kept.get("items")).hasSize(2);
+
+        // Leitura de comprovante com Ollama fora do ar responde 422 com mensagem clara; imagem alheia é 404.
+        BufferedImageHolder.write();
+        MockMultipartFile photo = new MockMultipartFile("file", "cupom.png", "image/png", BufferedImageHolder.PNG);
+        MvcTestResult scan = mvc.post().uri("/api/receipts/scan").headers(auth()).multipart().file(photo).exchange();
+        assertThat(scan).hasStatus(422);
+        assertThat(body(scan).get("detail").asString()).contains("Ollama");
+        assertThat(mvc.get().uri("/api/receipts/u999-" + java.util.UUID.randomUUID() + ".jpg").headers(auth()).exchange())
+            .hasStatus(404);
+    }
+
+    /** PNG mínimo gerado em memória para o teste de upload. */
+    static final class BufferedImageHolder {
+        static byte[] PNG;
+
+        static void write() throws java.io.IOException {
+            var img = new java.awt.image.BufferedImage(20, 20, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            var out = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(img, "png", out);
+            PNG = out.toByteArray();
+        }
+    }
+
+    @Test
     @Order(7)
     void validationErrorsAreProblemDetails() {
         MvcTestResult res = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
