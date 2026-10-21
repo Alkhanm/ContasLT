@@ -92,6 +92,13 @@ class ApiFlowTest {
         assertThat(res).hasStatusOk();
         assertThat(res.getResponse().getHeader("Access-Control-Allow-Origin")).isEqualTo("http://localhost:4173");
 
+        // Faixa do Tailscale (100.64.0.0/10) também é aceita.
+        MvcTestResult tailscale = mvc.options().uri("/api/accounts")
+            .header("Origin", "http://100.111.13.10:5173")
+            .header("Access-Control-Request-Method", "GET")
+            .exchange();
+        assertThat(tailscale).hasStatusOk();
+
         MvcTestResult denied = mvc.options().uri("/api/accounts")
             .header("Origin", "http://evil.example.com")
             .header("Access-Control-Request-Method", "GET")

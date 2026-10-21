@@ -43,11 +43,15 @@ export default defineConfig({
   },
   server: {
     host: true,
+    // Nomes do Tailscale (MagicDNS); endereços IP já são aceitos por padrão.
+    allowedHosts: ['.ts.net'],
     port: 5173,
     proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: true } },
   },
   preview: {
     host: true,
+    // Nomes do Tailscale (MagicDNS); endereços IP já são aceitos por padrão.
+    allowedHosts: ['.ts.net'],
     proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: true } },
   },
 })

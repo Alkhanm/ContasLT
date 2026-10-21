@@ -38,7 +38,7 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `DB_USER` / `DB_PASSWORD` | `contaslt` / `contaslt` | Credenciais do banco |
 | `JWT_SECRET` | chave de desenvolvimento | **Troque em produção** (mínimo 32 bytes) |
 | `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
-| `CORS_ORIGINS` | `http://localhost:[*],http://127.0.0.1:[*],http://192.168.*.*:[*],...` | Origens permitidas (padrões com `*` no host e `[*]` na porta) |
+| `CORS_ORIGINS` | `http://localhost:[*]`, redes locais (`192.168.*`, `10.*`, `172.*`) e Tailscale (`100.*`), qualquer porta | Origens permitidas (padrões com `*` no host e `[*]` na porta) |
 | `PORT` | `8080` | Porta HTTP |
 | `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
 | `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
