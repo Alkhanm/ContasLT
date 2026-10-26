@@ -16,6 +16,14 @@ Pré-requisitos: Java 21, Node 20+, Docker.
 
 O script sobe o banco (Docker), o backend (porta 8080) e o frontend (porta 5173, com proxy `/api` → 8080), instala as dependências do frontend se faltarem e encerra backend e frontend no Ctrl+C. Opções: `--backend-only`, `--frontend-only`, `--no-db` (banco já rodando) e `--install` (força `npm install`).
 
+### Modo produção (uso no celular)
+
+```bash
+./prod.sh
+```
+
+Faz o build do frontend e do jar, sobe o banco e roda tudo numa porta só: o backend serve o frontend compilado em http://localhost:8080 (o script lista também os endereços da rede local e do Tailscale). Use este modo para acessar pelo celular: o servidor de desenvolvimento do Vite recarrega a página ao voltar da câmera (o WebSocket do HMR cai quando o navegador vai para segundo plano), o que fecha o formulário no meio da leitura do comprovante. Opções: `--skip-build` (reaproveita build e jar) e `--no-db`. Variáveis como `JWT_SECRET` ou `OLLAMA_MODEL` podem ficar num `.env` na raiz.
+
 Para subir cada parte separadamente:
 
 ```bash
@@ -43,6 +51,7 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
 | `CORS_ORIGINS` | `http://localhost:[*]`, redes locais (`192.168.*`, `10.*`, `172.*`) e Tailscale (`100.*`), qualquer porta | Origens permitidas (padrões com `*` no host e `[*]` na porta) |
 | `PORT` | `8080` | Porta HTTP |
+| `SPA_DIR` | vazio | Pasta com o build do frontend (`frontend/dist`); quando informada, o backend serve o frontend e devolve `index.html` para as rotas da aplicação |
 | `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
 | `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
 | `OLLAMA_TIMEOUT` | `PT3M` | Tempo máximo de uma leitura |

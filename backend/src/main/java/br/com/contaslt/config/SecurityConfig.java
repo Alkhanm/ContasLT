@@ -40,7 +40,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/register", "/api/auth/login", "/actuator/health").permitAll()
-                .anyRequest().authenticated())
+                .requestMatchers("/api/**", "/actuator/**").authenticated()
+                // Fora da API só existe o frontend estático (ver SpaConfig).
+                .anyRequest().permitAll())
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(jwtDecoder)));
         return http.build();
     }
