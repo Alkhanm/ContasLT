@@ -3,6 +3,7 @@ node_modules/
 dist/
 target/
 # Ambiente
+data/
 .env
 .env.local
 *.log

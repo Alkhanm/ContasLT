@@ -11,14 +11,17 @@ Controle financeiro pessoal no estilo Organizze, com foco em **contas recorrente
 Pré-requisitos: Java 21, Node 20+, Docker.
 
 ```bash
-# 1. Banco de dados
-docker compose up -d db
+./dev.sh
+```
 
-# 2. Backend (porta 8080)
-cd backend && ./mvnw spring-boot:run
+O script sobe o banco (Docker), o backend (porta 8080) e o frontend (porta 5173, com proxy `/api` → 8080), instala as dependências do frontend se faltarem e encerra backend e frontend no Ctrl+C. Opções: `--backend-only`, `--frontend-only`, `--no-db` (banco já rodando) e `--install` (força `npm install`).
 
-# 3. Frontend (porta 5173, com proxy /api -> 8080)
-cd frontend && npm install && npm run dev
+Para subir cada parte separadamente:
+
+```bash
+docker compose up -d db                 # 1. Banco de dados
+cd backend && ./mvnw spring-boot:run    # 2. Backend (porta 8080)
+cd frontend && npm install && npm run dev   # 3. Frontend (porta 5173)
 ```
 
 Abra http://localhost:5173, crie uma conta e pronto. O cadastro já cria categorias padrão e uma conta "Conta principal".
