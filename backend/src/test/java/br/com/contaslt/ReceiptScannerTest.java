@@ -24,7 +24,7 @@ class ReceiptScannerTest {
         parse.setAccessible(true);
         ReceiptScan scan = (ReceiptScan) parse.invoke(scanner, """
             {"merchant":"ASSAI ATACADISTA","date":"17/10/2026","total":"177,60","paymentMethod":"Cartao de Debito",
-             "accessKey":"2226 1006 0572 2303 5115 6500 1000 4521 7912 3456 7890",
+             "accessKey":"5226 1037 2605 0200 0161 6501 1000 6984 7919 3360 1663",
              "items":[{"description":"LEITE 1L","quantity":6,"unitPrice":4.79,"total":28.74},
                       {"description":"","quantity":1,"unitPrice":1,"total":1},
                       {"description":"BANANA KG","quantity":"1,235","unitPrice":"6,99","total":"8,63"}]}

@@ -29,8 +29,9 @@ public class ReceiptController {
 
     /** Envia a foto do comprovante; devolve os dados lidos e o nome do arquivo para anexar ao lançamento. */
     @PostMapping("/scan")
-    public ReceiptScanResponse scan(@RequestParam("file") MultipartFile file) {
-        return receipts.scan(currentUser.get(), file);
+    public ReceiptScanResponse scan(@RequestParam("file") MultipartFile file,
+            @RequestParam(value = "ignoreTransactionId", required = false) Long ignoreTransactionId) {
+        return receipts.scan(currentUser.get(), file, ignoreTransactionId);
     }
 
     @GetMapping(value = "/{file}", produces = MediaType.IMAGE_JPEG_VALUE)

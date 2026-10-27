@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, Camera, ChevronDown, Repeat, Trash2 } from 'lucide-vue-next'
+import { ArrowLeftRight, Camera, ChevronDown, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
-import type { TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
+import type { ReceiptScan, TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -46,6 +46,8 @@ const scanning = ref(false)
 const showItems = ref(false)
 const receiptUrl = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+/** Lançamento já existente que parece ser deste mesmo comprovante (chave de acesso, ou data e valor iguais). */
+const duplicate = ref<Pick<ReceiptScan, 'duplicateOfTransactionId' | 'duplicateOfDescription' | 'duplicateOfDate'> | null>(null)
 
 function revokeReceiptUrl() {
   if (receiptUrl.value) URL.revokeObjectURL(receiptUrl.value)
@@ -77,8 +79,9 @@ async function onReceiptPicked(e: Event) {
   input.value = ''
   if (!file) return
   scanning.value = true
+  duplicate.value = null
   try {
-    const scan = await receiptsApi.scan(file)
+    const scan = await receiptsApi.scan(file, editing.value?.id)
     form.kind = 'EXPENSE'
     form.receiptFile = scan.receiptFile
     form.receiptAccessKey = scan.accessKey
@@ -92,6 +95,7 @@ async function onReceiptPicked(e: Event) {
     form.paid = true
     loadReceiptImage(scan.receiptFile)
     if (scan.duplicateOfTransactionId) {
+      duplicate.value = scan
       notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
     } else {
       notifySuccess(scan.items.length
@@ -121,6 +125,7 @@ watch(() => ui.transactionFormOpen, async (open) => {
   if (!open) return
   await catalog.load()
   errors.value = {}
+  duplicate.value = null
   const tx = editing.value
   if (tx) {
     form.kind = tx.type
@@ -286,6 +291,14 @@ async function unlink() {
         <span v-else-if="scanning" class="text-xs text-muted-foreground">Pode levar alguns segundos.</span>
         <span v-else class="text-xs text-muted-foreground">Foto do cupom: itens e valor preenchidos sozinhos.</span>
       </div>
+
+      <p v-if="duplicate && !isTransfer" class="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs" role="alert">
+        <TriangleAlert class="mt-0.5 size-3.5 shrink-0 text-warning" />
+        <span class="flex-1">
+          <strong>Possível duplicata.</strong> Este comprovante parece já lançado{{ duplicate.duplicateOfDate ? ` em ${dateShort(duplicate.duplicateOfDate)}` : '' }}:
+          <span class="font-medium">{{ duplicate.duplicateOfDescription }}</span>. Confira antes de salvar.
+        </span>
+      </p>
 
       <template v-if="isTransfer">
         <div class="grid grid-cols-2 gap-3">

@@ -1,7 +1,10 @@
 package br.com.contaslt.receipt;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -41,15 +44,19 @@ public class ReceiptService {
 
     /** Guarda a imagem, lê com o modelo e devolve os dados prontos para o formulário de lançamento. */
     @Transactional(readOnly = true)
-    public ReceiptScanResponse scan(User user, MultipartFile file) {
+    public ReceiptScanResponse scan(User user, MultipartFile file, Long ignoreTransactionId) {
         byte[] original;
         try {
             original = file.getBytes();
         } catch (IOException e) {
             throw new BusinessException("Não foi possível ler a imagem enviada");
         }
-        ReceiptStorage.Stored stored = storage.store(user.getId(), original);
+        BufferedImage image = ReceiptStorage.decode(original);
+        ReceiptStorage.Stored stored = storage.store(user.getId(), image);
         ReceiptScan scan = scanner.scan(stored.bytes());
+        // O QR code é a fonte confiável da chave; o modelo de visão costuma pular ou inventar os 44 dígitos.
+        String accessKey = AccessKey.decodeQr(image).orElse(scan.accessKey());
+        LocalDate date = AccessKey.fixYear(scan.date(), accessKey);
 
         BigDecimal itemsTotal = scan.items().stream().map(ScannedItem::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = scan.total() != null && scan.total().signum() > 0 ? scan.total()
@@ -66,14 +73,48 @@ public class ReceiptService {
             category = suggester.suggest(itemsText, TransactionType.EXPENSE, null);
         }
 
-        Optional<Transaction> duplicate = scan.accessKey() == null ? Optional.empty()
-            : transactions.findFirstByUserIdAndReceiptAccessKey(user.getId(), scan.accessKey());
+        Optional<Transaction> duplicate = accessKey == null ? Optional.empty()
+            : transactions.findFirstByUserIdAndReceiptAccessKey(user.getId(), accessKey);
+        if (duplicate.isEmpty() && date != null && total != null) {
+            // Sem chave legível, mesma data e mesmo valor já lançados valem como provável duplicata;
+            // entre vários, prefere o do mesmo estabelecimento.
+            List<Transaction> same = transactions.findByUserIdAndTypeAndDueDateAndAmount(user.getId(), TransactionType.EXPENSE, date, total)
+                .stream().filter(t -> ignoreTransactionId == null || !t.getId().equals(ignoreTransactionId)).toList();
+            duplicate = same.stream().max(java.util.Comparator.comparingInt((Transaction t) -> similarity(t, scan)).thenComparing(Transaction::getId, java.util.Comparator.reverseOrder()));
+        }
+        if (ignoreTransactionId != null) {
+            duplicate = duplicate.filter(t -> !t.getId().equals(ignoreTransactionId));
+        }
 
-        return new ReceiptScanResponse(stored.name(), scan.merchant(), scan.date(), total, itemsTotal,
-            scan.paymentMethod(), scan.accessKey(), scan.items(),
+        return new ReceiptScanResponse(stored.name(), scan.merchant(), date, total, itemsTotal,
+            scan.paymentMethod(), accessKey, scan.items(),
             category.map(Category::getId).orElse(null), category.map(Category::getName).orElse(null),
             duplicate.map(Transaction::getId).orElse(null), duplicate.map(Transaction::getDescription).orElse(null),
             duplicate.map(Transaction::getDueDate).orElse(null));
+    }
+
+    /** Quanto um lançamento se parece com o comprovante lido: mesmo estabelecimento pesa 2, mesmos itens pesa 1. */
+    private static int similarity(Transaction t, ReceiptScan scan) {
+        return (sameMerchant(t, scan.merchant()) ? 2 : 0) + (sameItems(t, scan) ? 1 : 0);
+    }
+
+    /** Mesmos itens: mesma quantidade de linhas e mesmos valores (ordem indiferente). */
+    private static boolean sameItems(Transaction t, ReceiptScan scan) {
+        if (scan.items().isEmpty() || t.getItems().size() != scan.items().size()) {
+            return false;
+        }
+        List<BigDecimal> a = t.getItems().stream().map(i -> i.getTotal().setScale(2, java.math.RoundingMode.HALF_UP)).sorted().toList();
+        List<BigDecimal> b = scan.items().stream().map(i -> i.total().setScale(2, java.math.RoundingMode.HALF_UP)).sorted().toList();
+        return a.equals(b);
+    }
+
+    private static boolean sameMerchant(Transaction t, String merchant) {
+        if (merchant == null || merchant.isBlank()) {
+            return false;
+        }
+        String a = merchant.trim().toLowerCase();
+        return (t.getMerchant() != null && t.getMerchant().trim().toLowerCase().equals(a))
+            || (t.getDescription() != null && t.getDescription().trim().toLowerCase().equals(a));
     }
 
     public Optional<byte[]> image(Long userId, String file) {

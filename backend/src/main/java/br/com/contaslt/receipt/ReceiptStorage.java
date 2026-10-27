@@ -37,8 +37,8 @@ public class ReceiptStorage {
     }
 
     /** Normaliza (JPEG, no máximo {@link #MAX_SIDE}px) e grava. Retorna o nome do arquivo, prefixado pelo usuário. */
-    public Stored store(Long userId, byte[] original) {
-        byte[] jpeg = normalize(original);
+    public Stored store(Long userId, BufferedImage image) {
+        byte[] jpeg = toJpeg(image);
         String name = "u" + userId + "-" + UUID.randomUUID() + ".jpg";
         try {
             Files.createDirectories(dir);
@@ -66,6 +66,11 @@ public class ReceiptStorage {
     }
 
     static byte[] normalize(byte[] original) {
+        return toJpeg(decode(original));
+    }
+
+    /** Decodifica a foto enviada já na posição de leitura, em tamanho original. */
+    public static BufferedImage decode(byte[] original) {
         BufferedImage img;
         try {
             img = ImageIO.read(new ByteArrayInputStream(original));
@@ -77,7 +82,11 @@ public class ReceiptStorage {
         }
         // Celulares gravam o quadro do sensor deitado e anotam a rotação no EXIF; o ImageIO ignora a anotação.
         // Sem isto a foto fica de lado e o modelo lê datas e valores errados.
-        img = applyOrientation(img, exifOrientation(original));
+        return applyOrientation(img, exifOrientation(original));
+    }
+
+    /** Reduz a no máximo {@link #MAX_SIDE}px e codifica em JPEG. */
+    static byte[] toJpeg(BufferedImage img) {
         int w = img.getWidth();
         int h = img.getHeight();
         double scale = Math.min(1.0, (double) MAX_SIDE / Math.max(w, h));

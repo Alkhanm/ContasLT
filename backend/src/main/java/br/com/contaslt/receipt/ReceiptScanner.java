@@ -39,7 +39,7 @@ public class ReceiptScanner {
         Esta imagem é um comprovante de compra brasileiro (cupom fiscal, NFC-e, DANFE, recibo ou comprovante de pagamento).
         Extraia em JSON:
         - merchant: nome fantasia do estabelecimento (curto, sem CNPJ nem endereço);
-        - date: data de emissão/pagamento no formato AAAA-MM-DD;
+        - date: data de emissão/pagamento no formato AAAA-MM-DD, com o ano de quatro dígitos exatamente como impresso;
         - total: valor efetivamente pago, número com ponto decimal;
         - paymentMethod: forma de pagamento, se aparecer (ex.: "Cartão de débito", "Pix", "Dinheiro");
         - accessKey: chave de acesso de 44 dígitos sem espaços, se aparecer; senão string vazia;
@@ -113,7 +113,7 @@ public class ReceiptScanner {
         }
         String key = text(n, "accessKey").replaceAll("\\D", "");
         return new ReceiptScan(text(n, "merchant"), date(text(n, "date")), number(n, "total"),
-            text(n, "paymentMethod"), key.length() == 44 ? key : null, items);
+            text(n, "paymentMethod"), AccessKey.isValid(key) ? key : null, items);
     }
 
     private static String text(JsonNode n, String field) {

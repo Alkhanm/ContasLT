@@ -41,24 +41,34 @@ function onQuantity(index: number, e: Event) {
 <template>
   <div class="space-y-2">
     <ul v-if="modelValue.length" class="divide-y rounded-lg border">
-      <li v-for="(item, i) in modelValue" :key="i" class="flex items-center gap-2 px-2 py-1.5">
-        <Input
-          :model-value="item.description" class="h-8 min-w-0 flex-1 text-sm" placeholder="Produto" maxlength="140"
-          :aria-label="`Item ${i + 1}`" @update:model-value="update(i, { description: String($event) })"
-        />
-        <input
-          :value="item.quantity ?? ''" inputmode="decimal" :aria-label="`Quantidade do item ${i + 1}`" placeholder="qtd"
-          class="h-8 w-14 rounded-md border bg-transparent px-2 text-right text-sm tabular outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          @change="onQuantity(i, $event)"
-        >
-        <input
-          :value="moneyPlain(item.total)" inputmode="decimal" :aria-label="`Valor do item ${i + 1}`"
-          class="h-8 w-24 rounded-md border bg-transparent px-2 text-right text-sm tabular outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          @change="onTotal(i, $event)"
-        >
-        <button type="button" class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive" :aria-label="`Remover item ${i + 1}`" @click="remove(i)">
-          <X class="size-4" />
-        </button>
+      <li v-for="(item, i) in modelValue" :key="i" class="space-y-1.5 px-2 py-2">
+        <div class="flex items-center gap-1">
+          <Input
+            :model-value="item.description" class="h-8 min-w-0 flex-1 text-sm" placeholder="Produto" maxlength="140"
+            :aria-label="`Item ${i + 1}`" @update:model-value="update(i, { description: String($event) })"
+          />
+          <button type="button" class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive" :aria-label="`Remover item ${i + 1}`" @click="remove(i)">
+            <X class="size-4" />
+          </button>
+        </div>
+        <div class="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+          <label class="flex items-center gap-1.5">
+            qtd
+            <input
+              :value="item.quantity ?? ''" inputmode="decimal" :aria-label="`Quantidade do item ${i + 1}`"
+              class="h-7 w-14 rounded-md border bg-transparent px-2 text-right text-sm text-foreground tabular outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              @change="onQuantity(i, $event)"
+            >
+          </label>
+          <label class="flex items-center gap-1.5">
+            R$
+            <input
+              :value="moneyPlain(item.total)" inputmode="decimal" :aria-label="`Valor do item ${i + 1}`"
+              class="h-7 w-24 rounded-md border bg-transparent px-2 text-right text-sm text-foreground tabular outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              @change="onTotal(i, $event)"
+            >
+          </label>
+        </div>
       </li>
     </ul>
 

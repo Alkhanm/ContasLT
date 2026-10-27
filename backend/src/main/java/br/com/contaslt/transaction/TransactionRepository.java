@@ -1,5 +1,7 @@
 package br.com.contaslt.transaction;
 
+import br.com.contaslt.common.TransactionType;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -77,6 +79,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("to") LocalDate to);
 
     Optional<Transaction> findFirstByUserIdAndReceiptAccessKey(Long userId, String receiptAccessKey);
+
+    /** Candidatos a duplicata de um comprovante sem chave legível: mesma data e mesmo valor. */
+    List<Transaction> findByUserIdAndTypeAndDueDateAndAmount(Long userId, TransactionType type, LocalDate dueDate, BigDecimal amount);
 
     @Modifying
     @Query("update Transaction t set t.importBatch = null, t.externalId = null, t.linkedImport = false "

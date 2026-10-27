@@ -77,9 +77,10 @@ export const transfersApi = {
 
 export const receiptsApi = {
   /** Envia a foto do comprovante para leitura pelo modelo de visão. */
-  scan: (file: File) => {
+  scan: (file: File, ignoreTransactionId?: number | null) => {
     const form = new FormData()
     form.append('file', file)
+    if (ignoreTransactionId != null) form.append('ignoreTransactionId', String(ignoreTransactionId))
     return api<ReceiptScan>('/api/receipts/scan', { method: 'POST', body: form })
   },
   imageUrl: (file: string) => apiObjectUrl(`/api/receipts/${encodeURIComponent(file)}`),
