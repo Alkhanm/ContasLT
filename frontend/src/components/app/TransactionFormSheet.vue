@@ -92,15 +92,17 @@ async function onReceiptPicked(e: Event) {
     if (!form.categoryId && scan.suggestedCategoryId) form.categoryId = scan.suggestedCategoryId
     form.items = scan.items.map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
     showItems.value = form.items.length > 0
-    form.paid = true
+    form.paid = scan.paid
     loadReceiptImage(scan.receiptFile)
     if (scan.duplicateOfTransactionId) {
       duplicate.value = scan
       notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
     } else {
-      notifySuccess(scan.items.length
-        ? `Comprovante lido: ${scan.items.length} ${scan.items.length === 1 ? 'item' : 'itens'}`
-        : 'Comprovante lido. Confira os dados.')
+      notifySuccess(!scan.paid && scan.date
+        ? `Fatura lida: vence em ${dateShort(scan.date)}. Confira os dados.`
+        : scan.items.length
+          ? `Comprovante lido: ${scan.items.length} ${scan.items.length === 1 ? 'item' : 'itens'}`
+          : 'Comprovante lido. Confira os dados.')
     }
   } catch (err) {
     notifyError(err)

@@ -56,7 +56,9 @@ public class ReceiptService {
         ReceiptScan scan = scanner.scan(stored.bytes());
         // O QR code é a fonte confiável da chave; o modelo de visão costuma pular ou inventar os 44 dígitos.
         String accessKey = AccessKey.decodeQr(image).orElse(scan.accessKey());
-        LocalDate date = AccessKey.fixYear(scan.date(), accessKey);
+        // Data do lançamento: vencimento quando a fatura tem um; senão a emissão/compra; senão o dia da leitura.
+        LocalDate date = scan.dueDate() != null ? scan.dueDate()
+            : scan.issueDate() != null ? AccessKey.fixYear(scan.issueDate(), accessKey) : LocalDate.now();
 
         BigDecimal itemsTotal = scan.items().stream().map(ScannedItem::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = scan.total() != null && scan.total().signum() > 0 ? scan.total()
@@ -86,7 +88,7 @@ public class ReceiptService {
             duplicate = duplicate.filter(t -> !t.getId().equals(ignoreTransactionId));
         }
 
-        return new ReceiptScanResponse(stored.name(), scan.merchant(), date, total, itemsTotal,
+        return new ReceiptScanResponse(stored.name(), scan.merchant(), date, scan.paid(), total, itemsTotal,
             scan.paymentMethod(), accessKey, scan.items(),
             category.map(Category::getId).orElse(null), category.map(Category::getName).orElse(null),
             duplicate.map(Transaction::getId).orElse(null), duplicate.map(Transaction::getDescription).orElse(null),

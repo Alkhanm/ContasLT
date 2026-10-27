@@ -99,7 +99,10 @@ export interface TransactionItemInput {
 export interface ReceiptScan {
   receiptFile: string
   merchant: string
+  /** Vencimento, se for fatura; senão emissão; senão o dia da leitura. */
   date: string | null
+  /** false quando é uma fatura ou boleto ainda a pagar. */
+  paid: boolean
   total: number | null
   itemsTotal: number
   paymentMethod: string

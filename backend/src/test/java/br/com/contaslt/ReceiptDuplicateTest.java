@@ -52,7 +52,7 @@ class ReceiptDuplicateTest {
         token = body(reg).get("token").asString();
         accountId = body(mvc.get().uri("/api/accounts").headers(auth()).exchange()).get(0).get("id").asLong();
 
-        when(scanner.scan(any())).thenReturn(new ReceiptScan("SUPERMERCADO ALMEIDA", LocalDate.of(2026, 10, 25),
+        when(scanner.scan(any())).thenReturn(new ReceiptScan("SUPERMERCADO ALMEIDA", LocalDate.of(2026, 10, 25), null, true,
             new BigDecimal("31.97"), "Pix", null,
             List.of(new ScannedItem("BATATA LAYS CLASSICA 62G", new BigDecimal("2"), new BigDecimal("10.99"), new BigDecimal("21.98")),
                 new ScannedItem("ENERGETICO EXTRA POWER ZE", BigDecimal.ONE, new BigDecimal("9.99"), new BigDecimal("9.99")))));
@@ -63,6 +63,7 @@ class ReceiptDuplicateTest {
         JsonNode first = body(scan(null));
         assertThat(first.get("duplicateOfTransactionId").isNull()).isTrue();
         assertThat(first.get("date").asString()).isEqualTo("2026-10-25");
+        assertThat(first.get("paid").asBoolean()).isTrue();
 
         // Grava o lançamento a partir da primeira leitura.
         MvcTestResult created = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
@@ -81,6 +82,19 @@ class ReceiptDuplicateTest {
         // Relendo o comprovante do próprio lançamento em edição, ele não acusa a si mesmo.
         JsonNode editing = body(scan(txId));
         assertThat(editing.get("duplicateOfTransactionId").isNull()).isTrue();
+    }
+
+    @Test
+    void billsUseDueDateAndComeUnpaid() throws Exception {
+        when(scanner.scan(any())).thenReturn(new ReceiptScan("Equatorial Goiás", LocalDate.of(2026, 10, 22), LocalDate.of(2026, 11, 8), false,
+            new BigDecimal("207.09"), "", null, List.of()));
+        JsonNode bill = body(scan(null));
+        assertThat(bill.get("date").asString()).isEqualTo("2026-11-08");
+        assertThat(bill.get("paid").asBoolean()).isFalse();
+
+        when(scanner.scan(any())).thenReturn(new ReceiptScan("", null, null, true, new BigDecimal("76.89"), "", null, List.of()));
+        JsonNode undated = body(scan(null));
+        assertThat(undated.get("date").asString()).isEqualTo(LocalDate.now().toString());
     }
 
     private MvcTestResult scan(Long ignoreId) throws Exception {

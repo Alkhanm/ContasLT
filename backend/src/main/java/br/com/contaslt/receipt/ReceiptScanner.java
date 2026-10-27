@@ -36,15 +36,22 @@ public class ReceiptScanner {
     private static final Logger log = LoggerFactory.getLogger(ReceiptScanner.class);
 
     static final String PROMPT = """
-        Esta imagem é um comprovante de compra brasileiro (cupom fiscal, NFC-e, DANFE, recibo ou comprovante de pagamento).
+        Esta imagem é um comprovante brasileiro: cupom fiscal, NFC-e, DANFE, recibo, comprovante de pagamento,
+        ou uma fatura/boleto a pagar (conta de luz, água, internet, cartão).
         Extraia em JSON:
-        - merchant: nome fantasia do estabelecimento (curto, sem CNPJ nem endereço);
-        - date: data de emissão/pagamento no formato AAAA-MM-DD, com o ano de quatro dígitos exatamente como impresso;
-        - total: valor efetivamente pago, número com ponto decimal;
+        - merchant: nome fantasia do estabelecimento ou empresa (curto, sem CNPJ nem endereço);
+        - issueDate: data de emissão ou da compra/pagamento, no formato AAAA-MM-DD, com o ano de quatro dígitos
+          exatamente como impresso;
+        - dueDate: data de vencimento, no formato AAAA-MM-DD, somente se o documento for uma fatura ou boleto com
+          campo "Vencimento"; senão string vazia;
+        - paid: true se o documento comprova que o pagamento já foi feito (cupom fiscal de compra, recibo,
+          comprovante de pagamento, autenticação bancária); false se é uma fatura ou boleto ainda a pagar;
+        - total: valor efetivamente pago ou a pagar, número com ponto decimal;
         - paymentMethod: forma de pagamento, se aparecer (ex.: "Cartão de débito", "Pix", "Dinheiro");
         - accessKey: chave de acesso de 44 dígitos sem espaços, se aparecer; senão string vazia;
         - items: um objeto por linha de produto, com description (nome do produto), quantity, unitPrice e total,
           usando ponto decimal. Não inclua totais, subtotais, impostos, descontos ou troco como itens.
+          Faturas de serviço não têm itens.
         Não invente dados. Se não houver itens legíveis, devolva items vazio.
         """;
 
@@ -112,7 +119,9 @@ public class ReceiptScanner {
             items.add(new ScannedItem(desc, number(i, "quantity"), number(i, "unitPrice"), total));
         }
         String key = text(n, "accessKey").replaceAll("\\D", "");
-        return new ReceiptScan(text(n, "merchant"), date(text(n, "date")), number(n, "total"),
+        JsonNode paid = n.get("paid");
+        return new ReceiptScan(text(n, "merchant"), date(text(n, "issueDate")), date(text(n, "dueDate")),
+            paid == null || paid.isNull() || paid.asBoolean(), number(n, "total"),
             text(n, "paymentMethod"), AccessKey.isValid(key) ? key : null, items);
     }
 
@@ -173,14 +182,16 @@ public class ReceiptScanner {
         root.put("type", "object");
         ObjectNode p = root.putObject("properties");
         p.putObject("merchant").put("type", "string");
-        p.putObject("date").put("type", "string");
+        p.putObject("issueDate").put("type", "string");
+        p.putObject("dueDate").put("type", "string");
+        p.putObject("paid").put("type", "boolean");
         p.putObject("total").put("type", "number");
         p.putObject("paymentMethod").put("type", "string");
         p.putObject("accessKey").put("type", "string");
         ObjectNode items = p.putObject("items");
         items.put("type", "array");
         items.set("items", item);
-        root.putArray("required").add("merchant").add("date").add("total").add("items");
+        root.putArray("required").add("merchant").add("issueDate").add("dueDate").add("paid").add("total").add("items");
         return root;
     }
 }
