@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:17-alpine
     container_name: contaslt-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: contaslt
       POSTGRES_USER: contaslt

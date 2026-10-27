@@ -3,20 +3,22 @@
 # Sem servidor do Vite, sem proxy e sem recarregamentos inesperados ao voltar da câmera no celular.
 # Ctrl+C encerra. O banco continua no Docker.
 #
-# Uso: ./prod.sh [--skip-build] [--no-db]
+# Uso: ./prod.sh [--skip-build | --build-only] [--no-db]
 #   --skip-build   não refaz o build do frontend nem o jar (usa o que já existe)
+#   --build-only   só faz o build (frontend + jar) e sai, sem subir nada
 #   --no-db        não mexe no Docker (banco já está rodando em outro lugar)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PORT="${PORT:-8080}"
+PORT="${PORT:-8585}"
 
-BUILD=1 WITH_DB=1
+BUILD=1 WITH_DB=1 RUN=1
 for arg in "$@"; do
   case "$arg" in
     --skip-build) BUILD=0 ;;
+    --build-only) RUN=0 ;;
     --no-db) WITH_DB=0 ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "Opção desconhecida: $arg" >&2; exit 1 ;;
   esac
 done
@@ -49,6 +51,10 @@ if (( BUILD )); then
   info "Build do backend (mvnw package, sem testes)..."
   (cd "$ROOT/backend" && ./mvnw -q -DskipTests package)
   JAR="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
+  if (( ! RUN )); then
+    info "Build pronto: $DIST e $JAR"
+    exit 0
+  fi
 else
   [[ -n "$JAR" ]] || { warn "Nenhum jar em backend/target. Rode sem --skip-build."; exit 1; }
   [[ -f "$DIST/index.html" ]] || { warn "Nenhum build em frontend/dist. Rode sem --skip-build."; exit 1; }

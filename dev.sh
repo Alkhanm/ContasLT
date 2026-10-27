@@ -74,7 +74,7 @@ fi
 if (( WITH_BACKEND )); then
   need java
   if port_busy "$BACKEND_PORT"; then
-    warn "A porta $BACKEND_PORT já está em uso. Encerre o processo antigo ou defina PORT=outra."
+    warn "A porta $BACKEND_PORT já está em uso. Se for o serviço instalado: 'systemctl --user stop contaslt'. Ou defina PORT=outra."
     exit 1
   fi
   # Guarda comprovantes na pasta data/ da raiz, independentemente de onde o backend é iniciado.
