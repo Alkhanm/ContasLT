@@ -10,7 +10,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PORT="${PORT:-8585}"
+# Porta: variável PORT do ambiente > PORT no .env > padrão (o mesmo do install.sh).
+PORT_FROM_SHELL="${PORT:-}"
 
 BUILD=1 WITH_DB=1 RUN=1
 for arg in "$@"; do
@@ -33,10 +34,13 @@ if [[ -f "$ROOT/.env" ]]; then
   set -a; # shellcheck disable=SC1091
   source "$ROOT/.env"; set +a
 fi
+PORT="${PORT_FROM_SHELL:-${PORT:-8585}}"
 
 need java
-JAR="$(ls -t "$ROOT"/backend/target/*.jar 2>/dev/null | grep -v '\.original$' | head -1 || true)"
-DIST="$ROOT/frontend/dist"
+# O serviço (install.sh) aponta CONTASLT_JAR/CONTASLT_DIST para cópias estáveis em run/, assim um build
+# novo não mexe nos arquivos que a JVM em execução ainda lê.
+JAR="${CONTASLT_JAR:-$(ls -t "$ROOT"/backend/target/*.jar 2>/dev/null | grep -v '\.original$' | head -1 || true)}"
+DIST="${CONTASLT_DIST:-$ROOT/frontend/dist}"
 
 # ---------- Build ----------
 if (( BUILD )); then
@@ -50,11 +54,12 @@ if (( BUILD )); then
   (cd "$ROOT/frontend" && npm run build)
   info "Build do backend (mvnw package, sem testes)..."
   (cd "$ROOT/backend" && ./mvnw -q -DskipTests package)
-  JAR="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
+  BUILT_JAR="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
   if (( ! RUN )); then
-    info "Build pronto: $DIST e $JAR"
+    info "Build pronto: $ROOT/frontend/dist e $BUILT_JAR"
     exit 0
   fi
+  JAR="${CONTASLT_JAR:-$BUILT_JAR}"
 else
   [[ -n "$JAR" ]] || { warn "Nenhum jar em backend/target. Rode sem --skip-build."; exit 1; }
   [[ -f "$DIST/index.html" ]] || { warn "Nenhum build em frontend/dist. Rode sem --skip-build."; exit 1; }

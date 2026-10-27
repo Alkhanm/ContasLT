@@ -3,7 +3,7 @@
 # ligado no boot. Sem sudo. Rode de novo depois de mudar o código: refaz o build e reinicia o serviço.
 #
 # Uso: ./install.sh [--port N] [--uninstall]
-#   --port N      porta HTTP do serviço (padrão 8080, ou a variável PORT)
+#   --port N      porta HTTP do serviço; fica gravada em .env e vale nas próximas execuções
 #   --uninstall   para o serviço, desliga do boot e remove o arquivo da unidade (banco e dados ficam)
 #
 # Depois: systemctl --user status contaslt | journalctl --user -u contaslt -f | systemctl --user restart contaslt
@@ -13,7 +13,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE=contaslt
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 UNIT="$UNIT_DIR/$SERVICE.service"
-PORT="${PORT:-8080}"
+RUN_DIR="$ROOT/run"
+# Porta: --port > variável PORT > PORT no .env > padrão (o mesmo do prod.sh).
+PORT_ARG=
+PORT_FROM_ENV_FILE="$(grep -s '^PORT=' "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d '"' || true)"
 
 if [[ -t 1 ]]; then C_INFO=$'\e[32m' C_WARN=$'\e[33m' C_OFF=$'\e[0m'; else C_INFO= C_WARN= C_OFF=; fi
 info() { echo "${C_INFO}[install]${C_OFF} $*"; }
@@ -22,7 +25,7 @@ fail() { warn "$*"; exit 1; }
 
 while (( $# )); do
   case "$1" in
-    --port) [[ "${2:-}" =~ ^[0-9]+$ ]] || fail "--port precisa de um número."; PORT="$2"; shift 2 ;;
+    --port) [[ "${2:-}" =~ ^[0-9]+$ ]] || fail "--port precisa de um número."; PORT_ARG="$2"; shift 2 ;;
     --uninstall)
       systemctl --user disable --now "$SERVICE" 2>/dev/null || true
       rm -f "$UNIT"
@@ -54,9 +57,16 @@ if ! command -v ollama >/dev/null 2>&1 && ! curl -fsS localhost:11434 >/dev/null
 fi
 
 # ---------- Porta ----------
-if ! systemctl --user is-active --quiet "$SERVICE" && ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$PORT\$"; then
-  holder="$(ss -ltnp 2>/dev/null | grep -E "[:.]$PORT " | grep -oE 'users:\(\("[^"]+",pid=[0-9]+' | head -1 | sed -E 's/users:\(\("([^"]+)",pid=([0-9]+)/\1 (pid \2)/')"
-  fail "A porta $PORT já está em uso por ${holder:-outro programa}. Escolha outra: ./install.sh --port 8090"
+PORT="${PORT_ARG:-${PORT:-${PORT_FROM_ENV_FILE:-8585}}}"
+holder_pid="$(ss -ltnp 2>/dev/null | grep -E "[:.]$PORT " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2 || true)"
+if [[ -n "$holder_pid" && "$holder_pid" != "$(systemctl --user show "$SERVICE" -p MainPID --value 2>/dev/null)" ]]; then
+  holder="$(ps -o comm= -p "$holder_pid" 2>/dev/null || echo processo) (pid $holder_pid)"
+  fail "A porta $PORT já está em uso por $holder, que não é o serviço $SERVICE. Escolha outra: ./install.sh --port 8090"
+fi
+if [[ -n "$PORT_ARG" ]]; then
+  # Grava no .env para o prod.sh e as próximas execuções do install.sh usarem a mesma porta.
+  touch "$ROOT/.env"; chmod 600 "$ROOT/.env"
+  if grep -q '^PORT=' "$ROOT/.env"; then sed -i "s/^PORT=.*/PORT=$PORT/" "$ROOT/.env"; else printf 'PORT=%s\n' "$PORT" >> "$ROOT/.env"; fi
 fi
 
 # ---------- Segredo do JWT ----------
@@ -70,11 +80,20 @@ fi
 info "Build do frontend e do backend..."
 "$ROOT/prod.sh" --build-only
 
+# Cópias estáveis para o serviço, trocadas de forma atômica (rename): a JVM em execução continua lendo o
+# jar antigo até reiniciar, em vez de quebrar quando o Maven sobrescreve target/*.jar.
+mkdir -p "$RUN_DIR"
+built_jar="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
+cp "$built_jar" "$RUN_DIR/contaslt.jar.new" && mv -f "$RUN_DIR/contaslt.jar.new" "$RUN_DIR/contaslt.jar"
+rm -rf "$RUN_DIR/dist.new" && cp -r "$ROOT/frontend/dist" "$RUN_DIR/dist.new"
+if [[ -d "$RUN_DIR/dist" ]]; then mv "$RUN_DIR/dist" "$RUN_DIR/dist.old"; fi
+mv "$RUN_DIR/dist.new" "$RUN_DIR/dist" && rm -rf "$RUN_DIR/dist.old"
+
 # ---------- Serviço ----------
 mkdir -p "$UNIT_DIR"
 cat > "$UNIT" <<UNIT
 [Unit]
-Description=ContasLT (controle financeiro pessoal, porta $PORT)
+Description=ContasLT (controle financeiro pessoal)
 # O Docker pode ainda estar subindo no boot: o prod.sh falha e o systemd tenta de novo em 5 s.
 After=network-online.target
 StartLimitIntervalSec=0
@@ -82,10 +101,12 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory=$ROOT
+# A porta vem do .env (PORT=...), gravada pelo install.sh --port.
 ExecStart=$ROOT/prod.sh --skip-build
 Restart=on-failure
 RestartSec=5
-Environment=PORT=$PORT
+Environment=CONTASLT_JAR=$RUN_DIR/contaslt.jar
+Environment=CONTASLT_DIST=$RUN_DIR/dist
 Environment=TERM=dumb
 
 [Install]
@@ -123,7 +144,8 @@ if curl -fsS "http://localhost:$PORT/actuator/health" >/dev/null 2>&1; then
     info "  na rede: http://$ip:$PORT"
   done
 else
-  warn "O serviço não respondeu ainda. Veja: journalctl --user -u $SERVICE -n 50"
+  warn "O serviço não respondeu. Últimas linhas do log (journalctl --user -u $SERVICE):"
+  journalctl --user -u "$SERVICE" -n 15 --no-pager -o cat 2>/dev/null | sed 's/^/    /' >&2
   exit 1
 fi
 info "Comandos úteis: systemctl --user status $SERVICE | journalctl --user -u $SERVICE -f | ./install.sh --uninstall"

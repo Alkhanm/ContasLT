@@ -22,15 +22,15 @@ O script sobe o banco (Docker), o backend (porta 8080) e o frontend (porta 5173,
 ./prod.sh
 ```
 
-Faz o build do frontend e do jar, sobe o banco e roda tudo numa porta só: o backend serve o frontend compilado em http://localhost:8080 (o script lista também os endereços da rede local e do Tailscale). Use este modo para acessar pelo celular: o servidor de desenvolvimento do Vite recarrega a página ao voltar da câmera (o WebSocket do HMR cai quando o navegador vai para segundo plano), o que fecha o formulário no meio da leitura do comprovante. Opções: `--skip-build` (reaproveita build e jar) e `--no-db`. Variáveis como `JWT_SECRET` ou `OLLAMA_MODEL` podem ficar num `.env` na raiz.
+Faz o build do frontend e do jar, sobe o banco e roda tudo numa porta só: o backend serve o frontend compilado em http://localhost:8585 (padrão; mude com `PORT` no `.env` ou no ambiente) (o script lista também os endereços da rede local e do Tailscale). Use este modo para acessar pelo celular: o servidor de desenvolvimento do Vite recarrega a página ao voltar da câmera (o WebSocket do HMR cai quando o navegador vai para segundo plano), o que fecha o formulário no meio da leitura do comprovante. Opções: `--skip-build` (reaproveita build e jar) e `--no-db`. Variáveis como `JWT_SECRET` ou `OLLAMA_MODEL` podem ficar num `.env` na raiz.
 
 ### Instalar como serviço (sobe no boot)
 
 ```bash
-./install.sh              # ou ./install.sh --port 8090 se a 8080 estiver ocupada
+./install.sh              # ou ./install.sh --port 8090 para trocar a porta (fica gravada em .env)
 ```
 
-Confere os pré-requisitos, gera um `JWT_SECRET` em `.env`, faz o build e registra um serviço de usuário do systemd (`contaslt`), ligado no boot (com *linger*, não precisa de login) e sem sudo. O Postgres fica com `restart: unless-stopped` no Docker. Depois de mudar o código, rode `./install.sh` de novo: refaz o build e reinicia o serviço.
+Confere os pré-requisitos, gera um `JWT_SECRET` em `.env`, faz o build, copia jar e `dist` para `run/` e registra um serviço de usuário do systemd (`contaslt`), ligado no boot (com *linger*, não precisa de login) e sem sudo. O Postgres fica com `restart: unless-stopped` no Docker. Depois de mudar o código, rode `./install.sh` de novo: refaz o build e reinicia o serviço. A porta padrão é 8585; `PORT` no `.env` vale para `prod.sh` e para o serviço.
 
 ```bash
 systemctl --user status contaslt      # estado

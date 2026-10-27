@@ -3,6 +3,7 @@ node_modules/
 dist/
 target/
 # Ambiente
+run/
 data/
 .env
 .env.local
