@@ -72,6 +72,24 @@ export function dateNumeric(iso: string): string {
   return dayNumeric.format(parseLocalDate(iso))
 }
 
+/** 'aaaa-mm-dd' -> 'dd/mm/aaaa' (vazio permanece vazio). */
+export function formatDateInput(iso: string | null | undefined): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+/** 'dd/mm/aaaa' -> 'aaaa-mm-dd', ou '' se incompleto ou se a data não existir (ex.: 31/02). */
+export function parseDateInput(text: string): string {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text.trim())
+  if (!m) return ''
+  const [, dd, mm, yyyy] = m
+  const d = Number(dd), mo = Number(mm), y = Number(yyyy)
+  const date = new Date(y, mo - 1, d)
+  if (y < 1900 || date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return ''
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export function dateTime(iso: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 }

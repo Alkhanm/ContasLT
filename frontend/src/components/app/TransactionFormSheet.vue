@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import AccountSelect from './AccountSelect.vue'
 import CategorySelect from './CategorySelect.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import DateInput from './DateInput.vue'
 import FormField from './FormField.vue'
 import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
@@ -314,7 +315,7 @@ async function unlink() {
 
         <div class="grid grid-cols-2 gap-3">
           <FormField label="Data" for="tx-date" :error="errors.dueDate">
-            <Input id="tx-date" v-model="form.dueDate" type="date" />
+            <DateInput id="tx-date" v-model="form.dueDate" />
           </FormField>
           <FormField label="Descrição" for="tx-description" :error="errors.description">
             <Input id="tx-description" v-model="form.description" placeholder="Transferência" maxlength="140" autocomplete="off" />
@@ -338,7 +339,7 @@ async function unlink() {
 
         <div class="grid grid-cols-2 gap-3">
           <FormField :label="type === 'INCOME' ? 'Data' : 'Vencimento'" for="tx-date" :error="errors.dueDate">
-            <Input id="tx-date" v-model="form.dueDate" type="date" />
+            <DateInput id="tx-date" v-model="form.dueDate" />
           </FormField>
           <FormField label="Conta" for="tx-account" :error="errors.accountId">
             <AccountSelect id="tx-account" v-model="form.accountId" />

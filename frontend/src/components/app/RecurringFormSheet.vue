@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import AccountSelect from './AccountSelect.vue'
 import CategorySelect from './CategorySelect.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import DateInput from './DateInput.vue'
 import FormField from './FormField.vue'
 import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
@@ -172,7 +173,7 @@ async function remove() {
           </Select>
         </FormField>
         <FormField label="Primeiro vencimento" for="rb-start" :error="errors.startDate">
-          <Input id="rb-start" v-model="form.startDate" type="date" />
+          <DateInput id="rb-start" v-model="form.startDate" />
         </FormField>
       </div>
 
@@ -197,7 +198,7 @@ async function remove() {
         <Input id="rb-occurrences" v-model.number="form.occurrences" type="number" min="2" max="600" inputmode="numeric" />
       </FormField>
       <FormField v-if="form.endMode === 'date'" label="Último vencimento" for="rb-end" :error="errors.endDate">
-        <Input id="rb-end" v-model="form.endDate" type="date" />
+        <DateInput id="rb-end" v-model="form.endDate" />
       </FormField>
 
       <div class="grid grid-cols-2 gap-3">
