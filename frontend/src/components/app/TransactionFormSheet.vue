@@ -17,7 +17,7 @@ import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
 import ReceiptItemsEditor from './ReceiptItemsEditor.vue'
 import TypeToggle, { type FormKind } from './TypeToggle.vue'
-import { dateShort, todayIso } from '@/lib/format'
+import { dateShort, money, todayIso } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { useCatalogStore } from '@/stores/catalog'
@@ -55,6 +55,21 @@ const receiptUrl = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 /** Lançamento já existente que parece ser deste mesmo comprovante (chave de acesso, ou data e valor iguais). */
 const duplicate = ref<Pick<ReceiptScan, 'duplicateOfTransactionId' | 'duplicateOfDescription' | 'duplicateOfDate'> | null>(null)
+/** Vencimento pendente de conta recorrente que o comprovante lido parece pagar. */
+const recurringMatch = ref<ReceiptScan | null>(null)
+/** Quando aceito: salvar grava o comprovante por cima desse vencimento em vez de criar um lançamento. */
+const settleOccurrenceId = ref<number | null>(null)
+
+function acceptRecurringMatch() {
+  const m = recurringMatch.value
+  if (!m?.recurringMatchTransactionId) return
+  settleOccurrenceId.value = m.recurringMatchTransactionId
+  if (m.recurringMatchDescription) form.description = m.recurringMatchDescription
+  if (m.recurringMatchCategoryId) form.categoryId = m.recurringMatchCategoryId
+  if (m.recurringMatchAccountId) form.accountId = m.recurringMatchAccountId
+  form.paid = true
+}
+
 
 function revokeReceiptUrl() {
   if (receiptUrl.value) URL.revokeObjectURL(receiptUrl.value)
@@ -87,6 +102,8 @@ async function onReceiptPicked(e: Event) {
   if (!file) return
   scanning.value = true
   duplicate.value = null
+  recurringMatch.value = null
+  settleOccurrenceId.value = null
   try {
     const scan = await receiptsApi.scan(file, editing.value?.id)
     form.kind = 'EXPENSE'
@@ -104,6 +121,10 @@ async function onReceiptPicked(e: Event) {
     if (scan.duplicateOfTransactionId) {
       duplicate.value = scan
       notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
+    } else if (scan.recurringMatchTransactionId && !editing.value) {
+      recurringMatch.value = scan
+      acceptRecurringMatch()
+      notifySuccess(`Parece o pagamento de ${scan.recurringMatchDescription}. Confira e salve.`)
     } else {
       notifySuccess(!scan.paid && scan.date
         ? `Fatura lida: vence em ${dateShort(scan.date)}. Confira os dados.`
@@ -135,6 +156,8 @@ watch(() => ui.transactionFormOpen, async (open) => {
   await catalog.load()
   errors.value = {}
   duplicate.value = null
+  recurringMatch.value = null
+  settleOccurrenceId.value = null
   form.scope = 'THIS'
   const tx = editing.value
   if (tx) {
@@ -229,6 +252,9 @@ async function save() {
         const scope = editing.value.recurringBillId ? form.scope : undefined
         await transactionsApi.update(editing.value.id, input, scope)
         notifySuccess(scope === 'FOLLOWING' ? 'Este e os próximos vencimentos atualizados' : 'Lançamento atualizado')
+      } else if (settleOccurrenceId.value) {
+        await transactionsApi.update(settleOccurrenceId.value, input)
+        notifySuccess('Vencimento pago com o comprovante')
       } else {
         await transactionsApi.create(input)
         notifySuccess(type.value === 'INCOME' ? 'Receita adicionada' : 'Despesa adicionada')
@@ -301,6 +327,21 @@ async function unlink() {
         </button>
         <span v-else-if="scanning" class="text-xs text-muted-foreground">Pode levar alguns segundos.</span>
         <span v-else class="text-xs text-muted-foreground">Foto do cupom: itens e valor preenchidos sozinhos.</span>
+      </div>
+
+      <div v-if="recurringMatch && !isTransfer" class="space-y-2 rounded-lg bg-primary/5 px-3 py-2 text-xs">
+        <p class="flex items-start gap-2">
+          <Repeat class="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <span>
+            Parece o pagamento de <strong>{{ recurringMatch.recurringMatchDescription }}</strong>, vencimento previsto
+            para {{ recurringMatch.recurringMatchDate ? dateShort(recurringMatch.recurringMatchDate) : '' }}<template v-if="recurringMatch.recurringMatchAmount != null"> ({{ money(recurringMatch.recurringMatchAmount) }} estimado)</template>.
+            <template v-if="settleOccurrenceId">Ao salvar, esse vencimento fica pago com o valor e a data do comprovante.</template>
+          </span>
+        </p>
+        <span role="radiogroup" class="inline-flex rounded-md bg-muted p-0.5">
+          <button type="button" role="radio" :aria-checked="settleOccurrenceId !== null" :class="cn('rounded px-2 py-1 font-semibold', settleOccurrenceId !== null ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="acceptRecurringMatch">Pagar o vencimento</button>
+          <button type="button" role="radio" :aria-checked="settleOccurrenceId === null" :class="cn('rounded px-2 py-1 font-semibold', settleOccurrenceId === null ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="settleOccurrenceId = null">Criar novo lançamento</button>
+        </span>
       </div>
 
       <p v-if="duplicate && !isTransfer" class="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs" role="alert">
@@ -421,7 +462,7 @@ async function unlink() {
           <Repeat /> Tornar recorrente
         </Button>
         <Button type="submit" form="transaction-form" class="h-11 flex-1 text-base font-semibold" :disabled="saving">
-          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : isTransfer ? 'Transferir' : 'Adicionar' }}
+          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : settleOccurrenceId ? 'Pagar vencimento' : isTransfer ? 'Transferir' : 'Adicionar' }}
         </Button>
       </div>
     </template>

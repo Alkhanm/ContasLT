@@ -69,6 +69,9 @@ export interface Transaction {
   recurringBillId: number | null
   installmentNumber: number | null
   installmentTotal: number | null
+  /** Só em ocorrências de conta recorrente: data prevista pela regra e valor estimado por ela. */
+  scheduledDate: string | null
+  expectedAmount: number | null
   externalId: string | null
   /** Preenchidos quando o lançamento é uma perna de transferência entre contas. */
   transferId: number | null
@@ -119,6 +122,13 @@ export interface ReceiptScan {
   duplicateOfTransactionId: number | null
   duplicateOfDescription: string | null
   duplicateOfDate: string | null
+  /** Vencimento pendente de conta recorrente que este comprovante parece pagar. */
+  recurringMatchTransactionId: number | null
+  recurringMatchDescription: string | null
+  recurringMatchDate: string | null
+  recurringMatchAmount: number | null
+  recurringMatchCategoryId: number | null
+  recurringMatchAccountId: number | null
 }
 
 export interface TransactionInput {
@@ -213,6 +223,8 @@ export interface RecurringBill {
   notes: string | null
   active: boolean
   nextDueDate: string | null
+  /** Precisão exigida para casar extrato/comprovante com os vencimentos (1 a 10). */
+  matchStrictness: number
 }
 
 export interface RecurringBillInput {
@@ -227,6 +239,7 @@ export interface RecurringBillInput {
   categoryId: number | null
   notes: string | null
   active?: boolean
+  matchStrictness?: number
   /** Só na criação: lançamento existente que vira a primeira ocorrência da regra. */
   fromTransactionId?: number | null
 }
@@ -252,6 +265,9 @@ export interface PreviewRow {
   matchHasReceipt: boolean
   matchCategoryId: number | null
   matchCategoryName: string | null
+  /** Casamento com um vencimento pendente de conta recorrente; matchAmount é o valor previsto pela regra. */
+  matchRecurring: boolean
+  matchAmount: number | null
 }
 
 export interface ImportPreview {

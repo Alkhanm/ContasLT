@@ -55,7 +55,9 @@ public final class TransactionDtos {
     public record TransactionDto(Long id, String description, BigDecimal amount, TransactionType type,
             LocalDate dueDate, boolean paid, String notes, Long accountId, String accountName,
             Long categoryId, String categoryName, String categoryColor, String categoryIcon,
-            Long recurringBillId, Integer installmentNumber, Integer installmentTotal, String externalId,
+            Long recurringBillId, Integer installmentNumber, Integer installmentTotal,
+            /** Só em ocorrências de conta recorrente: data prevista pela regra e valor estimado por ela. */
+            LocalDate scheduledDate, BigDecimal expectedAmount, String externalId,
             Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName,
             String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items) {
     }

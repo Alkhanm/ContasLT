@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Link2, Receipt, Trash2, Upload } from 'lucide-vue-next'
+import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Link2, Receipt, Repeat, Trash2, Upload } from 'lucide-vue-next'
 import { importsApi, transfersApi } from '@/api'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
@@ -12,7 +12,7 @@ import Money from '@/components/app/Money.vue'
 import SectionTitle from '@/components/app/SectionTitle.vue'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { dateNumeric, dateTime } from '@/lib/format'
+import { dateNumeric, dateTime, money } from '@/lib/format'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
@@ -251,8 +251,9 @@ function reset() {
                 </span>
                 <span class="mt-2 block md:mt-0 md:w-56 md:shrink-0">
                   <span v-if="r.link && r.matchTransactionId !== null" class="flex h-8 items-center gap-1.5 rounded-md border border-dashed px-2 text-xs text-muted-foreground">
-                    <Link2 class="size-3.5 shrink-0 text-primary" />
-                    <span class="truncate">{{ r.matchCategoryName ?? 'Mantém o lançamento' }}</span>
+                    <Repeat v-if="r.matchRecurring" class="size-3.5 shrink-0 text-primary" />
+                    <Link2 v-else class="size-3.5 shrink-0 text-primary" />
+                    <span class="truncate">{{ r.matchRecurring ? 'Paga o vencimento' : r.matchCategoryName ?? 'Mantém o lançamento' }}</span>
                   </span>
                   <CategorySelect v-else v-model="r.categoryId" :type="r.type" size="sm" />
                 </span>
@@ -260,9 +261,13 @@ function reset() {
             </div>
             <div v-if="r.matchTransactionId !== null && r.selected" class="mt-2 ml-7 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-primary/5 px-3 py-2 text-xs">
               <span class="flex min-w-0 flex-1 items-center gap-1.5">
-                <Receipt v-if="r.matchHasReceipt" class="size-3.5 shrink-0 text-primary" />
+                <Repeat v-if="r.matchRecurring" class="size-3.5 shrink-0 text-primary" />
+                <Receipt v-else-if="r.matchHasReceipt" class="size-3.5 shrink-0 text-primary" />
                 <Link2 v-else class="size-3.5 shrink-0 text-primary" />
-                <span class="truncate">
+                <span v-if="r.matchRecurring" class="min-w-0">
+                  Parece o vencimento de <strong>{{ r.matchDescription }}</strong> previsto para {{ r.matchDate ? dateNumeric(r.matchDate) : '' }}<template v-if="r.matchAmount != null && r.matchAmount !== r.amount"> ({{ money(r.matchAmount) }} estimado)</template>. Vincular marca como pago com o valor e a data do extrato.
+                </span>
+                <span v-else class="truncate">
                   Você já lançou <strong>{{ r.matchDescription }}</strong> em {{ r.matchDate ? dateNumeric(r.matchDate) : '' }}<template v-if="r.matchItemCount"> ({{ r.matchItemCount }} {{ r.matchItemCount === 1 ? 'item' : 'itens' }})</template>
                 </span>
               </span>

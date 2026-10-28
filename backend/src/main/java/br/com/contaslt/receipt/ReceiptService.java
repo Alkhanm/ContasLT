@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -20,6 +21,9 @@ import br.com.contaslt.imports.CategorySuggester;
 import br.com.contaslt.receipt.ReceiptDtos.ReceiptScan;
 import br.com.contaslt.receipt.ReceiptDtos.ReceiptScanResponse;
 import br.com.contaslt.receipt.ReceiptDtos.ScannedItem;
+import br.com.contaslt.recurring.OccurrenceMatcher;
+import br.com.contaslt.recurring.RecurringBillService;
+import br.com.contaslt.recurring.RecurringBillService.ScoredOccurrence;
 import br.com.contaslt.transaction.Transaction;
 import br.com.contaslt.transaction.TransactionRepository;
 import br.com.contaslt.user.User;
@@ -32,18 +36,21 @@ public class ReceiptService {
     private final CategoryRepository categories;
     private final CategoryRuleRepository rules;
     private final TransactionRepository transactions;
+    private final RecurringBillService recurring;
 
     public ReceiptService(ReceiptScanner scanner, ReceiptStorage storage, CategoryRepository categories,
+            RecurringBillService recurring,
             CategoryRuleRepository rules, TransactionRepository transactions) {
         this.scanner = scanner;
         this.storage = storage;
         this.categories = categories;
         this.rules = rules;
         this.transactions = transactions;
+        this.recurring = recurring;
     }
 
     /** Guarda a imagem, lê com o modelo e devolve os dados prontos para o formulário de lançamento. */
-    @Transactional(readOnly = true)
+    @Transactional
     public ReceiptScanResponse scan(User user, MultipartFile file, Long ignoreTransactionId) {
         byte[] original;
         try {
@@ -87,11 +94,26 @@ public class ReceiptService {
             duplicate = duplicate.filter(t -> !t.getId().equals(ignoreTransactionId));
         }
 
+        // Sem duplicata e lançando algo novo: o comprovante pode ser o pagamento de um vencimento recorrente pendente.
+        Transaction occurrence = null;
+        if (duplicate.isEmpty() && ignoreTransactionId == null && total != null) {
+            String text = scan.merchant() + " " + scan.items().stream().map(ScannedItem::description).limit(10)
+                .reduce("", (a, b) -> a + " " + b);
+            OccurrenceMatcher.Candidate cand = new OccurrenceMatcher.Candidate(text, total, TransactionType.EXPENSE, date);
+            Map<OccurrenceMatcher.Candidate, ScoredOccurrence> found = recurring.matchPending(user, List.of(cand), c -> c,
+                date, date);
+            occurrence = found.isEmpty() ? null : found.get(cand).occurrence();
+        }
+
         return new ReceiptScanResponse(stored.name(), scan.merchant(), date, scan.paid(), total, itemsTotal,
             scan.paymentMethod(), accessKey, scan.items(),
             category.map(Category::getId).orElse(null), category.map(Category::getName).orElse(null),
             duplicate.map(Transaction::getId).orElse(null), duplicate.map(Transaction::getDescription).orElse(null),
-            duplicate.map(Transaction::getDueDate).orElse(null));
+            duplicate.map(Transaction::getDueDate).orElse(null),
+            occurrence == null ? null : occurrence.getId(), occurrence == null ? null : occurrence.getDescription(),
+            occurrence == null ? null : occurrence.getDueDate(), occurrence == null ? null : occurrence.getAmount(),
+            occurrence == null || occurrence.getCategory() == null ? null : occurrence.getCategory().getId(),
+            occurrence == null ? null : occurrence.getAccount().getId());
     }
 
     /** Quanto um lançamento se parece com o comprovante lido: mesmo estabelecimento pesa 2, mesmos itens pesa 1. */

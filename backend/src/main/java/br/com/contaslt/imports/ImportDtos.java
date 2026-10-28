@@ -26,7 +26,9 @@ public final class ImportDtos {
             String externalId, boolean duplicate, Long suggestedCategoryId, String suggestedCategoryName,
             String suggestedCategoryColor, String suggestedCategoryIcon,
             Long matchTransactionId, String matchDescription, LocalDate matchDate, String matchAccountName,
-            int matchItemCount, boolean matchHasReceipt, Long matchCategoryId, String matchCategoryName) {
+            int matchItemCount, boolean matchHasReceipt, Long matchCategoryId, String matchCategoryName,
+            /** Quando o casamento é com um vencimento pendente de conta recorrente: valor previsto pela regra. */
+            boolean matchRecurring, BigDecimal matchAmount) {
     }
 
     public record ImportPreview(ImportSource source, String filename, Long accountId, int total, int duplicates,

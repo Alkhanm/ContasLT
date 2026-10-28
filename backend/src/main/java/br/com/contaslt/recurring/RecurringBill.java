@@ -67,6 +67,10 @@ public class RecurringBill {
     @Column(name = "start_number", nullable = false)
     private int startNumber = 1;
 
+    /** Precisão exigida para casar extrato/comprovante com os vencimentos (1 = só o nome e o mês, 10 = tudo exato). */
+    @Column(name = "match_strictness", nullable = false)
+    private int matchStrictness = OccurrenceMatcher.DEFAULT_LEVEL;
+
     private String notes;
 
     @Column(nullable = false)
@@ -98,6 +102,8 @@ public class RecurringBill {
     public void setOccurrences(Integer occurrences) { this.occurrences = occurrences; }
     public int getStartNumber() { return startNumber; }
     public void setStartNumber(int startNumber) { this.startNumber = startNumber; }
+    public int getMatchStrictness() { return matchStrictness; }
+    public void setMatchStrictness(int matchStrictness) { this.matchStrictness = matchStrictness; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public boolean isActive() { return active; }

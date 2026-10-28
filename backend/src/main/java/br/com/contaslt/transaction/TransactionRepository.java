@@ -28,6 +28,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     /** Ocorrências pendentes previstas depois de uma data (as "próximas" de um vencimento). */
     List<Transaction> findByRecurringBillIdAndPaidFalseAndScheduledDateAfter(Long recurringBillId, LocalDate after);
 
+    /** Vencimentos pendentes de contas recorrentes ativas, ainda não ligados a extrato: candidatos a casar com linhas importadas. */
+    @EntityGraph(attributePaths = {"account", "category", "recurringBill"})
+    @Query("select t from Transaction t where t.user.id = :userId and t.recurringBill is not null and t.recurringBill.active = true "
+        + "and t.paid = false and t.importBatch is null and t.externalId is null and t.dueDate between :from and :to")
+    List<Transaction> findPendingOccurrences(@Param("userId") Long userId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /** Descrições e estabelecimentos dos últimos pagamentos de uma regra: ensinam como a conta aparece no extrato. */
+    @Query("select coalesce(t.merchant, '') || ' ' || t.description from Transaction t where t.recurringBill.id = :billId and t.paid = true order by t.dueDate desc")
+    List<String> findRecentPaidDescriptions(@Param("billId") Long billId, org.springframework.data.domain.Pageable page);
+
     boolean existsByRecurringBillIdAndScheduledDateAndIdNot(Long recurringBillId, LocalDate scheduledDate, Long id);
 
     @Modifying

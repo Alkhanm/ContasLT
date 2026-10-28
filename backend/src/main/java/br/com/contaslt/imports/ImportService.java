@@ -32,6 +32,9 @@ import br.com.contaslt.imports.ImportDtos.ImportConfirmRequest;
 import br.com.contaslt.imports.ImportDtos.ImportPreview;
 import br.com.contaslt.imports.ImportDtos.ImportResult;
 import br.com.contaslt.imports.ImportDtos.PreviewRow;
+import br.com.contaslt.recurring.OccurrenceMatcher;
+import br.com.contaslt.recurring.RecurringBillService;
+import br.com.contaslt.recurring.RecurringBillService.ScoredOccurrence;
 import br.com.contaslt.transaction.Transaction;
 import br.com.contaslt.transaction.TransactionRepository;
 import br.com.contaslt.user.User;
@@ -47,10 +50,12 @@ public class ImportService {
     private final CategoryRuleRepository rules;
     private final TransactionRepository transactions;
     private final ImportBatchRepository batches;
+    private final RecurringBillService recurring;
 
     public ImportService(OfxParser ofxParser, ExcelParser excelParser, AccountService accounts,
             CategoryService categories, CategoryRepository categoryRepository, CategoryRuleRepository rules,
-            TransactionRepository transactions, ImportBatchRepository batches) {
+            TransactionRepository transactions, ImportBatchRepository batches, RecurringBillService recurring) {
+        this.recurring = recurring;
         this.ofxParser = ofxParser;
         this.excelParser = excelParser;
         this.accounts = accounts;
@@ -61,7 +66,7 @@ public class ImportService {
         this.batches = batches;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ImportPreview preview(User user, Long accountId, MultipartFile file) {
         Account account = accounts.require(user.getId(), accountId);
         byte[] bytes;
@@ -109,7 +114,8 @@ public class ImportService {
                 m == null ? null : m.getId(), m == null ? null : m.getDescription(), m == null ? null : m.getDueDate(),
                 m == null ? null : m.getAccount().getName(), m == null ? 0 : m.getItems().size(),
                 m != null && m.getReceiptFile() != null,
-                mc == null ? null : mc.getId(), mc == null ? null : mc.getName()));
+                mc == null ? null : mc.getId(), mc == null ? null : mc.getName(),
+                m != null && m.getRecurringBill() != null, m == null ? null : m.getAmount()));
         }
         return new ImportPreview(source, filename, account.getId(), rows.size(), duplicates, rows);
     }
@@ -149,6 +155,11 @@ public class ImportService {
                 pairs.add(new Pair(row, tx, score));
             }
         }
+        // Vencimentos pendentes de contas recorrentes: nome como chave, valor e data dentro da precisão da regra.
+        Map<ParsedRow, ScoredOccurrence> occurrences = recurring.matchPending(user, parsed,
+            p -> new OccurrenceMatcher.Candidate(p.description(), p.amount(), p.type(), p.date()), min, max);
+        occurrences.forEach((row, so) -> pairs.add(new Pair(row, so.occurrence(),
+            so.score() + (so.occurrence().getAccount().getId().equals(account.getId()) ? 30 : 0))));
         pairs.sort(Comparator.comparingInt(Pair::score).reversed());
         Map<ParsedRow, Transaction> result = new HashMap<>();
         Set<Long> usedTx = new HashSet<>();
@@ -201,7 +212,17 @@ public class ImportService {
                     throw new BusinessException("O lançamento \"" + existing.getDescription()
                         + "\" já está vinculado a uma importação");
                 }
-                if (existing.getType() != row.type() || existing.getAmount().compareTo(row.amount()) != 0) {
+                if (existing.getType() != row.type()) {
+                    throw new BusinessException("O lançamento \"" + existing.getDescription()
+                        + "\" não é do mesmo tipo da linha do extrato");
+                }
+                if (existing.getRecurringBill() != null) {
+                    // Vencimento previsto vira o pagamento real: valor e data são os do extrato.
+                    RecurringBillService.settle(existing, row.amount(), row.date());
+                    if (existing.getCategory() == null && row.categoryId() != null) {
+                        existing.setCategory(categories.requireOrNull(user.getId(), row.categoryId()));
+                    }
+                } else if (existing.getAmount().compareTo(row.amount()) != 0) {
                     throw new BusinessException("O lançamento \"" + existing.getDescription()
                         + "\" não tem o mesmo valor da linha do extrato");
                 }

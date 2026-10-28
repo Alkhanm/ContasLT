@@ -17,6 +17,7 @@ import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
 import TypeToggle from './TypeToggle.vue'
 import { dateShort, frequencyLabels, todayIso } from '@/lib/format'
+import { MATCH_LEVEL_DEFAULT, matchLevelHint } from '@/lib/matching'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
@@ -45,6 +46,7 @@ const form = reactive({
   accountId: null as number | null,
   notes: '',
   active: true,
+  matchStrictness: MATCH_LEVEL_DEFAULT,
 })
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
@@ -76,6 +78,7 @@ watch(() => props.open, async (open) => {
   form.accountId = b?.accountId ?? t?.accountId ?? catalog.activeAccounts[0]?.id ?? null
   form.notes = b?.notes ?? ''
   form.active = b?.active ?? true
+  form.matchStrictness = b?.matchStrictness ?? MATCH_LEVEL_DEFAULT
 })
 
 watch(() => form.type, (type) => {
@@ -111,6 +114,7 @@ async function save() {
     categoryId: form.categoryId,
     notes: form.notes.trim() || null,
     active: form.active,
+    matchStrictness: form.matchStrictness,
     fromTransactionId: props.bill ? null : props.fromTransaction?.id ?? null,
   }
   try {
@@ -217,6 +221,25 @@ async function remove() {
         </span>
         <Switch v-model="form.active" />
       </label>
+
+      <FormField label="Precisão para casar com extrato e comprovante" for="rb-match" :hint="matchLevelHint(form.matchStrictness)">
+        <div class="flex items-center gap-3">
+          <input
+            id="rb-match"
+            v-model.number="form.matchStrictness"
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            class="h-2 w-full cursor-pointer accent-primary"
+          />
+          <span class="w-12 shrink-0 text-right text-sm font-semibold tabular">{{ form.matchStrictness }}/10</span>
+        </div>
+        <div class="flex justify-between text-[11px] text-muted-foreground">
+          <span>Só o nome</span>
+          <span>Tudo exato</span>
+        </div>
+      </FormField>
 
       <FormField label="Observações" for="rb-notes">
         <Textarea id="rb-notes" v-model="form.notes" rows="2" maxlength="500" placeholder="Opcional" />

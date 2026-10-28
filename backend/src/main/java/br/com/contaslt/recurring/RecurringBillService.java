@@ -1,8 +1,14 @@
 package br.com.contaslt.recurring;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -179,6 +185,65 @@ public class RecurringBillService {
         }
     }
 
+    /**
+     * Melhor vencimento pendente para cada candidato lido (extrato ou comprovante), com a pontuação do casamento.
+     * Antes garante que os vencimentos dos meses do período existam. Cada ocorrência casa com no máximo um candidato.
+     */
+    @Transactional
+    public <C> Map<C, ScoredOccurrence> matchPending(User user, List<C> candidates,
+            java.util.function.Function<C, OccurrenceMatcher.Candidate> toCandidate, LocalDate from, LocalDate to) {
+        for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1)) {
+            ensureOccurrences(user, m);
+        }
+        List<Transaction> pending = transactions.findPendingOccurrences(user.getId(),
+            from.minusDays(OccurrenceMatcher.MAX_DAYS), to.plusDays(OccurrenceMatcher.MAX_DAYS));
+        if (pending.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Set<String>> keysByBill = new HashMap<>();
+        for (Transaction occ : pending) {
+            RecurringBill bill = occ.getRecurringBill();
+            keysByBill.computeIfAbsent(bill.getId(), id -> OccurrenceMatcher.keyTokens(bill,
+                transactions.findRecentPaidDescriptions(id, org.springframework.data.domain.PageRequest.of(0, 6))));
+        }
+        record Pair<C>(C candidate, Transaction occurrence, int score) {
+        }
+        List<Pair<C>> pairs = new ArrayList<>();
+        for (C c : candidates) {
+            OccurrenceMatcher.Candidate cand = toCandidate.apply(c);
+            for (Transaction occ : pending) {
+                int score = OccurrenceMatcher.score(occ, keysByBill.get(occ.getRecurringBill().getId()), cand);
+                if (score > 0) {
+                    pairs.add(new Pair<>(c, occ, score));
+                }
+            }
+        }
+        pairs.sort(Comparator.comparingInt((Pair<C> p) -> p.score()).reversed());
+        Map<C, ScoredOccurrence> result = new HashMap<>();
+        Set<Long> used = new HashSet<>();
+        for (Pair<C> p : pairs) {
+            if (result.containsKey(p.candidate()) || used.contains(p.occurrence().getId())) {
+                continue;
+            }
+            result.put(p.candidate(), new ScoredOccurrence(p.occurrence(), p.score()));
+            used.add(p.occurrence().getId());
+        }
+        return result;
+    }
+
+    public record ScoredOccurrence(Transaction occurrence, int score) {
+    }
+
+    /**
+     * Um vencimento pendente passa a representar o pagamento real: valor e data vêm do extrato/comprovante,
+     * a data prevista pela regra fica guardada para comparação.
+     */
+    public static void settle(Transaction occurrence, BigDecimal amount, LocalDate date) {
+        occurrence.setAmount(amount);
+        occurrence.setDueDate(date);
+        occurrence.setPaid(true);
+    }
+
     public RecurringBill require(Long userId, Long id) {
         return bills.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new NotFoundException("Conta recorrente não encontrada"));
@@ -211,6 +276,9 @@ public class RecurringBillService {
         if (req.active() != null) {
             bill.setActive(req.active());
         }
+        if (req.matchStrictness() != null) {
+            bill.setMatchStrictness(req.matchStrictness());
+        }
     }
 
     private static void validate(RecurringBillRequest req) {
@@ -227,6 +295,6 @@ public class RecurringBillService {
             a == null ? null : a.getId(), a == null ? null : a.getName(),
             c == null ? null : c.getId(), c == null ? null : c.getName(), c == null ? null : c.getColor(),
             c == null ? null : c.getIcon(), b.getNotes(), b.isActive(),
-            b.isActive() ? RecurrenceCalculator.nextOnOrAfter(b, LocalDate.now()) : null);
+            b.isActive() ? RecurrenceCalculator.nextOnOrAfter(b, LocalDate.now()) : null, b.getMatchStrictness());
     }
 }

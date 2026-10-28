@@ -27,6 +27,9 @@ public final class ReceiptDtos {
     public record ReceiptScanResponse(String receiptFile, String merchant, LocalDate date, boolean paid, BigDecimal total,
             BigDecimal itemsTotal, String paymentMethod, String accessKey, List<ScannedItem> items,
             Long suggestedCategoryId, String suggestedCategoryName,
-            Long duplicateOfTransactionId, String duplicateOfDescription, LocalDate duplicateOfDate) {
+            Long duplicateOfTransactionId, String duplicateOfDescription, LocalDate duplicateOfDate,
+            /** Vencimento pendente de conta recorrente que este comprovante parece pagar. */
+            Long recurringMatchTransactionId, String recurringMatchDescription, LocalDate recurringMatchDate,
+            BigDecimal recurringMatchAmount, Long recurringMatchCategoryId, Long recurringMatchAccountId) {
     }
 }

@@ -4,7 +4,7 @@ import { ArrowLeftRight, Check, Receipt, Repeat } from 'lucide-vue-next'
 import type { Transaction } from '@/api/types'
 import CategoryIcon from './CategoryIcon.vue'
 import Money from './Money.vue'
-import { dateShort, dueLabel, dueStatus } from '@/lib/format'
+import { dateShort, dueLabel, dueStatus, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
 
@@ -40,6 +40,8 @@ const meta = computed(() => {
     parts.push(catalog.categoryPath(t.categoryId) ?? t.categoryName)
   }
   if (t.installmentNumber && t.installmentTotal) parts.push(`${t.installmentNumber}/${t.installmentTotal}`)
+  if (t.recurringBillId && t.scheduledDate && t.scheduledDate !== t.dueDate) parts.push(`previsto ${dateShort(t.scheduledDate)}`)
+  if (t.recurringBillId && t.expectedAmount != null && t.expectedAmount !== t.amount) parts.push(`estimado ${money(t.expectedAmount)}`)
   if (t.items?.length) parts.push(`${t.items.length} ${t.items.length === 1 ? 'item' : 'itens'}`)
   return parts.join(' · ')
 })
