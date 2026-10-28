@@ -65,10 +65,17 @@ public final class TransactionDtos {
     /**
      * Totais da listagem. Receitas e despesas ignoram pernas de transferência; transferOut/transferIn
      * somam, separadamente, o que saiu e o que entrou por movimentação interna entre as contas listadas.
+     * {@code balance} é o resultado do mês (receitas − despesas); {@code previousBalance} é o resultado acumulado
+     * de todos os meses anteriores com os mesmos filtros, e {@code currentBalance} = anterior + resultado do mês.
      */
     public record Summary(BigDecimal income, BigDecimal expense, BigDecimal balance,
             BigDecimal pendingIncome, BigDecimal pendingExpense, BigDecimal transferOut, BigDecimal transferIn,
-            int count) {
+            int count, BigDecimal previousBalance, BigDecimal currentBalance) {
+
+        public Summary withPreviousBalance(BigDecimal previous) {
+            return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut, transferIn,
+                count, previous, previous.add(balance));
+        }
     }
 
     /** Saldo das contas (todas ou a filtrada) ao fim do dia, contando só o que está pago, como o saldo da conta. */

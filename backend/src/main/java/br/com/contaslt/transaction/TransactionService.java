@@ -32,8 +32,12 @@ import br.com.contaslt.transaction.TransactionDtos.TransactionRequest;
 import br.com.contaslt.transfer.Transfer;
 import br.com.contaslt.transfer.TransferRepository;
 import br.com.contaslt.user.User;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 
 @Service
 public class TransactionService {
@@ -52,14 +56,17 @@ public class TransactionService {
     private final CategoryService categories;
     private final RecurringBillService recurring;
     private final TransferRepository transfers;
+    private final EntityManager em;
 
     public TransactionService(TransactionRepository transactions, AccountService accounts,
-            CategoryService categories, RecurringBillService recurring, TransferRepository transfers) {
+            CategoryService categories, RecurringBillService recurring, TransferRepository transfers,
+            EntityManager em) {
         this.transactions = transactions;
         this.accounts = accounts;
         this.categories = categories;
         this.recurring = recurring;
         this.transfers = transfers;
+        this.em = em;
     }
 
     @Transactional
@@ -67,8 +74,29 @@ public class TransactionService {
         recurring.ensureOccurrences(user, filter.month());
         List<Transaction> items = transactions.findAll(spec(user.getId(), filter),
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
-        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(), summarize(items),
+        Summary summary = summarize(items).withPreviousBalance(previousBalance(user.getId(), filter));
+        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(), summary,
             dayBalances(user.getId(), filter));
+    }
+
+    /**
+     * Saldo anterior: receitas − despesas de todos os meses antes do mês listado, com os mesmos filtros da lista
+     * (conta, categoria, situação, busca). Pernas de transferência ficam de fora, como no resultado do mês.
+     */
+    private BigDecimal previousBalance(Long userId, Filter f) {
+        if (Boolean.TRUE.equals(f.transfers())) {
+            return BigDecimal.ZERO;
+        }
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<BigDecimal> q = cb.createQuery(BigDecimal.class);
+        Root<Transaction> root = q.from(Transaction.class);
+        Predicate filters = spec(userId, f, false).toPredicate(root, q, cb);
+        var signed = cb.<BigDecimal>selectCase()
+            .when(cb.equal(root.get("type"), TransactionType.INCOME), root.<BigDecimal>get("amount"))
+            .otherwise(cb.neg(root.<BigDecimal>get("amount")));
+        q.select(cb.coalesce(cb.sum(signed), BigDecimal.ZERO))
+            .where(filters, cb.isNull(root.get("transfer")));
+        return em.createQuery(q).getSingleResult();
     }
 
     /**
@@ -176,8 +204,9 @@ public class TransactionService {
                 }
             }
         }
-        return new Summary(income, expense, income.subtract(expense), pendingIncome, pendingExpense, transferOut,
-            transferIn, items.size());
+        BigDecimal balance = income.subtract(expense);
+        return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut,
+            transferIn, items.size(), BigDecimal.ZERO, balance);
     }
 
     private void apply(Long userId, Transaction t, TransactionRequest req) {
@@ -223,8 +252,13 @@ public class TransactionService {
     }
 
     private static Specification<Transaction> spec(Long userId, Filter f) {
+        return spec(userId, f, true);
+    }
+
+    /** {@code inMonth}: true = lançamentos do mês filtrado; false = tudo que vence antes dele (saldo anterior). */
+    private static Specification<Transaction> spec(Long userId, Filter f, boolean inMonth) {
         return (root, query, cb) -> {
-            if (query != null && query.getResultType() != Long.class && query.getResultType() != long.class) {
+            if (query != null && query.getResultType() == Transaction.class) {
                 root.fetch("account", JoinType.LEFT);
                 root.fetch("category", JoinType.LEFT);
                 root.fetch("recurringBill", JoinType.LEFT);
@@ -233,8 +267,11 @@ public class TransactionService {
             List<Predicate> p = new ArrayList<>();
             p.add(cb.equal(root.get("user").get("id"), userId));
             LocalDate from = f.month().atDay(1);
-            LocalDate to = f.month().atEndOfMonth();
-            p.add(cb.between(root.get("dueDate"), from, to));
+            if (inMonth) {
+                p.add(cb.between(root.get("dueDate"), from, f.month().atEndOfMonth()));
+            } else {
+                p.add(cb.lessThan(root.get("dueDate"), from));
+            }
             if (f.accountId() != null) {
                 p.add(cb.equal(root.get("account").get("id"), f.accountId()));
             }

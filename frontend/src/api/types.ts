@@ -149,7 +149,11 @@ export interface TransactionInput {
 export interface Summary {
   income: number
   expense: number
+  /** Resultado do mês (receitas − despesas). */
   balance: number
+  /** Resultado acumulado dos meses anteriores, com os mesmos filtros; currentBalance = anterior + resultado do mês. */
+  previousBalance: number
+  currentBalance: number
   pendingIncome: number
   pendingExpense: number
   /** Movimentação interna entre contas, fora de receitas/despesas. */

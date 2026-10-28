@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Saldo ao fim de cada dia na lista de lançamentos. */
+/** Saldo ao fim de cada dia e saldo anterior/atual do mês na lista de lançamentos. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class DayBalanceTest {
@@ -52,6 +52,37 @@ class DayBalanceTest {
         assertThat(at(days, "2032-02-10")).isEqualTo(initial + 900);
         assertThat(at(days, "2032-02-15")).isEqualTo(initial + 850);
         assertThat(at(days, "2032-02-29")).isEqualTo(initial + 850);
+    }
+
+    @Test
+    void previousBalanceCarriesResultOfEarlierMonthsIntoCurrentBalance() {
+        token = body(mvc.post().uri("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("name", "Saldo", "email", "saldo" + System.nanoTime() + "@exemplo.com",
+                "password", "segredo1"))).exchange()).get("token").asString();
+        long accountId = body(mvc.get().uri("/api/accounts").headers(auth()).exchange()).get(0).get("id").asLong();
+
+        transaction(accountId, "Salário jan", 1000, "INCOME", "2033-01-05", true);
+        transaction(accountId, "Aluguel jan", 700, "EXPENSE", "2033-01-10", true);
+        transaction(accountId, "Salário fev", 1000, "INCOME", "2033-02-05", true);
+        transaction(accountId, "Aluguel fev", 700, "EXPENSE", "2033-02-10", false); // pendente também conta no resultado
+        transaction(accountId, "Mercado mar", 100, "EXPENSE", "2033-03-02", true);
+
+        JsonNode jan = body(mvc.get().uri("/api/transactions?month=2033-01").headers(auth()).exchange()).get("summary");
+        assertThat(jan.get("previousBalance").asDouble()).isEqualTo(0);
+        assertThat(jan.get("balance").asDouble()).isEqualTo(300);
+        assertThat(jan.get("currentBalance").asDouble()).isEqualTo(300);
+
+        JsonNode feb = body(mvc.get().uri("/api/transactions?month=2033-02").headers(auth()).exchange()).get("summary");
+        assertThat(feb.get("previousBalance").asDouble()).isEqualTo(300);
+        assertThat(feb.get("currentBalance").asDouble()).isEqualTo(600);
+
+        // Março: saldo anterior acumula janeiro e fevereiro; o filtro de situação vale também para o anterior.
+        JsonNode mar = body(mvc.get().uri("/api/transactions?month=2033-03").headers(auth()).exchange()).get("summary");
+        assertThat(mar.get("previousBalance").asDouble()).isEqualTo(600);
+        assertThat(mar.get("currentBalance").asDouble()).isEqualTo(500);
+        JsonNode marPaid = body(mvc.get().uri("/api/transactions?month=2033-03&paid=true").headers(auth()).exchange()).get("summary");
+        assertThat(marPaid.get("previousBalance").asDouble()).isEqualTo(1300);
+        assertThat(marPaid.get("currentBalance").asDouble()).isEqualTo(1200);
     }
 
     private static double at(JsonNode days, String date) {
