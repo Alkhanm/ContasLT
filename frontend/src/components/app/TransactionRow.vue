@@ -6,6 +6,7 @@ import CategoryIcon from './CategoryIcon.vue'
 import Money from './Money.vue'
 import { dateShort, dueLabel, dueStatus } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useCatalogStore } from '@/stores/catalog'
 
 const props = withDefaults(defineProps<{
   transaction: Transaction
@@ -15,6 +16,8 @@ const props = withDefaults(defineProps<{
 }>(), { showDate: false, showAccount: true, busy: false })
 
 const emit = defineEmits<{ open: [tx: Transaction]; togglePaid: [tx: Transaction] }>()
+
+const catalog = useCatalogStore()
 
 const status = computed(() => dueStatus(props.transaction))
 const statusClass = computed(() => ({
@@ -34,7 +37,7 @@ const meta = computed(() => {
   if (isTransfer.value && t.transferPeerAccountName) {
     parts.push(t.type === 'EXPENSE' ? `Para ${t.transferPeerAccountName}` : `De ${t.transferPeerAccountName}`)
   } else if (t.categoryName) {
-    parts.push(t.categoryName)
+    parts.push(catalog.categoryPath(t.categoryId) ?? t.categoryName)
   }
   if (t.installmentNumber && t.installmentTotal) parts.push(`${t.installmentNumber}/${t.installmentTotal}`)
   if (t.items?.length) parts.push(`${t.items.length} ${t.items.length === 1 ? 'item' : 'itens'}`)

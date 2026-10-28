@@ -34,7 +34,8 @@ import jakarta.persistence.criteria.Predicate;
 public class TransactionService {
 
     /** {@code transfers}: null = tudo, true = só pernas de transferência, false = sem transferências. */
-    public record Filter(YearMonth month, Long accountId, Long categoryId, TransactionType type, Boolean paid,
+    /** {@code categoryIds}: a categoria filtrada e suas subcategorias (vazio/nulo = todas). */
+    public record Filter(YearMonth month, Long accountId, List<Long> categoryIds, TransactionType type, Boolean paid,
             String search, Boolean transfers) {
     }
 
@@ -196,8 +197,8 @@ public class TransactionService {
             if (f.accountId() != null) {
                 p.add(cb.equal(root.get("account").get("id"), f.accountId()));
             }
-            if (f.categoryId() != null) {
-                p.add(cb.equal(root.get("category").get("id"), f.categoryId()));
+            if (f.categoryIds() != null && !f.categoryIds().isEmpty()) {
+                p.add(root.get("category").get("id").in(f.categoryIds()));
             }
             if (f.type() != null) {
                 p.add(cb.equal(root.get("type"), f.type()));

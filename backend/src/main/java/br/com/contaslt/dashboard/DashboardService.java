@@ -57,7 +57,8 @@ public class DashboardService {
         BigDecimal paidIncome = BigDecimal.ZERO;
         BigDecimal paidExpense = BigDecimal.ZERO;
         BigDecimal transfers = BigDecimal.ZERO;
-        Map<Category, List<Transaction>> byCategory = new LinkedHashMap<>();
+        Map<Long, Category> roots = new LinkedHashMap<>();
+        Map<Long, List<Transaction>> byCategory = new LinkedHashMap<>();
         List<Transaction> uncategorized = new ArrayList<>();
         for (Transaction t : items) {
             if (t.isTransfer()) {
@@ -80,16 +81,20 @@ public class DashboardService {
                 if (t.getCategory() == null) {
                     uncategorized.add(t);
                 } else {
-                    byCategory.computeIfAbsent(t.getCategory(), k -> new ArrayList<>()).add(t);
+                    // Subcategorias somam na categoria pai; o clique no painel filtra pai + filhas.
+                    Category root = t.getCategory().getRoot();
+                    roots.putIfAbsent(root.getId(), root);
+                    byCategory.computeIfAbsent(root.getId(), k -> new ArrayList<>()).add(t);
                 }
             }
         }
 
         List<CategoryTotal> categoryTotals = new ArrayList<>();
-        for (Map.Entry<Category, List<Transaction>> e : byCategory.entrySet()) {
+        for (Map.Entry<Long, List<Transaction>> e : byCategory.entrySet()) {
+            Category c = roots.get(e.getKey());
             BigDecimal total = sum(e.getValue());
-            categoryTotals.add(new CategoryTotal(e.getKey().getId(), e.getKey().getName(), e.getKey().getColor(),
-                e.getKey().getIcon(), total, percent(total, expense), e.getValue().size()));
+            categoryTotals.add(new CategoryTotal(c.getId(), c.getName(), c.getColor(), c.getIcon(), total,
+                percent(total, expense), e.getValue().size()));
         }
         if (!uncategorized.isEmpty()) {
             BigDecimal total = sum(uncategorized);

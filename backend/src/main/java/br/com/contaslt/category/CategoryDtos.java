@@ -16,9 +16,11 @@ public final class CategoryDtos {
         @NotNull(message = "Informe o tipo") TransactionType type,
         @NotBlank(message = "Escolha uma cor") @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "Cor inválida") String color,
         @Size(max = 40) String icon,
-        Boolean archived) {
+        Boolean archived,
+        Long parentId) {
     }
 
-    public record CategoryDto(Long id, String name, TransactionType type, String color, String icon, boolean archived) {
+    public record CategoryDto(Long id, String name, TransactionType type, String color, String icon, boolean archived,
+            Long parentId) {
     }
 }

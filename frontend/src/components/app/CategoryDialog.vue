@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Check } from 'lucide-vue-next'
 import { categoriesApi } from '@/api'
 import type { Category, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CategoryIcon from './CategoryIcon.vue'
 import FormField from './FormField.vue'
 import TypeToggle from './TypeToggle.vue'
@@ -14,11 +15,28 @@ import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
 
-const props = defineProps<{ open: boolean; category: Category | null; defaultType?: TransactionType }>()
+const props = defineProps<{
+  open: boolean
+  category: Category | null
+  defaultType?: TransactionType
+  /** Pré-seleciona a categoria pai ao criar uma subcategoria. */
+  defaultParent?: Category | null
+}>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [] }>()
 
 const catalog = useCatalogStore()
-const form = reactive({ name: '', type: 'EXPENSE' as TransactionType, color: colorPalette[0]!, icon: 'tag' })
+const form = reactive({ name: '', type: 'EXPENSE' as TransactionType, color: colorPalette[0]!, icon: 'tag', parentId: null as number | null })
+
+/** Uma categoria que já tem subcategorias não pode virar subcategoria (só há um nível). */
+const hasChildren = computed(() => !!props.category && catalog.childrenOf(props.category.id, true).length > 0)
+const parentOptions = computed(() => catalog.rootCategories.filter((c) => c.type === form.type && c.id !== props.category?.id))
+const parent = computed(() => catalog.category(form.parentId))
+const parentValue = computed(() => (form.parentId == null ? 'none' : String(form.parentId)))
+
+function onParent(v: unknown) {
+  form.parentId = v === 'none' || v == null ? null : Number(v)
+  if (parent.value) form.type = parent.value.type
+}
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 
@@ -26,7 +44,8 @@ watch(() => props.open, (open) => {
   if (!open) return
   errors.value = {}
   form.name = props.category?.name ?? ''
-  form.type = props.category?.type ?? props.defaultType ?? 'EXPENSE'
+  form.parentId = props.category?.parentId ?? props.defaultParent?.id ?? null
+  form.type = props.category?.type ?? props.defaultParent?.type ?? props.defaultType ?? 'EXPENSE'
   form.color = props.category?.color ?? colorPalette[Math.floor(Math.random() * colorPalette.length)]!
   form.icon = props.category?.icon ?? 'tag'
 })
@@ -38,7 +57,7 @@ async function save() {
   }
   saving.value = true
   try {
-    const input = { name: form.name.trim(), type: form.type, color: form.color, icon: form.icon }
+    const input = { name: form.name.trim(), type: form.type, color: form.color, icon: form.icon, parentId: form.parentId }
     if (props.category) await categoriesApi.update(props.category.id, { ...input, archived: props.category.archived })
     else await categoriesApi.create(input)
     await catalog.reloadCategories()
@@ -68,7 +87,30 @@ async function save() {
             <Input id="cat-name" v-model="form.name" maxlength="60" placeholder="Ex.: Pets" autocomplete="off" />
           </FormField>
         </div>
-        <TypeToggle v-model="form.type" :disabled="!!category" />
+        <TypeToggle v-model="form.type" :disabled="!!category || form.parentId != null" />
+        <FormField v-if="!hasChildren" label="Subcategoria de" for="cat-parent" hint="Opcional. Ex.: Contas da casa › Energia">
+          <Select :model-value="parentValue" @update:model-value="onParent">
+            <SelectTrigger id="cat-parent" class="w-full">
+              <SelectValue>
+                <span v-if="parent" class="flex items-center gap-2">
+                  <CategoryIcon :icon="parent.icon" :color="parent.color" size="sm" />
+                  <span class="truncate">{{ parent.name }}</span>
+                </span>
+                <span v-else class="text-muted-foreground">Nenhuma (categoria principal)</span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none"><span class="text-muted-foreground">Nenhuma (categoria principal)</span></SelectItem>
+              <SelectItem v-for="c in parentOptions" :key="c.id" :value="String(c.id)">
+                <span class="flex items-center gap-2">
+                  <CategoryIcon :icon="c.icon" :color="c.color" size="sm" />
+                  {{ c.name }}
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
+        <p v-else class="text-xs text-muted-foreground">Esta categoria tem subcategorias, por isso continua como principal.</p>
         <FormField label="Cor">
           <div class="grid grid-cols-8 gap-2">
             <button

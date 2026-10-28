@@ -1,6 +1,7 @@
 package br.com.contaslt.transaction;
 
 import java.time.YearMonth;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.transaction.TransactionDtos.PaidRequest;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
@@ -29,10 +31,12 @@ import jakarta.validation.Valid;
 public class TransactionController {
 
     private final TransactionService transactions;
+    private final CategoryService categories;
     private final CurrentUser currentUser;
 
-    public TransactionController(TransactionService transactions, CurrentUser currentUser) {
+    public TransactionController(TransactionService transactions, CategoryService categories, CurrentUser currentUser) {
         this.transactions = transactions;
+        this.categories = categories;
         this.currentUser = currentUser;
     }
 
@@ -46,7 +50,8 @@ public class TransactionController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean transfers) {
         YearMonth ym = month == null || month.isBlank() ? YearMonth.now() : YearMonth.parse(month);
-        return transactions.list(currentUser.get(), new Filter(ym, accountId, categoryId, type, paid, search, transfers));
+        List<Long> categoryIds = categoryId == null ? null : categories.idsWithChildren(currentUser.id(), categoryId);
+        return transactions.list(currentUser.get(), new Filter(ym, accountId, categoryIds, type, paid, search, transfers));
     }
 
     @GetMapping("/{id}")

@@ -78,6 +78,8 @@ No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
 
 **Contas recorrentes** são regras (valor, frequência, primeiro vencimento, fim opcional ou número de parcelas). Os vencimentos de cada mês são materializados como lançamentos sob demanda, na primeira vez que o mês é consultado, de forma idempotente. Editar a regra atualiza as ocorrências ainda não pagas; excluir remove as pendentes e preserva as pagas no histórico.
 
+**Subcategorias**: cada categoria pode ter subcategorias (um nível só, ex.: Contas da casa › Energia). A subcategoria herda o tipo do pai. Os seletores de categoria são em cascata (categoria, depois subcategoria). Filtrar lançamentos pela categoria pai inclui as subcategorias, e o painel "Despesas por categoria" soma as subcategorias no pai. Arquivar o pai arquiva as filhas; o pai não pode ser excluído enquanto tiver subcategorias.
+
 **Categorização na importação** usa duas fontes, nesta ordem: nome de categoria vindo da planilha e regras "palavra-chave → categoria" do usuário. Não adivinha pelo histórico de lançamentos: sem regra, a linha fica sem categoria. Ao confirmar uma importação, as categorias escolhidas viram regras automaticamente. Duplicados são detectados por `FITID` (OFX) ou por data + valor + descrição.
 
 **Transferências entre contas** são pares de lançamentos vinculados: a saída (despesa) na conta de origem e a entrada (receita) na de destino. Cada perna continua valendo para o saldo da própria conta, mas o par é ignorado em receitas, despesas, categorias e histórico, porque é só movimentação interna (ex.: PJ → PF). O cruzamento automático sugere pares com mesmo valor, contas diferentes e até 3 dias de distância, priorizando datas próximas e descrições do tipo "transferência/Pix/TED"; o usuário confirma, e pode também vincular manualmente, criar uma transferência direto no formulário ou desvincular. Excluir uma perna desfaz o vínculo e mantém a outra como lançamento comum.
@@ -97,7 +99,7 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/auth/register`, `/api/auth/login` | Cadastro e login (retornam token + usuário) |
 | GET | `/api/auth/me` | Usuário atual |
 | GET/POST/PUT/DELETE | `/api/accounts` | Contas (saldo calculado dos lançamentos pagos) |
-| GET/POST/PUT/DELETE | `/api/categories` | Categorias (cor + ícone) |
+| GET/POST/PUT/DELETE | `/api/categories` | Categorias (cor + ícone; `parentId` para subcategoria) |
 | GET | `/api/transactions?month=AAAA-MM&accountId&categoryId&type&paid&search&transfers` | Lançamentos do mês + resumo (`transfers=true` só transferências, `false` sem elas) |
 | POST/PUT/DELETE | `/api/transactions/{id}` | CRUD de lançamentos (aceita `items`, `merchant`, `receiptFile`, `receiptAccessKey`) |
 | PATCH | `/api/transactions/{id}/paid` | Marcar pago/pendente |

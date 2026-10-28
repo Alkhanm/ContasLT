@@ -39,6 +39,8 @@ export interface Category {
   color: string
   icon: string
   archived: boolean
+  /** Categoria pai quando esta é uma subcategoria (um nível só). */
+  parentId: number | null
 }
 
 export interface CategoryInput {
@@ -47,6 +49,7 @@ export interface CategoryInput {
   color: string
   icon: string
   archived?: boolean
+  parentId?: number | null
 }
 
 export interface Transaction {

@@ -28,6 +28,11 @@ public class Category {
     @JoinColumn(name = "user_id")
     private User user;
 
+    /** Categoria pai, quando esta é uma subcategoria. Só há um nível: um pai nunca tem pai. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Category parent;
+
     @Column(nullable = false)
     private String name;
 
@@ -50,6 +55,10 @@ public class Category {
     public Long getId() { return id; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+    public Category getParent() { return parent; }
+    public void setParent(Category parent) { this.parent = parent; }
+    /** A própria categoria, ou o pai quando é subcategoria. */
+    public Category getRoot() { return parent == null ? this : parent; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public TransactionType getType() { return type; }

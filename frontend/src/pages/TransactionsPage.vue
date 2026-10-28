@@ -2,10 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
-import { ArrowLeftRight, ListChecks, Search, X } from 'lucide-vue-next'
+import { ArrowLeftRight, ListChecks, Search } from 'lucide-vue-next'
 import { transactionsApi, transfersApi } from '@/api'
 import type { Transaction, TransactionPage, TransactionType } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
+import CategorySelect from '@/components/app/CategorySelect.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
 import Money from '@/components/app/Money.vue'
 import TransactionRow from '@/components/app/TransactionRow.vue'
@@ -98,7 +99,12 @@ watch([typeFilter, status, accountId, categoryId], () => {
   } })
 })
 
-const selectedCategory = computed(() => catalog.category(categoryId.value))
+/** Tipo das categorias oferecidas no filtro; sem tipo (Todos/Transferências) mostra despesas e receitas agrupadas. */
+const categoryType = computed(() => (typeFilter.value === 'EXPENSE' || typeFilter.value === 'INCOME' ? typeFilter.value : undefined))
+watch(categoryType, (type) => {
+  const c = catalog.category(categoryId.value)
+  if (type && c && c.type !== type) categoryId.value = null
+})
 
 const groups = computed(() => {
   const map = new Map<string, Transaction[]>()
@@ -159,11 +165,8 @@ async function togglePaid(tx: Transaction) {
       </div>
     </div>
 
-    <div v-if="selectedCategory" class="flex items-center gap-2 text-sm">
-      <span class="text-muted-foreground">Categoria:</span>
-      <button type="button" class="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-semibold" @click="categoryId = null">
-        {{ selectedCategory.name }} <X class="size-3" />
-      </button>
+    <div class="md:w-96">
+      <CategorySelect v-model="categoryId" :type="categoryType" none-label="Todas as categorias" child-all-label="Todas" />
     </div>
 
     <div v-if="suggestionCount" class="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">

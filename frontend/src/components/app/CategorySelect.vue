@@ -1,50 +1,111 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { TransactionType } from '@/api/types'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Category, TransactionType } from '@/api/types'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CategoryIcon from './CategoryIcon.vue'
+import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
 
+/**
+ * Seleção de categoria em cascata: primeiro a categoria, depois a subcategoria (quando a escolhida tem alguma).
+ * O valor é um id só: o da subcategoria, ou o da categoria quando se fica no "geral".
+ * Sem `type`, lista despesas e receitas agrupadas (uso em filtros).
+ */
 const props = defineProps<{
   modelValue: number | null
-  type: TransactionType
+  type?: TransactionType
   id?: string
   allowNone?: boolean
   size?: 'sm' | 'default'
+  /** Texto da opção vazia (padrão "Sem categoria"). */
+  noneLabel?: string
+  /** Texto da opção que mantém só a categoria pai (padrão "Geral"). */
+  childAllLabel?: string
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
 
 const catalog = useCatalogStore()
-const options = computed(() => (props.type === 'EXPENSE' ? catalog.expenseCategories : catalog.incomeCategories))
 const selected = computed(() => catalog.category(props.modelValue))
-const value = computed(() => (props.modelValue == null ? 'none' : String(props.modelValue)))
+const rootId = computed(() => (selected.value ? selected.value.parentId ?? selected.value.id : null))
+const root = computed(() => catalog.category(rootId.value))
+const roots = computed(() => catalog.rootCategories.filter((c) => !props.type || c.type === props.type))
+const groups = computed(() => [
+  { label: 'Despesas', items: roots.value.filter((c) => c.type === 'EXPENSE') },
+  { label: 'Receitas', items: roots.value.filter((c) => c.type === 'INCOME') },
+].filter((g) => g.items.length))
+const children = computed<Category[]>(() =>
+  catalog.childrenOf(rootId.value, true).filter((c) => !c.archived || c.id === props.modelValue))
+const isChild = computed(() => selected.value?.parentId != null)
 
-function onUpdate(v: unknown) {
+const rootValue = computed(() => (rootId.value == null ? 'none' : String(rootId.value)))
+const childValue = computed(() => (isChild.value ? String(props.modelValue) : 'all'))
+const noneText = computed(() => props.noneLabel ?? (props.allowNone === false ? 'Escolha a categoria' : 'Sem categoria'))
+
+function onRoot(v: unknown) {
   emit('update:modelValue', v === 'none' || v == null ? null : Number(v))
+}
+function onChild(v: unknown) {
+  emit('update:modelValue', v === 'all' || v == null ? rootId.value : Number(v))
 }
 </script>
 
 <template>
-  <Select :model-value="value" @update:model-value="onUpdate">
-    <SelectTrigger :id="id" :size="size ?? 'default'" class="w-full">
-      <SelectValue placeholder="Escolha a categoria">
-        <span v-if="selected" class="flex items-center gap-2">
-          <CategoryIcon :icon="selected.icon" :color="selected.color" size="sm" />
-          <span class="truncate">{{ selected.name }}</span>
-        </span>
-        <span v-else class="text-muted-foreground">{{ allowNone === false ? 'Escolha a categoria' : 'Sem categoria' }}</span>
-      </SelectValue>
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem v-if="allowNone !== false" value="none">
-        <span class="text-muted-foreground">Sem categoria</span>
-      </SelectItem>
-      <SelectItem v-for="c in options" :key="c.id" :value="String(c.id)">
-        <span class="flex items-center gap-2">
-          <CategoryIcon :icon="c.icon" :color="c.color" size="sm" />
-          {{ c.name }}
-        </span>
-      </SelectItem>
-    </SelectContent>
-  </Select>
+  <div :class="cn('grid gap-2', children.length ? 'grid-cols-2' : 'grid-cols-1')">
+    <Select :model-value="rootValue" @update:model-value="onRoot">
+      <SelectTrigger :id="id" :size="size ?? 'default'" class="w-full">
+        <SelectValue placeholder="Escolha a categoria">
+          <span v-if="root" class="flex items-center gap-2">
+            <CategoryIcon :icon="root.icon" :color="root.color" size="sm" />
+            <span class="truncate">{{ root.name }}</span>
+          </span>
+          <span v-else class="text-muted-foreground">{{ noneText }}</span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem v-if="allowNone !== false" value="none">
+          <span class="text-muted-foreground">{{ noneLabel ?? 'Sem categoria' }}</span>
+        </SelectItem>
+        <template v-if="type">
+          <SelectItem v-for="c in roots" :key="c.id" :value="String(c.id)">
+            <span class="flex items-center gap-2">
+              <CategoryIcon :icon="c.icon" :color="c.color" size="sm" />
+              {{ c.name }}
+            </span>
+          </SelectItem>
+        </template>
+        <SelectGroup v-for="g in groups" v-else :key="g.label">
+          <SelectLabel>{{ g.label }}</SelectLabel>
+          <SelectItem v-for="c in g.items" :key="c.id" :value="String(c.id)">
+            <span class="flex items-center gap-2">
+              <CategoryIcon :icon="c.icon" :color="c.color" size="sm" />
+              {{ c.name }}
+            </span>
+          </SelectItem>
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+
+    <Select v-if="children.length" :model-value="childValue" @update:model-value="onChild">
+      <SelectTrigger :size="size ?? 'default'" class="w-full" :aria-label="`Subcategoria de ${root?.name ?? ''}`">
+        <SelectValue>
+          <span v-if="isChild && selected" class="flex items-center gap-2">
+            <CategoryIcon :icon="selected.icon" :color="selected.color" size="sm" />
+            <span class="truncate">{{ selected.name }}</span>
+          </span>
+          <span v-else class="text-muted-foreground">{{ childAllLabel ?? 'Geral' }}</span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">
+          <span class="text-muted-foreground">{{ childAllLabel ?? 'Geral' }}</span>
+        </SelectItem>
+        <SelectItem v-for="c in children" :key="c.id" :value="String(c.id)">
+          <span class="flex items-center gap-2">
+            <CategoryIcon :icon="c.icon" :color="c.color" size="sm" />
+            {{ c.name }}<span v-if="c.archived" class="text-xs text-muted-foreground"> (arquivada)</span>
+          </span>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
 </template>
