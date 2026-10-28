@@ -2,7 +2,7 @@ import { api, apiObjectUrl } from './client'
 import type {
   Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryRule, Dashboard,
   ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, ReceiptScan, RecurringBill, RecurringBillInput,
-  Transaction, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
+  Transaction, TransactionEditScope, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
 } from './types'
 
 export const authApi = {
@@ -42,8 +42,8 @@ export const transactionsApi = {
       },
     }),
   create: (input: TransactionInput) => api<Transaction>('/api/transactions', { method: 'POST', body: input }),
-  update: (id: number, input: TransactionInput) =>
-    api<Transaction>(`/api/transactions/${id}`, { method: 'PUT', body: input }),
+  update: (id: number, input: TransactionInput, scope?: TransactionEditScope) =>
+    api<Transaction>(`/api/transactions/${id}`, { method: 'PUT', body: input, query: { scope } }),
   setPaid: (id: number, paid: boolean) =>
     api<Transaction>(`/api/transactions/${id}/paid`, { method: 'PATCH', body: { paid } }),
   remove: (id: number) => api<void>(`/api/transactions/${id}`, { method: 'DELETE' }),

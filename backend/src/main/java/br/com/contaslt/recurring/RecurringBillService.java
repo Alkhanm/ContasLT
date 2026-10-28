@@ -74,7 +74,46 @@ public class RecurringBillService {
             throw new BusinessException("O tipo da recorrência precisa ser o mesmo do lançamento");
         }
         t.setRecurringBill(bill);
+        t.setScheduledDate(t.getDueDate());
         t.setInstallmentNumber(bill.getOccurrences() != null && t.getDueDate().equals(bill.getStartDate()) ? 1 : null);
+    }
+
+    /**
+     * "Editar este e os próximos": o lançamento {@code t} já recebeu as alterações; aqui elas passam para a regra
+     * e para as ocorrências pendentes previstas depois dele. Se a data mudou, a regra é reancorada nesse vencimento:
+     * os próximos passam a seguir o novo dia (ex.: todo dia 1º) e são gerados de novo a partir daí.
+     * Ocorrências anteriores, pagas ou não, ficam como estão.
+     */
+    @Transactional
+    public void applyToFollowing(User user, Transaction t, LocalDate previousScheduled) {
+        RecurringBill bill = t.getRecurringBill();
+        if (t.getType() != bill.getType()) {
+            throw new BusinessException("Para mudar o tipo, edite a conta recorrente");
+        }
+        bill.setDescription(t.getDescription());
+        bill.setAmount(t.getAmount());
+        bill.setAccount(t.getAccount());
+        bill.setCategory(t.getCategory());
+
+        LocalDate newDate = t.getDueDate();
+        if (newDate.equals(previousScheduled)) {
+            for (Transaction next : transactions.findByRecurringBillIdAndPaidFalseAndScheduledDateAfter(bill.getId(), previousScheduled)) {
+                syncOccurrence(bill, next);
+            }
+            return;
+        }
+        if (transactions.existsByRecurringBillIdAndScheduledDateAndIdNot(bill.getId(), newDate, t.getId())) {
+            throw new BusinessException("Já existe outro vencimento desta conta recorrente previsto para essa data");
+        }
+        Integer number = t.getInstallmentNumber() != null ? t.getInstallmentNumber()
+            : RecurrenceCalculator.numberOf(bill, previousScheduled);
+        transactions.deleteByRecurringBillIdAndPaidFalseAndScheduledDateAfter(bill.getId(), previousScheduled);
+        if (number != null) {
+            bill.setStartNumber(number);
+        }
+        bill.setStartDate(newDate);
+        t.setScheduledDate(newDate);
+        ensureOccurrences(user, YearMonth.from(newDate));
     }
 
     @Transactional
@@ -123,7 +162,7 @@ public class RecurringBillService {
             if (occurrences.isEmpty()) {
                 continue;
             }
-            Set<LocalDate> existing = transactions.findDueDatesByRecurringBill(bill.getId(), from, to);
+            Set<LocalDate> existing = transactions.findScheduledDatesByRecurringBill(bill.getId(), from, to);
             for (Occurrence occ : occurrences) {
                 if (existing.contains(occ.date())) {
                     continue;
@@ -132,6 +171,7 @@ public class RecurringBillService {
                 t.setUser(user);
                 t.setRecurringBill(bill);
                 t.setDueDate(occ.date());
+                t.setScheduledDate(occ.date());
                 t.setInstallmentNumber(bill.getOccurrences() == null ? null : occ.number());
                 syncOccurrence(bill, t);
                 transactions.save(t);

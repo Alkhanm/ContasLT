@@ -89,6 +89,10 @@ public class Transaction {
     @Column(name = "installment_number")
     private Integer installmentNumber;
 
+    /** Data prevista pela regra da conta recorrente; a data real (dueDate) pode ter sido movida pelo usuário. */
+    @Column(name = "scheduled_date")
+    private LocalDate scheduledDate;
+
     /** Estabelecimento lido do comprovante. */
     private String merchant;
 
@@ -150,6 +154,8 @@ public class Transaction {
     public void setExternalId(String externalId) { this.externalId = externalId; }
     public Integer getInstallmentNumber() { return installmentNumber; }
     public void setInstallmentNumber(Integer installmentNumber) { this.installmentNumber = installmentNumber; }
+    public LocalDate getScheduledDate() { return scheduledDate; }
+    public void setScheduledDate(LocalDate scheduledDate) { this.scheduledDate = scheduledDate; }
     public String getMerchant() { return merchant; }
     public void setMerchant(String merchant) { this.merchant = merchant; }
     public String getReceiptFile() { return receiptFile; }

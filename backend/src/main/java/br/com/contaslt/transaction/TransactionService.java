@@ -23,6 +23,7 @@ import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.recurring.RecurringBillService;
 import br.com.contaslt.transaction.TransactionDtos.DayBalance;
+import br.com.contaslt.transaction.TransactionDtos.EditScope;
 import br.com.contaslt.transaction.TransactionDtos.ItemRequest;
 import br.com.contaslt.transaction.TransactionDtos.Summary;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
@@ -112,9 +113,13 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionDto update(Long userId, Long id, TransactionRequest req) {
-        Transaction t = require(userId, id);
-        apply(userId, t, req);
+    public TransactionDto update(User user, Long id, TransactionRequest req, EditScope scope) {
+        Transaction t = require(user.getId(), id);
+        LocalDate previousScheduled = t.getScheduledDate() != null ? t.getScheduledDate() : t.getDueDate();
+        apply(user.getId(), t, req);
+        if (scope == EditScope.FOLLOWING && t.getRecurringBill() != null) {
+            recurring.applyToFollowing(user, t, previousScheduled);
+        }
         return TransactionMapper.toDto(t);
     }
 

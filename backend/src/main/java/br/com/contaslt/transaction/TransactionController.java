@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.TransactionType;
+import br.com.contaslt.transaction.TransactionDtos.EditScope;
 import br.com.contaslt.transaction.TransactionDtos.PaidRequest;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
 import br.com.contaslt.transaction.TransactionDtos.TransactionPage;
@@ -67,9 +68,11 @@ public class TransactionController {
         return transactions.create(currentUser.get(), req);
     }
 
+    /** {@code scope=FOLLOWING} em ocorrência de conta recorrente aplica a edição também aos próximos vencimentos. */
     @PutMapping("/{id}")
-    public TransactionDto update(@PathVariable Long id, @Valid @RequestBody TransactionRequest req) {
-        return transactions.update(currentUser.id(), id, req);
+    public TransactionDto update(@PathVariable Long id, @Valid @RequestBody TransactionRequest req,
+            @RequestParam(required = false, defaultValue = "THIS") EditScope scope) {
+        return transactions.update(currentUser.get(), id, req, scope);
     }
 
     @PatchMapping("/{id}/paid")

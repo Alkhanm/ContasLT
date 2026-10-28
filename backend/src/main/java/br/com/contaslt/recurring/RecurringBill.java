@@ -63,6 +63,10 @@ public class RecurringBill {
     /** Número total de parcelas; null = sem fim definido. */
     private Integer occurrences;
 
+    /** Número da ocorrência que cai em startDate (1 = primeira). Muda quando o calendário é reancorado. */
+    @Column(name = "start_number", nullable = false)
+    private int startNumber = 1;
+
     private String notes;
 
     @Column(nullable = false)
@@ -92,6 +96,8 @@ public class RecurringBill {
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
     public Integer getOccurrences() { return occurrences; }
     public void setOccurrences(Integer occurrences) { this.occurrences = occurrences; }
+    public int getStartNumber() { return startNumber; }
+    public void setStartNumber(int startNumber) { this.startNumber = startNumber; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public boolean isActive() { return active; }

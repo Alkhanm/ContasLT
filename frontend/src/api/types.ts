@@ -91,6 +91,9 @@ export interface TransactionItem {
   total: number
 }
 
+/** Alcance de uma edição em ocorrência de conta recorrente: só ela, ou ela e os próximos vencimentos. */
+export type TransactionEditScope = 'THIS' | 'FOLLOWING'
+
 export interface TransactionItemInput {
   description: string
   quantity: number | null

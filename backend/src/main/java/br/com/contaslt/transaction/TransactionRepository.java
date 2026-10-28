@@ -25,9 +25,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     List<Transaction> findByRecurringBillIdAndPaidFalse(Long recurringBillId);
 
+    /** Ocorrências pendentes previstas depois de uma data (as "próximas" de um vencimento). */
+    List<Transaction> findByRecurringBillIdAndPaidFalseAndScheduledDateAfter(Long recurringBillId, LocalDate after);
+
+    boolean existsByRecurringBillIdAndScheduledDateAndIdNot(Long recurringBillId, LocalDate scheduledDate, Long id);
+
     @Modifying
     @Query("delete from Transaction t where t.recurringBill.id = :billId and t.paid = false")
     void deleteByRecurringBillIdAndPaidFalse(@Param("billId") Long billId);
+
+    @Modifying
+    @Query("delete from Transaction t where t.recurringBill.id = :billId and t.paid = false and t.scheduledDate > :after")
+    void deleteByRecurringBillIdAndPaidFalseAndScheduledDateAfter(@Param("billId") Long billId, @Param("after") LocalDate after);
 
     @Modifying
     @Query("delete from Transaction t where t.importBatch.id = :batchId")
@@ -53,8 +62,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("update Transaction t set t.recurringBill = null where t.recurringBill.id = :billId")
     void detachFromRecurringBill(@Param("billId") Long billId);
 
-    @Query("select t.dueDate from Transaction t where t.recurringBill.id = :billId and t.dueDate between :from and :to")
-    Set<LocalDate> findDueDatesByRecurringBill(@Param("billId") Long billId, @Param("from") LocalDate from,
+    @Query("select t.scheduledDate from Transaction t where t.recurringBill.id = :billId and t.scheduledDate between :from and :to")
+    Set<LocalDate> findScheduledDatesByRecurringBill(@Param("billId") Long billId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
     @EntityGraph(attributePaths = {"account", "category", "transfer"})

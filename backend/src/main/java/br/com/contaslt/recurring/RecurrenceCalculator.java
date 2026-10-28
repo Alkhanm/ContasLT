@@ -19,7 +19,8 @@ public final class RecurrenceCalculator {
     public static List<Occurrence> between(RecurringBill bill, LocalDate from, LocalDate to) {
         List<Occurrence> result = new ArrayList<>();
         for (int i = 0; i < MAX_ITERATIONS; i++) {
-            if (bill.getOccurrences() != null && i >= bill.getOccurrences()) {
+            int number = bill.getStartNumber() + i;
+            if (bill.getOccurrences() != null && number > bill.getOccurrences()) {
                 break;
             }
             LocalDate date = bill.getFrequency().nth(bill.getStartDate(), i);
@@ -27,16 +28,30 @@ public final class RecurrenceCalculator {
                 break;
             }
             if (!date.isBefore(from)) {
-                result.add(new Occurrence(date, i + 1));
+                result.add(new Occurrence(date, number));
             }
         }
         return result;
     }
 
+    /** Número sequencial da ocorrência prevista para {@code date}, ou null se a regra não cai nessa data. */
+    public static Integer numberOf(RecurringBill bill, LocalDate date) {
+        for (int i = 0; i < MAX_ITERATIONS; i++) {
+            LocalDate d = bill.getFrequency().nth(bill.getStartDate(), i);
+            if (d.isAfter(date)) {
+                return null;
+            }
+            if (d.equals(date)) {
+                return bill.getStartNumber() + i;
+            }
+        }
+        return null;
+    }
+
     /** Próxima data igual ou posterior a {@code reference}, ou null se a recorrência já terminou. */
     public static LocalDate nextOnOrAfter(RecurringBill bill, LocalDate reference) {
         for (int i = 0; i < MAX_ITERATIONS; i++) {
-            if (bill.getOccurrences() != null && i >= bill.getOccurrences()) {
+            if (bill.getOccurrences() != null && bill.getStartNumber() + i > bill.getOccurrences()) {
                 return null;
             }
             LocalDate date = bill.getFrequency().nth(bill.getStartDate(), i);

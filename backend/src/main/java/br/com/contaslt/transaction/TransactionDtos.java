@@ -44,6 +44,14 @@ public final class TransactionDtos {
     public record PaidRequest(@NotNull Boolean paid) {
     }
 
+    /** Alcance de uma edição em ocorrência de conta recorrente. */
+    public enum EditScope {
+        /** Só este lançamento. */
+        THIS,
+        /** Este e os próximos vencimentos pendentes da mesma conta recorrente. */
+        FOLLOWING
+    }
+
     public record TransactionDto(Long id, String description, BigDecimal amount, TransactionType type,
             LocalDate dueDate, boolean paid, String notes, Long accountId, String accountName,
             Long categoryId, String categoryName, String categoryColor, String categoryIcon,

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowLeftRight, Camera, ChevronDown, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
-import type { ReceiptScan, TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
+import type { ReceiptScan, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -41,7 +41,13 @@ const form = reactive({
   receiptFile: null as string | null,
   receiptAccessKey: null as string | null,
   items: [] as TransactionItemInput[],
+  /** Em ocorrência de conta recorrente: aplicar só nela ou nela e nos próximos vencimentos. */
+  scope: 'THIS' as TransactionEditScope,
 })
+const scopes: { value: TransactionEditScope; label: string }[] = [
+  { value: 'THIS', label: 'Só este' },
+  { value: 'FOLLOWING', label: 'Este e os próximos' },
+]
 const errors = ref<Record<string, string>>({})
 const scanning = ref(false)
 const showItems = ref(false)
@@ -129,6 +135,7 @@ watch(() => ui.transactionFormOpen, async (open) => {
   await catalog.load()
   errors.value = {}
   duplicate.value = null
+  form.scope = 'THIS'
   const tx = editing.value
   if (tx) {
     form.kind = tx.type
@@ -219,8 +226,9 @@ async function save() {
         items: form.items.filter((i) => i.description.trim()).map((i) => ({ ...i, description: i.description.trim(), total: i.total || 0 })),
       }
       if (editing.value) {
-        await transactionsApi.update(editing.value.id, input)
-        notifySuccess('Lançamento atualizado')
+        const scope = editing.value.recurringBillId ? form.scope : undefined
+        await transactionsApi.update(editing.value.id, input, scope)
+        notifySuccess(scope === 'FOLLOWING' ? 'Este e os próximos vencimentos atualizados' : 'Lançamento atualizado')
       } else {
         await transactionsApi.create(input)
         notifySuccess(type.value === 'INCOME' ? 'Receita adicionada' : 'Despesa adicionada')
@@ -370,13 +378,35 @@ async function unlink() {
         </FormField>
       </template>
 
-      <p v-if="editing?.recurringBillId" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-        <Repeat class="mt-0.5 size-3.5 shrink-0" />
-        <span>
-          Este lançamento vem de uma conta recorrente. Alterações aqui valem só para esta ocorrência.
+      <div v-if="editing?.recurringBillId" class="space-y-2 rounded-lg bg-muted px-3 py-3">
+        <p class="flex items-center gap-2 text-xs font-semibold">
+          <Repeat class="size-3.5 shrink-0" /> Lançamento de conta recorrente. Aplicar alterações em:
+        </p>
+        <div role="radiogroup" class="grid grid-cols-2 gap-1 rounded-lg bg-background p-1">
+          <button
+            v-for="s in scopes"
+            :key="s.value"
+            type="button"
+            role="radio"
+            :aria-checked="form.scope === s.value"
+            :class="cn('h-8 rounded-md text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              form.scope === s.value ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground')"
+            @click="form.scope = s.value"
+          >
+            {{ s.label }}
+          </button>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          <template v-if="form.scope === 'FOLLOWING'">
+            Valor, descrição, conta e categoria passam para os próximos vencimentos pendentes. Se a data mudar, os próximos seguem o novo dia.
+            "Pago" e observações valem só para este.
+          </template>
+          <template v-else>
+            Só esta ocorrência muda; os próximos vencimentos continuam como estão.
+          </template>
           <RouterLink :to="{ name: 'recurring' }" class="font-semibold text-primary underline-offset-2 hover:underline" @click="ui.closeTransactionForm()">Ver recorrentes</RouterLink>
-        </span>
-      </p>
+        </p>
+      </div>
     </form>
 
     <template #footer>
