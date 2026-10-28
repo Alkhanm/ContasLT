@@ -11,10 +11,11 @@ import { useCatalogStore } from '@/stores/catalog'
  * O valor é um id só: o da subcategoria, ou o da categoria quando se fica no "geral".
  * Sem `type`, lista despesas e receitas agrupadas (uso em filtros).
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: number | null
   type?: TransactionType
   id?: string
+  /** Oferece a opção vazia (padrão: sim). Prop booleano omitido vira false no Vue, por isso o default explícito. */
   allowNone?: boolean
   size?: 'sm' | 'default'
   /** Texto da opção vazia (padrão "Sem categoria"). */
@@ -24,7 +25,7 @@ const props = defineProps<{
   /** Filtros: oferece "Sem categoria" como opção à parte (v-model:uncategorized). */
   allowUncategorized?: boolean
   uncategorized?: boolean
-}>()
+}>(), { allowNone: true, allowUncategorized: false, uncategorized: false })
 const emit = defineEmits<{ 'update:modelValue': [value: number | null]; 'update:uncategorized': [value: boolean] }>()
 
 const catalog = useCatalogStore()
@@ -42,7 +43,7 @@ const isChild = computed(() => selected.value?.parentId != null)
 
 const rootValue = computed(() => (props.uncategorized ? 'uncategorized' : rootId.value == null ? 'none' : String(rootId.value)))
 const childValue = computed(() => (isChild.value ? String(props.modelValue) : 'all'))
-const noneText = computed(() => props.noneLabel ?? (props.allowNone === false ? 'Escolha a categoria' : 'Sem categoria'))
+const noneText = computed(() => props.noneLabel ?? (props.allowNone ? 'Sem categoria' : 'Escolha a categoria'))
 
 function onRoot(v: unknown) {
   if (props.allowUncategorized) emit('update:uncategorized', v === 'uncategorized')
@@ -70,7 +71,7 @@ function onChild(v: unknown) {
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem v-if="allowNone !== false" value="none">
+        <SelectItem v-if="allowNone" value="none">
           <span class="text-muted-foreground">{{ noneLabel ?? 'Sem categoria' }}</span>
         </SelectItem>
         <SelectItem v-if="allowUncategorized" value="uncategorized">
