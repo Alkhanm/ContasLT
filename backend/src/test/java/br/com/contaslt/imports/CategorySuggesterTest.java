@@ -50,6 +50,12 @@ class CategorySuggesterTest {
     }
 
     @Test
+    void repeatedWordsInDescriptionDoNotBreak() {
+        CategorySuggester s = suggester(List.of(), tx("Uber viagem", transporte));
+        assertThat(s.suggest("UBER *TRIP HELP.UBER.COM S S", TransactionType.EXPENSE, null)).contains(transporte);
+    }
+
+    @Test
     void ruleWinsOverHistory() {
         CategoryRule rule = new CategoryRule();
         rule.setKeyword("pagamento de fatura");

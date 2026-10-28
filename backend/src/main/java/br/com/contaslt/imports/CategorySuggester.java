@@ -2,6 +2,7 @@ package br.com.contaslt.imports;
 
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +92,7 @@ public class CategorySuggester {
      */
     private Optional<Category> byTokens(String norm, TransactionType type) {
         Map<Category, Double> votes = new LinkedHashMap<>();
-        for (String token : Set.of(norm.split(" "))) {
+        for (String token : new HashSet<>(List.of(norm.split(" ")))) {
             Map<Category, Integer> counts = tokenHistory.get(token);
             if (counts == null) {
                 continue;
