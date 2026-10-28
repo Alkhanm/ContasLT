@@ -34,9 +34,12 @@ import jakarta.persistence.criteria.Predicate;
 public class TransactionService {
 
     /** {@code transfers}: null = tudo, true = só pernas de transferência, false = sem transferências. */
-    /** {@code categoryIds}: a categoria filtrada e suas subcategorias (vazio/nulo = todas). */
-    public record Filter(YearMonth month, Long accountId, List<Long> categoryIds, TransactionType type, Boolean paid,
-            String search, Boolean transfers) {
+    /**
+     * {@code categoryIds}: a categoria filtrada e suas subcategorias (vazio/nulo = todas).
+     * {@code uncategorized}: true = só lançamentos sem categoria.
+     */
+    public record Filter(YearMonth month, Long accountId, List<Long> categoryIds, Boolean uncategorized,
+            TransactionType type, Boolean paid, String search, Boolean transfers) {
     }
 
     private final TransactionRepository transactions;
@@ -197,7 +200,13 @@ public class TransactionService {
             if (f.accountId() != null) {
                 p.add(cb.equal(root.get("account").get("id"), f.accountId()));
             }
-            if (f.categoryIds() != null && !f.categoryIds().isEmpty()) {
+            if (Boolean.TRUE.equals(f.uncategorized())) {
+                p.add(cb.isNull(root.get("category")));
+                if (f.transfers() == null) {
+                    // Transferências nunca têm categoria; não são "sem categoria" a resolver.
+                    p.add(cb.isNull(root.get("transfer")));
+                }
+            } else if (f.categoryIds() != null && !f.categoryIds().isEmpty()) {
                 p.add(root.get("category").get("id").in(f.categoryIds()));
             }
             if (f.type() != null) {

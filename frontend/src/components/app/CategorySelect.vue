@@ -21,8 +21,11 @@ const props = defineProps<{
   noneLabel?: string
   /** Texto da opção que mantém só a categoria pai (padrão "Geral"). */
   childAllLabel?: string
+  /** Filtros: oferece "Sem categoria" como opção à parte (v-model:uncategorized). */
+  allowUncategorized?: boolean
+  uncategorized?: boolean
 }>()
-const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: number | null]; 'update:uncategorized': [value: boolean] }>()
 
 const catalog = useCatalogStore()
 const selected = computed(() => catalog.category(props.modelValue))
@@ -37,12 +40,13 @@ const children = computed<Category[]>(() =>
   catalog.childrenOf(rootId.value, true).filter((c) => !c.archived || c.id === props.modelValue))
 const isChild = computed(() => selected.value?.parentId != null)
 
-const rootValue = computed(() => (rootId.value == null ? 'none' : String(rootId.value)))
+const rootValue = computed(() => (props.uncategorized ? 'uncategorized' : rootId.value == null ? 'none' : String(rootId.value)))
 const childValue = computed(() => (isChild.value ? String(props.modelValue) : 'all'))
 const noneText = computed(() => props.noneLabel ?? (props.allowNone === false ? 'Escolha a categoria' : 'Sem categoria'))
 
 function onRoot(v: unknown) {
-  emit('update:modelValue', v === 'none' || v == null ? null : Number(v))
+  if (props.allowUncategorized) emit('update:uncategorized', v === 'uncategorized')
+  emit('update:modelValue', v === 'none' || v === 'uncategorized' || v == null ? null : Number(v))
 }
 function onChild(v: unknown) {
   emit('update:modelValue', v === 'all' || v == null ? rootId.value : Number(v))
@@ -50,11 +54,15 @@ function onChild(v: unknown) {
 </script>
 
 <template>
-  <div :class="cn('grid gap-2', children.length ? 'grid-cols-2' : 'grid-cols-1')">
+  <div :class="cn('grid gap-2', children.length && !uncategorized ? 'grid-cols-2' : 'grid-cols-1')">
     <Select :model-value="rootValue" @update:model-value="onRoot">
       <SelectTrigger :id="id" :size="size ?? 'default'" class="w-full">
         <SelectValue placeholder="Escolha a categoria">
-          <span v-if="root" class="flex items-center gap-2">
+          <span v-if="uncategorized" class="flex items-center gap-2">
+            <CategoryIcon icon="circle-dashed" color="#9CA3AF" size="sm" />
+            <span class="truncate">Sem categoria</span>
+          </span>
+          <span v-else-if="root" class="flex items-center gap-2">
             <CategoryIcon :icon="root.icon" :color="root.color" size="sm" />
             <span class="truncate">{{ root.name }}</span>
           </span>
@@ -64,6 +72,12 @@ function onChild(v: unknown) {
       <SelectContent>
         <SelectItem v-if="allowNone !== false" value="none">
           <span class="text-muted-foreground">{{ noneLabel ?? 'Sem categoria' }}</span>
+        </SelectItem>
+        <SelectItem v-if="allowUncategorized" value="uncategorized">
+          <span class="flex items-center gap-2">
+            <CategoryIcon icon="circle-dashed" color="#9CA3AF" size="sm" />
+            Sem categoria
+          </span>
         </SelectItem>
         <template v-if="type">
           <SelectItem v-for="c in roots" :key="c.id" :value="String(c.id)">
@@ -85,7 +99,7 @@ function onChild(v: unknown) {
       </SelectContent>
     </Select>
 
-    <Select v-if="children.length" :model-value="childValue" @update:model-value="onChild">
+    <Select v-if="children.length && !uncategorized" :model-value="childValue" @update:model-value="onChild">
       <SelectTrigger :size="size ?? 'default'" class="w-full" :aria-label="`Subcategoria de ${root?.name ?? ''}`">
         <SelectValue>
           <span v-if="isChild && selected" class="flex items-center gap-2">

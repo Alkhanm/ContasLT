@@ -35,6 +35,7 @@ const typeFilter = ref<TypeFilter>((route.query.tipo as TypeFilter) || 'ALL')
 const status = ref<StatusFilter>((route.query.status as StatusFilter) || 'all')
 const accountId = ref<number | null>(route.query.conta ? Number(route.query.conta) : null)
 const categoryId = ref<number | null>(route.query.categoria && route.query.categoria !== 'nenhuma' ? Number(route.query.categoria) : null)
+const uncategorized = ref(route.query.categoria === 'nenhuma')
 const search = ref('')
 const debouncedSearch = refDebounced(search, 300)
 
@@ -61,6 +62,7 @@ async function load() {
       paid: status.value === 'all' ? null : status.value === 'pago',
       accountId: accountId.value,
       categoryId: categoryId.value,
+      uncategorized: uncategorized.value,
       search: debouncedSearch.value,
     })
   } catch (err) {
@@ -70,7 +72,7 @@ async function load() {
   }
 }
 
-watch([() => period.month, () => ui.dataVersion, typeFilter, status, accountId, categoryId, debouncedSearch], load, { immediate: true })
+watch([() => period.month, () => ui.dataVersion, typeFilter, status, accountId, categoryId, uncategorized, debouncedSearch], load, { immediate: true })
 
 async function loadSuggestionCount() {
   try {
@@ -90,12 +92,12 @@ watch(matchOpen, (open) => {
   if (!open && route.query.cruzar) router.replace({ query: { ...route.query, cruzar: undefined } })
 })
 
-watch([typeFilter, status, accountId, categoryId], () => {
+watch([typeFilter, status, accountId, categoryId, uncategorized], () => {
   router.replace({ query: {
     tipo: typeFilter.value === 'ALL' ? undefined : typeFilter.value,
     status: status.value === 'all' ? undefined : status.value,
     conta: accountId.value ?? undefined,
-    categoria: categoryId.value ?? undefined,
+    categoria: uncategorized.value ? 'nenhuma' : categoryId.value ?? undefined,
   } })
 })
 
@@ -166,7 +168,7 @@ async function togglePaid(tx: Transaction) {
     </div>
 
     <div class="md:w-96">
-      <CategorySelect v-model="categoryId" :type="categoryType" none-label="Todas as categorias" child-all-label="Todas" />
+      <CategorySelect v-model="categoryId" v-model:uncategorized="uncategorized" :type="categoryType" none-label="Todas as categorias" child-all-label="Todas" allow-uncategorized />
     </div>
 
     <div v-if="suggestionCount" class="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
@@ -178,18 +180,32 @@ async function togglePaid(tx: Transaction) {
       <Button size="sm" @click="matchOpen = true">Revisar</Button>
     </div>
 
-    <div v-if="page" class="flex items-center justify-between gap-3 rounded-xl bg-card px-4 py-2.5 text-sm border">
-      <span class="text-muted-foreground">{{ page.summary.count }} {{ page.summary.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
-      <span class="flex items-center gap-3">
-        <span v-if="page.summary.transferOut > 0 || page.summary.transferIn > 0" class="inline-flex items-center gap-1 text-muted-foreground" title="Transferências entre contas, fora do resultado">
-          <ArrowLeftRight class="size-3.5" />
-          <Money :value="Math.max(page.summary.transferOut, page.summary.transferIn)" muted class="font-semibold" />
+    <div v-if="page" class="rounded-xl border bg-card px-4 py-2.5 text-sm">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-muted-foreground">{{ page.summary.count }} {{ page.summary.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
+        <span class="flex items-center gap-3">
+          <span v-if="page.summary.transferOut > 0 || page.summary.transferIn > 0" class="inline-flex items-center gap-1 text-muted-foreground" title="Transferências entre contas, fora do resultado">
+            <ArrowLeftRight class="size-3.5" />
+            <Money :value="Math.max(page.summary.transferOut, page.summary.transferIn)" muted class="font-semibold" />
+          </span>
+          <Money v-if="typeFilter === 'INCOME'" :value="page.summary.income" type="INCOME" signed class="font-semibold" />
+          <Money v-else-if="typeFilter === 'EXPENSE'" :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" />
         </span>
-        <template v-if="typeFilter !== 'TRANSFER'">
-          <Money :value="page.summary.income" type="INCOME" signed class="font-semibold" />
-          <Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" />
-        </template>
-      </span>
+      </div>
+      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-3 gap-2 border-t pt-2">
+        <div>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Receitas</dt>
+          <dd><Money :value="page.summary.income" type="INCOME" signed class="font-semibold" /></dd>
+        </div>
+        <div>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Despesas</dt>
+          <dd><Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" /></dd>
+        </div>
+        <div class="text-right">
+          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo</dt>
+          <dd><Money :value="page.summary.balance" :type="page.summary.balance < 0 ? 'EXPENSE' : page.summary.balance > 0 ? 'INCOME' : 'NEUTRAL'" :signed="page.summary.balance !== 0" class="font-bold" /></dd>
+        </div>
+      </dl>
     </div>
 
     <div v-if="loading" class="space-y-2">

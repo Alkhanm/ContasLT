@@ -34,6 +34,7 @@ export const transactionsApi = {
         month: filter.month,
         accountId: filter.accountId,
         categoryId: filter.categoryId,
+        uncategorized: filter.uncategorized || undefined,
         type: filter.type,
         paid: filter.paid,
         search: filter.search,

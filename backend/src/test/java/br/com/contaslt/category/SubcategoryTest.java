@@ -86,6 +86,11 @@ class SubcategoryTest {
         assertThat(byChild).hasSize(1);
         assertThat(byChild.get(0).get("description").asString()).isEqualTo("Enel");
 
+        JsonNode none = body(mvc.get().uri("/api/transactions?month=" + MONTH + "&uncategorized=true")
+            .headers(auth()).exchange()).get("items");
+        assertThat(none).hasSize(1);
+        assertThat(none.get(0).get("description").asString()).isEqualTo("Outro");
+
         JsonNode dash = body(mvc.get().uri("/api/dashboard?month=" + MONTH).headers(auth()).exchange()).get("byCategory");
         assertThat(dash).hasSize(2); // Contas da casa (780) e Sem categoria (10)
         assertThat(dash.get(0).get("categoryId").asLong()).isEqualTo(casa);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { CalendarDays, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, Plus, Repeat, Tag, Wallet } from 'lucide-vue-next'
+import { CalendarDays, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, Tag, Wallet } from 'lucide-vue-next'
 import MonthNavigator from './MonthNavigator.vue'
 import TransactionFormSheet from '@/components/app/TransactionFormSheet.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -46,33 +46,51 @@ onMounted(() => {
 
 <template>
   <div class="flex min-h-dvh">
-    <aside class="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-sidebar md:flex">
-      <RouterLink :to="{ name: 'home' }" class="flex items-center gap-2.5 px-5 pt-6 pb-5">
-        <img src="/favicon.svg" alt="" class="size-8 rounded-lg" />
-        <span class="text-lg font-extrabold tracking-tight">ContasLT</span>
-      </RouterLink>
+    <aside
+      :class="cn('sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200 md:flex',
+        ui.sidebarCollapsed ? 'w-16' : 'w-60')"
+    >
+      <div :class="cn('flex items-center pt-6 pb-5', ui.sidebarCollapsed ? 'flex-col gap-3 px-3' : 'gap-2.5 px-5')">
+        <RouterLink :to="{ name: 'home' }" class="flex min-w-0 items-center gap-2.5" :title="ui.sidebarCollapsed ? 'ContasLT' : undefined">
+          <img src="/favicon.svg" alt="" class="size-8 shrink-0 rounded-lg" />
+          <span v-if="!ui.sidebarCollapsed" class="truncate text-lg font-extrabold tracking-tight">ContasLT</span>
+        </RouterLink>
+        <button
+          type="button"
+          :class="cn('inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground', !ui.sidebarCollapsed && 'ml-auto')"
+          :title="ui.sidebarCollapsed ? 'Abrir menu' : 'Recolher menu'"
+          :aria-label="ui.sidebarCollapsed ? 'Abrir menu' : 'Recolher menu'"
+          :aria-expanded="!ui.sidebarCollapsed"
+          @click="ui.toggleSidebar()"
+        >
+          <component :is="ui.sidebarCollapsed ? PanelLeftOpen : PanelLeftClose" class="size-[18px]" />
+        </button>
+      </div>
       <nav class="flex flex-1 flex-col gap-0.5 px-3" aria-label="Principal">
         <RouterLink
           v-for="item in [...mainNav, ...secondaryNav]"
           :key="item.name"
           :to="{ name: item.name }"
-          :class="cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+          :title="ui.sidebarCollapsed ? item.label : undefined"
+          :class="cn('flex items-center gap-3 rounded-lg py-2 text-sm font-semibold transition-colors',
+            ui.sidebarCollapsed ? 'justify-center px-0' : 'px-3',
             isActive(item.name) ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground')"
         >
-          <component :is="item.icon" class="size-[18px]" />
-          {{ item.label }}
+          <component :is="item.icon" class="size-[18px] shrink-0" />
+          <span v-if="!ui.sidebarCollapsed" class="truncate">{{ item.label }}</span>
+          <span v-else class="sr-only">{{ item.label }}</span>
         </RouterLink>
       </nav>
       <div class="border-t px-3 py-3">
-        <div class="flex items-center gap-3 px-2 py-1">
-          <span class="inline-flex size-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+        <div :class="cn('flex items-center gap-3 py-1', ui.sidebarCollapsed ? 'flex-col px-0' : 'px-2')">
+          <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground" :title="ui.sidebarCollapsed ? auth.user?.name : undefined">
             {{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}
           </span>
-          <span class="min-w-0 flex-1">
+          <span v-if="!ui.sidebarCollapsed" class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold">{{ auth.user?.name ?? '…' }}</span>
             <span class="block truncate text-xs text-muted-foreground">{{ auth.user?.email }}</span>
           </span>
-          <button type="button" class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground" title="Sair" aria-label="Sair" @click="logout">
+          <button type="button" class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground" title="Sair" aria-label="Sair" @click="logout">
             <LogOut class="size-4" />
           </button>
         </div>

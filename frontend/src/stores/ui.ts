@@ -16,6 +16,26 @@ export const useUiStore = defineStore('ui', () => {
   /** Incrementa a cada gravação; páginas observam para recarregar. */
   const dataVersion = ref(0)
 
+  const SIDEBAR_KEY = 'contaslt.sidebar'
+  const sidebarCollapsed = ref(readSidebar())
+
+  function readSidebar() {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === 'collapsed'
+    } catch {
+      return false
+    }
+  }
+
+  function toggleSidebar() {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+    try {
+      localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed.value ? 'collapsed' : 'open')
+    } catch {
+      // sem armazenamento: só não lembra a preferência
+    }
+  }
+
   function newTransaction(defaults: TransactionFormDefaults = {}) {
     editingTransaction.value = null
     formDefaults.value = defaults
@@ -37,7 +57,7 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   return {
-    transactionFormOpen, editingTransaction, formDefaults, dataVersion,
-    newTransaction, editTransaction, closeTransactionForm, dataChanged,
+    transactionFormOpen, editingTransaction, formDefaults, dataVersion, sidebarCollapsed,
+    newTransaction, editTransaction, closeTransactionForm, dataChanged, toggleSidebar,
   }
 })

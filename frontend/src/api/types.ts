@@ -154,6 +154,8 @@ export interface TransactionFilter {
   month: string
   accountId?: number | null
   categoryId?: number | null
+  /** true = só lançamentos sem categoria (ignora categoryId). */
+  uncategorized?: boolean | null
   type?: TransactionType | null
   paid?: boolean | null
   search?: string

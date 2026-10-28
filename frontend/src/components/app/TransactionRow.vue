@@ -57,13 +57,13 @@ const toggleTitle = computed(() => props.transaction.paid
       </span>
       <CategoryIcon v-else :icon="transaction.categoryIcon" :color="transaction.categoryColor" />
       <span class="min-w-0 flex-1">
-        <span class="flex items-center gap-1.5">
-          <span :class="cn('truncate font-semibold', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
-          <Repeat v-if="transaction.recurringBillId" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Recorrente" />
-          <Receipt v-if="transaction.receiptFile" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Com comprovante" />
+        <span class="flex items-start gap-1.5">
+          <span :class="cn('min-w-0 font-semibold break-words [overflow-wrap:anywhere]', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
+          <Repeat v-if="transaction.recurringBillId" class="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="Recorrente" />
+          <Receipt v-if="transaction.receiptFile" class="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="Com comprovante" />
         </span>
         <span class="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-          <span class="truncate">
+          <span class="min-w-0 break-words [overflow-wrap:anywhere]">
             {{ meta }}<template v-if="meta"> · </template><span :class="statusClass">{{ isTransfer && transaction.paid ? 'Efetuada' : dueLabel(transaction) }}</span><span v-if="showAccount" class="hidden sm:inline"> · {{ transaction.accountName }}</span>
           </span>
           <Money :value="transaction.amount" :type="isTransfer ? 'NEUTRAL' : transaction.type" :signed="!isTransfer" :muted="isTransfer" class="text-sm font-semibold sm:hidden" />

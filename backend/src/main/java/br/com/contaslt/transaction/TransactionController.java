@@ -45,13 +45,15 @@ public class TransactionController {
             @RequestParam(required = false) String month,
             @RequestParam(required = false) Long accountId,
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Boolean uncategorized,
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) Boolean paid,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean transfers) {
         YearMonth ym = month == null || month.isBlank() ? YearMonth.now() : YearMonth.parse(month);
         List<Long> categoryIds = categoryId == null ? null : categories.idsWithChildren(currentUser.id(), categoryId);
-        return transactions.list(currentUser.get(), new Filter(ym, accountId, categoryIds, type, paid, search, transfers));
+        return transactions.list(currentUser.get(),
+            new Filter(ym, accountId, categoryIds, uncategorized, type, paid, search, transfers));
     }
 
     @GetMapping("/{id}")
