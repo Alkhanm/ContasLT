@@ -61,6 +61,10 @@ public final class TransactionDtos {
             int count) {
     }
 
-    public record TransactionPage(List<TransactionDto> items, Summary summary) {
+    /** Saldo das contas (todas ou a filtrada) ao fim do dia, contando só o que está pago, como o saldo da conta. */
+    public record DayBalance(LocalDate date, BigDecimal balance) {
+    }
+
+    public record TransactionPage(List<TransactionDto> items, Summary summary, List<DayBalance> dayBalances) {
     }
 }

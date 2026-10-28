@@ -108,6 +108,8 @@ watch(categoryType, (type) => {
   if (type && c && c.type !== type) categoryId.value = null
 })
 
+const dayBalance = computed(() => new Map((page.value?.dayBalances ?? []).map((d) => [d.date, d.balance])))
+
 const groups = computed(() => {
   const map = new Map<string, Transaction[]>()
   for (const t of page.value?.items ?? []) {
@@ -214,7 +216,12 @@ async function togglePaid(tx: Transaction) {
 
     <div v-else-if="groups.length" class="space-y-4">
       <section v-for="g in groups" :key="g.date">
-        <h2 class="mb-1 px-1 text-xs font-bold text-muted-foreground">{{ dateLong(g.date) }}</h2>
+        <h2 class="mb-1 flex items-baseline justify-between gap-3 px-1 text-xs font-bold text-muted-foreground">
+          <span>{{ dateLong(g.date) }}</span>
+          <span v-if="dayBalance.has(g.date)" class="font-normal" :title="accountId ? 'Saldo da conta ao fim do dia' : 'Saldo de todas as contas ao fim do dia'">
+            Saldo <Money :value="dayBalance.get(g.date)!" class="font-semibold" />
+          </span>
+        </h2>
         <div class="divide-y rounded-2xl border bg-card px-4">
           <TransactionRow
             v-for="t in g.items" :key="t.id" :transaction="t"

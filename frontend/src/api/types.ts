@@ -145,9 +145,16 @@ export interface Summary {
   count: number
 }
 
+export interface DayBalance {
+  date: string
+  /** Saldo das contas (todas ou a filtrada) ao fim do dia, só com o que está pago. */
+  balance: number
+}
+
 export interface TransactionPage {
   items: Transaction[]
   summary: Summary
+  dayBalances: DayBalance[]
 }
 
 export interface TransactionFilter {

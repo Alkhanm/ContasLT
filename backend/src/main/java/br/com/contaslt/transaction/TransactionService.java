@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.contaslt.account.Account;
+import br.com.contaslt.account.AccountDtos.AccountDto;
 import br.com.contaslt.account.AccountService;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.category.CategoryService;
@@ -19,6 +22,7 @@ import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.recurring.RecurringBillService;
+import br.com.contaslt.transaction.TransactionDtos.DayBalance;
 import br.com.contaslt.transaction.TransactionDtos.ItemRequest;
 import br.com.contaslt.transaction.TransactionDtos.Summary;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
@@ -62,7 +66,36 @@ public class TransactionService {
         recurring.ensureOccurrences(user, filter.month());
         List<Transaction> items = transactions.findAll(spec(user.getId(), filter),
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
-        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(), summarize(items));
+        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(), summarize(items),
+            dayBalances(user.getId(), filter));
+    }
+
+    /**
+     * Saldo ao fim de cada dia do mês: saldo inicial das contas + movimentos pagos até o dia. Usa todas as contas
+     * ativas, ou só a filtrada; ignora os outros filtros, porque o saldo da conta não depende do que está na lista.
+     */
+    private List<DayBalance> dayBalances(Long userId, Filter f) {
+        List<AccountDto> selected = accounts.list(userId, true).stream()
+            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId()) : !a.archived())
+            .toList();
+        if (selected.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = selected.stream().map(AccountDto::id).toList();
+        LocalDate from = f.month().atDay(1);
+        LocalDate to = f.month().atEndOfMonth();
+        BigDecimal running = selected.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
+            .add(transactions.sumPaidMovementsBefore(ids, from));
+        Map<LocalDate, BigDecimal> byDay = new HashMap<>();
+        for (Object[] row : transactions.sumPaidMovementsByDay(ids, from, to)) {
+            byDay.put((LocalDate) row[0], (BigDecimal) row[1]);
+        }
+        List<DayBalance> result = new ArrayList<>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+            running = running.add(byDay.getOrDefault(day, BigDecimal.ZERO));
+            result.add(new DayBalance(day, running));
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)
