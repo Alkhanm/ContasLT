@@ -76,7 +76,7 @@ No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
 
 ## Como funciona
 
-**Contas recorrentes** são regras (valor, frequência, primeiro vencimento, fim opcional ou número de parcelas). Os vencimentos de cada mês são materializados como lançamentos sob demanda, na primeira vez que o mês é consultado, de forma idempotente. Editar a regra atualiza as ocorrências ainda não pagas; excluir remove as pendentes e preserva as pagas no histórico.
+**Contas recorrentes** são regras (valor, frequência, primeiro vencimento, fim opcional ou número de parcelas). Os vencimentos de cada mês são materializados como lançamentos sob demanda, na primeira vez que o mês é consultado, de forma idempotente. Editar a regra atualiza as ocorrências ainda não pagas; excluir remove as pendentes e preserva as pagas no histórico. Um lançamento existente (por exemplo, importado do extrato) pode virar conta recorrente pelo botão "Tornar recorrente" no próprio lançamento: ele passa a ser a primeira ocorrência da regra (`fromTransactionId` na criação), sem duplicar, e os próximos vencimentos são gerados a partir da data dele.
 
 **Subcategorias**: cada categoria pode ter subcategorias (um nível só, ex.: Contas da casa › Energia). A subcategoria herda o tipo do pai. Os seletores de categoria são em cascata (categoria, depois subcategoria). Filtrar lançamentos pela categoria pai inclui as subcategorias, e o painel "Despesas por categoria" soma as subcategorias no pai. Arquivar o pai arquiva as filhas; o pai não pode ser excluído enquanto tiver subcategorias.
 

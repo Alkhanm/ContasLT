@@ -383,6 +383,12 @@ async function unlink() {
         <Button v-if="editing" type="button" variant="outline" size="icon" class="text-destructive" title="Excluir" aria-label="Excluir" @click="confirmDelete = true">
           <Trash2 />
         </Button>
+        <Button
+          v-if="editing && !editing.recurringBillId && !linked" type="button" variant="outline" class="h-11"
+          title="Criar uma conta recorrente a partir deste lançamento" @click="ui.makeRecurring(editing)"
+        >
+          <Repeat /> Tornar recorrente
+        </Button>
         <Button type="submit" form="transaction-form" class="h-11 flex-1 text-base font-semibold" :disabled="saving">
           {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : isTransfer ? 'Transferir' : 'Adicionar' }}
         </Button>

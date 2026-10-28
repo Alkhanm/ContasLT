@@ -16,6 +16,9 @@ export const useUiStore = defineStore('ui', () => {
   /** Incrementa a cada gravação; páginas observam para recarregar. */
   const dataVersion = ref(0)
 
+  /** Formulário de conta recorrente aberto a partir de um lançamento ("Tornar recorrente"). */
+  const recurringFromTransaction = ref<Transaction | null>(null)
+
   const SIDEBAR_KEY = 'contaslt.sidebar'
   const sidebarCollapsed = ref(readSidebar())
 
@@ -52,12 +55,21 @@ export const useUiStore = defineStore('ui', () => {
     transactionFormOpen.value = false
   }
 
+  function makeRecurring(tx: Transaction) {
+    transactionFormOpen.value = false
+    recurringFromTransaction.value = tx
+  }
+
+  function closeRecurringForm() {
+    recurringFromTransaction.value = null
+  }
+
   function dataChanged() {
     dataVersion.value++
   }
 
   return {
-    transactionFormOpen, editingTransaction, formDefaults, dataVersion, sidebarCollapsed,
-    newTransaction, editTransaction, closeTransactionForm, dataChanged, toggleSidebar,
+    transactionFormOpen, editingTransaction, formDefaults, dataVersion, sidebarCollapsed, recurringFromTransaction,
+    newTransaction, editTransaction, closeTransactionForm, makeRecurring, closeRecurringForm, dataChanged, toggleSidebar,
   }
 })

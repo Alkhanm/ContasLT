@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { CalendarDays, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, Tag, Wallet } from 'lucide-vue-next'
 import MonthNavigator from './MonthNavigator.vue'
+import RecurringFormSheet from '@/components/app/RecurringFormSheet.vue'
 import TransactionFormSheet from '@/components/app/TransactionFormSheet.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogStore } from '@/stores/catalog'
@@ -145,5 +146,9 @@ onMounted(() => {
     </nav>
 
     <TransactionFormSheet />
+    <RecurringFormSheet
+      :open="ui.recurringFromTransaction !== null" :bill="null" :from-transaction="ui.recurringFromTransaction"
+      @update:open="(v) => !v && ui.closeRecurringForm()" @saved="ui.dataChanged()"
+    />
   </div>
 </template>

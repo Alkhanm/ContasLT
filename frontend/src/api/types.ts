@@ -217,6 +217,8 @@ export interface RecurringBillInput {
   categoryId: number | null
   notes: string | null
   active?: boolean
+  /** Só na criação: lançamento existente que vira a primeira ocorrência da regra. */
+  fromTransactionId?: number | null
 }
 
 export interface PreviewRow {

@@ -27,7 +27,9 @@ public final class RecurringBillDtos {
         @NotNull(message = "Escolha a conta") Long accountId,
         Long categoryId,
         @Size(max = 500) String notes,
-        Boolean active) {
+        Boolean active,
+        /** Só na criação: lançamento existente (ex.: importado) que vira a primeira ocorrência da regra. */
+        Long fromTransactionId) {
     }
 
     public record RecurringBillDto(Long id, String description, BigDecimal amount, TransactionType type,

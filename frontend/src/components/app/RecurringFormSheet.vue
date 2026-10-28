@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { Trash2 } from 'lucide-vue-next'
 import { recurringApi } from '@/api'
-import type { Frequency, RecurringBill, RecurringBillInput, TransactionType } from '@/api/types'
+import type { Frequency, RecurringBill, RecurringBillInput, Transaction, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -15,12 +15,17 @@ import FormField from './FormField.vue'
 import FormSheet from './FormSheet.vue'
 import MoneyInput from './MoneyInput.vue'
 import TypeToggle from './TypeToggle.vue'
-import { frequencyLabels, todayIso } from '@/lib/format'
+import { dateShort, frequencyLabels, todayIso } from '@/lib/format'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
 
-const props = defineProps<{ open: boolean; bill: RecurringBill | null }>()
+const props = defineProps<{
+  open: boolean
+  bill: RecurringBill | null
+  /** Lançamento existente que vira a primeira ocorrência: preenche o formulário e é vinculado ao salvar. */
+  fromTransaction?: Transaction | null
+}>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [] }>()
 
 const catalog = useCatalogStore()
@@ -50,23 +55,24 @@ const endModes: { value: EndMode; label: string }[] = [
   { value: 'installments', label: 'Parcelado' },
   { value: 'date', label: 'Até uma data' },
 ]
-const title = computed(() => (props.bill ? 'Editar conta recorrente' : 'Nova conta recorrente'))
+const title = computed(() => (props.bill ? 'Editar conta recorrente' : props.fromTransaction ? 'Tornar recorrente' : 'Nova conta recorrente'))
 
 watch(() => props.open, async (open) => {
   if (!open) return
   await catalog.load()
   errors.value = {}
   const b = props.bill
-  form.type = b?.type ?? 'EXPENSE'
-  form.amount = b?.amount ?? null
-  form.description = b?.description ?? ''
+  const t = props.fromTransaction
+  form.type = b?.type ?? t?.type ?? 'EXPENSE'
+  form.amount = b?.amount ?? t?.amount ?? null
+  form.description = b?.description ?? t?.description ?? ''
   form.frequency = b?.frequency ?? 'MONTHLY'
-  form.startDate = b?.startDate ?? todayIso()
+  form.startDate = b?.startDate ?? t?.dueDate ?? todayIso()
   form.endMode = b?.occurrences ? 'installments' : b?.endDate ? 'date' : 'never'
   form.occurrences = b?.occurrences ?? 12
   form.endDate = b?.endDate ?? ''
-  form.categoryId = b?.categoryId ?? null
-  form.accountId = b?.accountId ?? catalog.activeAccounts[0]?.id ?? null
+  form.categoryId = b?.categoryId ?? t?.categoryId ?? null
+  form.accountId = b?.accountId ?? t?.accountId ?? catalog.activeAccounts[0]?.id ?? null
   form.notes = b?.notes ?? ''
   form.active = b?.active ?? true
 })
@@ -104,6 +110,7 @@ async function save() {
     categoryId: form.categoryId,
     notes: form.notes.trim() || null,
     active: form.active,
+    fromTransactionId: props.bill ? null : props.fromTransaction?.id ?? null,
   }
   try {
     if (props.bill) {
@@ -140,7 +147,10 @@ async function remove() {
 <template>
   <FormSheet :open="open" :title="title" @update:open="emit('update:open', $event)">
     <form id="recurring-form" class="space-y-4" @submit.prevent="save">
-      <TypeToggle v-model="form.type" />
+      <TypeToggle v-model="form.type" :disabled="!!fromTransaction" />
+      <p v-if="fromTransaction" class="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+        O lançamento de {{ dateShort(fromTransaction.dueDate) }} vira a primeira ocorrência: nada é duplicado e os próximos vencimentos são gerados a partir dele.
+      </p>
 
       <FormField label="Valor" for="rb-amount" :error="errors.amount">
         <MoneyInput id="rb-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!bill" />

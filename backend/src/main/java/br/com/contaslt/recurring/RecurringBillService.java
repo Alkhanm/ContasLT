@@ -50,8 +50,31 @@ public class RecurringBillService {
         bill.setUser(user);
         apply(user.getId(), bill, req);
         bill = bills.save(bill);
+        if (req.fromTransactionId() != null) {
+            adopt(user, bill, req.fromTransactionId());
+        }
         ensureOccurrences(user, YearMonth.now());
         return toDto(bill);
+    }
+
+    /**
+     * Vincula um lançamento já existente à regra como ocorrência dela. O lançamento mantém data, valor e
+     * situação de pago; só passa a contar como vencimento da regra, então não é gerado outro na mesma data.
+     */
+    private void adopt(User user, RecurringBill bill, Long transactionId) {
+        Transaction t = transactions.findByIdAndUserId(transactionId, user.getId())
+            .orElseThrow(() -> new NotFoundException("Lançamento não encontrado"));
+        if (t.getRecurringBill() != null) {
+            throw new BusinessException("Este lançamento já pertence a uma conta recorrente");
+        }
+        if (t.isTransfer()) {
+            throw new BusinessException("Transferência entre contas não vira conta recorrente");
+        }
+        if (t.getType() != bill.getType()) {
+            throw new BusinessException("O tipo da recorrência precisa ser o mesmo do lançamento");
+        }
+        t.setRecurringBill(bill);
+        t.setInstallmentNumber(bill.getOccurrences() != null && t.getDueDate().equals(bill.getStartDate()) ? 1 : null);
     }
 
     @Transactional
