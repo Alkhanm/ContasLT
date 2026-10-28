@@ -77,8 +77,7 @@ public class ImportService {
 
         CategorySuggester suggester = new CategorySuggester(
             categoryRepository.findByUserIdOrderByTypeAscNameAsc(user.getId()),
-            rules.findByUserIdOrderByKeywordAsc(user.getId()),
-            transactions.findRecentCategorized(user.getId()));
+            rules.findByUserIdOrderByKeywordAsc(user.getId()));
 
         Set<String> externalIds = parsed.stream().map(ParsedRow::externalId).filter(id -> id != null)
             .collect(Collectors.toSet());

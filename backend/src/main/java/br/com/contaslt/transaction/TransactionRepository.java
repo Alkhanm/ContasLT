@@ -55,10 +55,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<Transaction> findUpcoming(@Param("userId") Long userId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    @EntityGraph(attributePaths = {"category"})
-    @Query("select t from Transaction t where t.user.id = :userId and t.category is not null order by t.id desc limit 3000")
-    List<Transaction> findRecentCategorized(@Param("userId") Long userId);
-
     @Query("select t.externalId from Transaction t where t.account.id = :accountId and t.externalId in :ids")
     Set<String> findExistingExternalIds(@Param("accountId") Long accountId, @Param("ids") Set<String> ids);
 

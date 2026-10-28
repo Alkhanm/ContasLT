@@ -66,8 +66,7 @@ public class ReceiptService {
 
         CategorySuggester suggester = new CategorySuggester(
             categories.findByUserIdOrderByTypeAscNameAsc(user.getId()),
-            rules.findByUserIdOrderByKeywordAsc(user.getId()),
-            transactions.findRecentCategorized(user.getId()));
+            rules.findByUserIdOrderByKeywordAsc(user.getId()));
         Optional<Category> category = suggester.suggest(scan.merchant(), TransactionType.EXPENSE, null);
         if (category.isEmpty() && !scan.items().isEmpty()) {
             String itemsText = scan.items().stream().map(ScannedItem::description).limit(10)

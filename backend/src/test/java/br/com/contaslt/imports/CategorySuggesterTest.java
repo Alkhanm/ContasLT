@@ -3,91 +3,65 @@ package br.com.contaslt.imports;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
 import br.com.contaslt.category.Category;
 import br.com.contaslt.common.TransactionType;
-import br.com.contaslt.transaction.Transaction;
 
 class CategorySuggesterTest {
 
-    private final Category cartao = category("Cartão de crédito");
-    private final Category impostos = category("Impostos");
-    private final Category mercado = category("Mercado");
-    private final Category transporte = category("Transporte");
+    private final Category cartao = category("Cartão de crédito", TransactionType.EXPENSE);
+    private final Category impostos = category("Impostos", TransactionType.EXPENSE);
+    private final Category salario = category("Salário", TransactionType.INCOME);
 
     @Test
-    void genericBankWordsDoNotVote() {
-        // Cenário real: só havia "Pagamento de fatura" no histórico e o DAS saía como cartão de crédito.
-        CategorySuggester s = suggester(List.of(),
-            tx("Pagamento de fatura", cartao), tx("Pagamento de fatura", cartao));
+    void withoutMatchingRuleThereIsNoSuggestion() {
+        CategorySuggester s = new CategorySuggester(List.of(cartao, impostos), List.of(rule("pagamento de fatura", cartao)));
 
         assertThat(s.suggest("Pagamento de boleto efetuado - DAS-SIMPLES NACIONAL", TransactionType.EXPENSE, null))
             .isEmpty();
-        assertThat(s.suggest("Pagamento de fatura", TransactionType.EXPENSE, null)).contains(cartao);
-    }
-
-    @Test
-    void specificWordFromHistoryStillSuggests() {
-        CategorySuggester s = suggester(List.of(),
-            tx("Pagamento de boleto - DAS SIMPLES NACIONAL 09/2026", impostos),
-            tx("UBER *TRIP HELP.UBER.COM", transporte));
-
-        assertThat(s.suggest("Pagamento de boleto efetuado - DAS-SIMPLES NACIONAL", TransactionType.EXPENSE, null))
-            .contains(impostos);
-        assertThat(s.suggest("Uber viagem", TransactionType.EXPENSE, null)).contains(transporte);
-    }
-
-    @Test
-    void ambiguousWordsDoNotSuggest() {
-        // "supermercado" já apareceu em duas categorias com o mesmo peso: não dá para escolher.
-        CategorySuggester s = suggester(List.of(),
-            tx("Supermercado Bom Preço", mercado), tx("Supermercado Bom Preço farmácia", transporte));
-
-        assertThat(s.suggest("Supermercado Novo", TransactionType.EXPENSE, null)).isEmpty();
-    }
-
-    @Test
-    void repeatedWordsInDescriptionDoNotBreak() {
-        CategorySuggester s = suggester(List.of(), tx("Uber viagem", transporte));
-        assertThat(s.suggest("UBER *TRIP HELP.UBER.COM S S", TransactionType.EXPENSE, null)).contains(transporte);
-    }
-
-    @Test
-    void ruleWinsOverHistory() {
-        CategoryRule rule = new CategoryRule();
-        rule.setKeyword("pagamento de fatura");
-        rule.setCategory(cartao);
-        CategorySuggester s = suggester(List.of(rule), tx("Pagamento de fatura Nubank", impostos));
-
         assertThat(s.suggest("PAGAMENTO DE FATURA NUBANK", TransactionType.EXPENSE, null)).contains(cartao);
     }
 
     @Test
-    void ignoresCategoriesOfAnotherType() {
-        CategorySuggester s = suggester(List.of(), tx("Nubank rendimento", impostos));
-        Optional<Category> income = s.suggest("Nubank rendimento", TransactionType.INCOME, null);
-        assertThat(income).isEmpty();
+    void longestRuleWinsAndTypeMustMatch() {
+        CategorySuggester s = new CategorySuggester(List.of(cartao, impostos, salario),
+            List.of(rule("das", impostos), rule("pagamento de fatura", cartao), rule("acme", salario)));
+
+        assertThat(s.suggest("Pagamento de fatura das compras", TransactionType.EXPENSE, null)).contains(cartao);
+        assertThat(s.suggest("Salario ACME", TransactionType.EXPENSE, null)).isEmpty();
+        assertThat(s.suggest("Salario ACME", TransactionType.INCOME, null)).contains(salario);
     }
 
-    private CategorySuggester suggester(List<CategoryRule> rules, Transaction... history) {
-        return new CategorySuggester(List.of(cartao, impostos, mercado, transporte), rules, List.of(history));
+    @Test
+    void categoryNameFromFileComesFirst() {
+        CategorySuggester s = new CategorySuggester(List.of(cartao, impostos), List.of(rule("fatura", cartao)));
+
+        assertThat(s.suggest("Fatura", TransactionType.EXPENSE, "impostos")).contains(impostos);
+        assertThat(s.suggest("Fatura", TransactionType.EXPENSE, "inexistente")).contains(cartao);
     }
 
-    private static Category category(String name) {
+    @Test
+    void archivedCategoryIsNeverSuggested() {
+        Category old = category("Antiga", TransactionType.EXPENSE);
+        old.setArchived(true);
+        CategorySuggester s = new CategorySuggester(List.of(old), List.of(rule("uber", old)));
+
+        assertThat(s.suggest("Uber viagem", TransactionType.EXPENSE, null)).isEmpty();
+    }
+
+    private static CategoryRule rule(String keyword, Category category) {
+        CategoryRule r = new CategoryRule();
+        r.setKeyword(keyword);
+        r.setCategory(category);
+        return r;
+    }
+
+    private static Category category(String name, TransactionType type) {
         Category c = new Category();
         c.setName(name);
-        c.setType(TransactionType.EXPENSE);
+        c.setType(type);
         return c;
-    }
-
-    private static Transaction tx(String description, Category category) {
-        Transaction t = new Transaction();
-        t.setDescription(description);
-        t.setType(TransactionType.EXPENSE);
-        t.setCategory(category);
-        return t;
     }
 }
