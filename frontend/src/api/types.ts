@@ -183,11 +183,13 @@ export interface TransactionInput {
 }
 
 /**
- * Totais dos lançamentos listados (seguem os filtros), como no extrato: só o pago entra em transferência
- * (líquido: entrou − saiu), receitas e despesas; saldo = transferência + receitas − despesas.
- * Os pendentes ficam à parte e entram só no saldo previsto.
+ * Resumo do período como o extrato da conta (a filtrada, ou todas as ativas de dinheiro); ignora os outros filtros.
+ * Saldo anterior = saldo inicial + tudo pago antes do período; só o pago entra em transferência (líquido:
+ * entrou − saiu), receitas e despesas; saldo = anterior + transferência + receitas − despesas.
+ * Os pendentes ficam à parte e entram só no saldo previsto. `count` é o que está listado, com filtros.
  */
 export interface Summary {
+  previousBalance: number
   transfer: number
   income: number
   expense: number

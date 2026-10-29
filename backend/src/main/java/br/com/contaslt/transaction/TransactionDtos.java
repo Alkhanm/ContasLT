@@ -80,13 +80,15 @@ public final class TransactionDtos {
     }
 
     /**
-     * Totais dos lançamentos listados (seguem os filtros), como no extrato: só o que está pago entra em
-     * {@code transfer} (líquido das transferências: o que entrou − o que saiu), {@code income} e {@code expense};
-     * {@code balance} = transferência + receitas − despesas. {@code pendingTransfer}/{@code pendingIncome}/
-     * {@code pendingExpense} somam o que ainda está pendente e {@code projectedBalance} = saldo + pendentes.
+     * Resumo do período como o extrato da conta. Segue só o recorte de contas (a filtrada, ou todas as ativas
+     * de dinheiro) e o período; ignora os demais filtros. {@code previousBalance} = saldo inicial + tudo pago antes
+     * do período; só o pago entra em {@code transfer} (líquido: entrou − saiu por transferência), {@code income} e
+     * {@code expense}; {@code balance} = anterior + transferência + receitas − despesas, o saldo que bate com o banco.
+     * {@code pendingTransfer}/{@code pendingIncome}/{@code pendingExpense} somam o que ainda está pendente e
+     * {@code projectedBalance} = saldo + pendentes. {@code count} é o número de lançamentos listados (com filtros).
      */
-    public record Summary(BigDecimal transfer, BigDecimal income, BigDecimal expense, BigDecimal balance,
-            BigDecimal pendingTransfer, BigDecimal pendingIncome, BigDecimal pendingExpense,
+    public record Summary(BigDecimal previousBalance, BigDecimal transfer, BigDecimal income, BigDecimal expense,
+            BigDecimal balance, BigDecimal pendingTransfer, BigDecimal pendingIncome, BigDecimal pendingExpense,
             BigDecimal projectedBalance, int count) {
     }
 

@@ -59,6 +59,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         """)
     BigDecimal sumPaidMovementsBefore(@Param("accountIds") List<Long> accountIds, @Param("before") LocalDate before);
 
+    /**
+     * Movimentos das contas no período, agrupados por tipo, pago/pendente e se é perna de transferência.
+     * Cada linha: [TransactionType, Boolean paid, Boolean transfer, BigDecimal].
+     */
+    @Query("""
+        select t.type, t.paid, (case when t.transfer is null then false else true end), sum(t.amount) from Transaction t
+        where t.account.id in :accountIds and t.dueDate between :from and :to
+        group by t.type, t.paid, (case when t.transfer is null then false else true end)
+        """)
+    List<Object[]> sumMovementsByTypePaidAndTransfer(@Param("accountIds") List<Long> accountIds,
+            @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     /** Movimento líquido pago por dia, no período. Cada linha: [LocalDate, BigDecimal]. */
     @Query("""
         select t.dueDate, sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end)

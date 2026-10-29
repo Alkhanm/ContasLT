@@ -143,10 +143,6 @@ watch(categoryType, (type) => {
   if (type && c && c.type !== type) categoryId.value = null
 })
 
-function balanceType(value: number) {
-  return value < 0 ? 'EXPENSE' : value > 0 ? 'INCOME' : 'NEUTRAL'
-}
-
 /** Pendente do tipo filtrado (receitas, despesas ou transferências), mostrado ao lado do total pago. */
 const pendingOfType = computed(() => {
   const s = page.value?.summary
@@ -288,23 +284,27 @@ async function togglePaid(tx: Transaction) {
           <Money v-else :value="typeFilter === 'INCOME' ? page.summary.income : page.summary.expense" :type="typeFilter" signed class="font-semibold" />
         </span>
       </div>
-      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-4" title="Só o que está pago, como no extrato: transferência + receitas − despesas = saldo atual">
+      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-5" :title="(accountId ? 'Como o extrato da conta' : 'Todas as contas ativas, menos cartões') + ': saldo anterior + transferência + receitas − despesas = saldo atual; só o que está pago'">
         <div>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo anterior</dt>
+          <dd><Money :value="page.summary.previousBalance" class="font-semibold" /></dd>
+        </div>
+        <div class="text-right md:text-left">
           <dt class="text-[11px] font-semibold text-muted-foreground">Transferência</dt>
           <dd><Money :value="page.summary.transfer" :signed="page.summary.transfer !== 0" :muted="page.summary.transfer === 0" class="font-semibold" /></dd>
         </div>
-        <div class="text-right md:text-left">
+        <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Receitas</dt>
           <dd><Money :value="page.summary.income" type="INCOME" signed class="font-semibold" /></dd>
         </div>
-        <div>
+        <div class="text-right md:text-left">
           <dt class="text-[11px] font-semibold text-muted-foreground">Despesas</dt>
           <dd><Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" /></dd>
         </div>
-        <div class="text-right">
+        <div class="col-span-2 flex items-baseline justify-between border-t pt-1.5 md:col-span-1 md:block md:border-0 md:pt-0 md:text-right">
           <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
-          <dd>
-            <Money :value="page.summary.balance" :type="balanceType(page.summary.balance)" :signed="page.summary.balance !== 0" class="font-bold" />
+          <dd class="text-right">
+            <Money :value="page.summary.balance" class="font-bold" />
             <span v-if="page.summary.projectedBalance !== page.summary.balance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais o que ainda está pendente no período">
               previsto <Money :value="page.summary.projectedBalance" class="font-semibold" />
             </span>

@@ -89,7 +89,7 @@ public class TransactionService {
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
         List<AccountDto> scope = accountScope(user.getId(), filter);
         return new TransactionPage(items.stream().map(this::toDto).toList(),
-            summarize(items), dayBalances(scope, range), invoice);
+            summarize(items.size(), scope, range), dayBalances(scope, range), invoice);
     }
 
     /** DTO com o resumo da fatura agregada, quando o lançamento é um pagamento de fatura. */
@@ -194,40 +194,51 @@ public class TransactionService {
             .orElseThrow(() -> new NotFoundException("Lançamento não encontrado"));
     }
 
-    /** Totais do que está listado, só o pago; o pendente fica à parte e entra no saldo previsto. */
-    public static Summary summarize(List<Transaction> items) {
+    /**
+     * Resumo como o extrato: saldo anterior das contas do recorte, transferência líquida, receitas e despesas pagas
+     * no período e o saldo atual; o pendente fica à parte e entra só no saldo previsto.
+     */
+    private Summary summarize(int count, List<AccountDto> scope, Range range) {
+        BigDecimal previous = BigDecimal.ZERO;
         BigDecimal transfer = BigDecimal.ZERO;
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
         BigDecimal pendingTransfer = BigDecimal.ZERO;
         BigDecimal pendingIncome = BigDecimal.ZERO;
         BigDecimal pendingExpense = BigDecimal.ZERO;
-        for (Transaction t : items) {
-            boolean in = t.getType() == TransactionType.INCOME;
-            BigDecimal amount = t.getAmount();
-            if (t.isTransfer()) {
-                BigDecimal signed = in ? amount : amount.negate();
-                if (t.isPaid()) {
-                    transfer = transfer.add(signed);
+        if (!scope.isEmpty()) {
+            List<Long> ids = scope.stream().map(AccountDto::id).toList();
+            previous = scope.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(transactions.sumPaidMovementsBefore(ids, range.from()));
+            for (Object[] row : transactions.sumMovementsByTypePaidAndTransfer(ids, range.from(), range.to())) {
+                boolean in = row[0] == TransactionType.INCOME;
+                boolean paid = Boolean.TRUE.equals(row[1]);
+                boolean isTransfer = Boolean.TRUE.equals(row[2]);
+                BigDecimal amount = (BigDecimal) row[3];
+                if (isTransfer) {
+                    BigDecimal signed = in ? amount : amount.negate();
+                    if (paid) {
+                        transfer = transfer.add(signed);
+                    } else {
+                        pendingTransfer = pendingTransfer.add(signed);
+                    }
+                } else if (in) {
+                    if (paid) {
+                        income = income.add(amount);
+                    } else {
+                        pendingIncome = pendingIncome.add(amount);
+                    }
+                } else if (paid) {
+                    expense = expense.add(amount);
                 } else {
-                    pendingTransfer = pendingTransfer.add(signed);
+                    pendingExpense = pendingExpense.add(amount);
                 }
-            } else if (in) {
-                if (t.isPaid()) {
-                    income = income.add(amount);
-                } else {
-                    pendingIncome = pendingIncome.add(amount);
-                }
-            } else if (t.isPaid()) {
-                expense = expense.add(amount);
-            } else {
-                pendingExpense = pendingExpense.add(amount);
             }
         }
-        BigDecimal balance = transfer.add(income).subtract(expense);
+        BigDecimal balance = previous.add(transfer).add(income).subtract(expense);
         BigDecimal projected = balance.add(pendingTransfer).add(pendingIncome).subtract(pendingExpense);
-        return new Summary(transfer, income, expense, balance, pendingTransfer, pendingIncome, pendingExpense,
-            projected, items.size());
+        return new Summary(previous, transfer, income, expense, balance, pendingTransfer, pendingIncome,
+            pendingExpense, projected, count);
     }
 
     private void apply(Long userId, Transaction t, TransactionRequest req) {

@@ -264,7 +264,6 @@ class ApiFlowTest {
         assertThat(page.get("summary").get("income").decimalValue()).isEqualByComparingTo("1000");
         assertThat(page.get("summary").get("pendingExpense").decimalValue()).isEqualByComparingTo("1600");
         assertThat(page.get("summary").get("transfer").decimalValue()).isEqualByComparingTo("0"); // 600 saiu, 600 entrou
-        assertThat(page.get("summary").get("balance").decimalValue()).isEqualByComparingTo("1000");
         // O saldo de cada conta considera as pernas: a PJ recebeu 1000 e transferiu 600.
         JsonNode accounts = body(mvc.get().uri("/api/accounts").headers(auth()).exchange());
         for (JsonNode a : accounts) {
