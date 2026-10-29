@@ -291,7 +291,7 @@ async function unlink() {
   if (!target?.transferId) return
   try {
     await transfersApi.unlink(target.transferId)
-    notifySuccess('Transferência desvinculada; os dois lançamentos voltam a contar no resultado')
+    notifySuccess('Transferência desvinculada; os dois lançamentos voltam a contar no resultado e no saldo das contas')
     ui.closeTransactionForm()
     ui.dataChanged()
   } catch (err) {

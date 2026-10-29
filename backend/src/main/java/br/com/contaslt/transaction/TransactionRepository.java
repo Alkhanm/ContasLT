@@ -52,17 +52,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("delete from Transaction t where t.importBatch.id = :batchId")
     int deleteByImportBatchId(@Param("batchId") Long batchId);
 
-    /** Movimento líquido pago (receitas − despesas) das contas antes de uma data: ponto de partida do saldo por dia. */
+    /**
+     * Movimento líquido pago (receitas − despesas) das contas antes de uma data: ponto de partida do saldo por dia.
+     * Pernas de transferência ficam de fora: transferências não mexem no saldo de nenhuma conta.
+     */
     @Query("""
         select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end), 0)
-        from Transaction t where t.account.id in :accountIds and t.paid = true and t.dueDate < :before
+        from Transaction t where t.account.id in :accountIds and t.paid = true and t.transfer is null and t.dueDate < :before
         """)
     BigDecimal sumPaidMovementsBefore(@Param("accountIds") List<Long> accountIds, @Param("before") LocalDate before);
 
     /** Movimento líquido pago por dia, no período. Cada linha: [LocalDate, BigDecimal]. */
     @Query("""
         select t.dueDate, sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end)
-        from Transaction t where t.account.id in :accountIds and t.paid = true and t.dueDate between :from and :to
+        from Transaction t where t.account.id in :accountIds and t.paid = true and t.transfer is null and t.dueDate between :from and :to
         group by t.dueDate order by t.dueDate
         """)
     List<Object[]> sumPaidMovementsByDay(@Param("accountIds") List<Long> accountIds, @Param("from") LocalDate from,
