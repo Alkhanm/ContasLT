@@ -265,18 +265,18 @@ class ApiFlowTest {
         assertThat(page.get("summary").get("expense").decimalValue()).isEqualByComparingTo("1600");
         assertThat(page.get("summary").get("transferOut").decimalValue()).isEqualByComparingTo("600");
         assertThat(page.get("summary").get("transferIn").decimalValue()).isEqualByComparingTo("600");
-        // Transferências não mexem no saldo das contas: a PJ fica só com a receita de 1000.
+        // O saldo de cada conta considera as pernas: a PJ recebeu 1000 e transferiu 600.
         JsonNode accounts = body(mvc.get().uri("/api/accounts").headers(auth()).exchange());
         for (JsonNode a : accounts) {
             if (a.get("id").asLong() == pjId) {
-                assertThat(a.get("balance").decimalValue()).isEqualByComparingTo("1000");
+                assertThat(a.get("balance").decimalValue()).isEqualByComparingTo("400");
             }
         }
         JsonNode pjDays = body(mvc.get().uri("/api/transactions?month=" + month + "&accountId=" + pjId).headers(auth()).exchange())
             .get("dayBalances");
         for (JsonNode d : pjDays) {
             if (d.get("date").asString().equals(month + "-05")) {
-                assertThat(d.get("balance").decimalValue()).isEqualByComparingTo("1000");
+                assertThat(d.get("balance").decimalValue()).isEqualByComparingTo("400");
             }
         }
         // Filtro "só transferências".

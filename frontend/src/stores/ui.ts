@@ -6,6 +6,8 @@ export interface TransactionFormDefaults {
   type?: TransactionType
   dueDate?: string
   accountId?: number | null
+  /** Abrir já como transferência (ex.: pagar fatura): destino, valor, descrição e mês da fatura. */
+  transfer?: { toAccountId: number; amount?: number | null; description?: string; invoiceMonth?: string }
 }
 
 /** Estado global de interface: formulário de lançamento e sinal de "dados mudaram". */

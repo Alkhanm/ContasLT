@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, Camera, ChevronDown, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
+import { ArrowLeftRight, Camera, ChevronDown, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
 import type { ReceiptScan, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,8 @@ const form = reactive({
   items: [] as TransactionItemInput[],
   /** Em ocorrência de conta recorrente: aplicar só nela ou nela e nos próximos vencimentos. */
   scope: 'THIS' as TransactionEditScope,
+  /** Transferência para cartão: mês da fatura que ela paga (AAAA-MM). */
+  invoiceMonth: null as string | null,
 })
 const scopes: { value: TransactionEditScope; label: string }[] = [
   { value: 'THIS', label: 'Só este' },
@@ -118,6 +120,12 @@ async function onReceiptPicked(e: Event) {
     showItems.value = form.items.length > 0
     form.paid = scan.paid
     loadReceiptImage(scan.receiptFile)
+    // Pago no crédito: a compra vai para o cartão, não para a conta corrente.
+    const method = (scan.paymentMethod ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    if (method.includes('credito') && !editing.value) {
+      const cardAccount = catalog.activeAccounts.find((a) => a.type === 'CREDIT_CARD')
+      if (cardAccount) form.accountId = cardAccount.id
+    }
     if (scan.duplicateOfTransactionId) {
       duplicate.value = scan
       notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
@@ -144,12 +152,15 @@ const confirmUnlink = ref(false)
 
 const editing = computed(() => ui.editingTransaction)
 const isTransfer = computed(() => form.kind === 'TRANSFER')
+/** "Compras não detalhadas" da fatura: só categoria e observações são editáveis. */
+const invoiceGap = computed(() => editing.value?.invoiceGap === true)
+const toCard = computed(() => catalog.account(form.toAccountId)?.type === 'CREDIT_CARD')
 /** Lançamento existente que é perna de uma transferência vinculada. */
 const linked = computed(() => editing.value?.transferId != null)
 const type = computed<TransactionType>(() => (form.kind === 'INCOME' ? 'INCOME' : 'EXPENSE'))
 const title = computed(() => (editing.value
   ? 'Editar lançamento'
-  : form.kind === 'TRANSFER' ? 'Nova transferência' : form.kind === 'INCOME' ? 'Nova receita' : 'Nova despesa'))
+  : form.kind === 'TRANSFER' ? (toCard ? 'Pagar fatura do cartão' : 'Nova transferência') : form.kind === 'INCOME' ? 'Nova receita' : 'Nova despesa'))
 
 watch(() => ui.transactionFormOpen, async (open) => {
   if (!open) return
@@ -175,17 +186,19 @@ watch(() => ui.transactionFormOpen, async (open) => {
     form.receiptAccessKey = tx.receiptAccessKey
     form.items = (tx.items ?? []).map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
     showItems.value = form.items.length > 0
+    form.invoiceMonth = null
     loadReceiptImage(tx.receiptFile)
   } else {
     const d = ui.formDefaults
-    form.kind = d.type ?? 'EXPENSE'
-    form.amount = null
-    form.description = ''
+    form.kind = d.transfer ? 'TRANSFER' : d.type ?? 'EXPENSE'
+    form.amount = d.transfer?.amount ?? null
+    form.description = d.transfer?.description ?? ''
     form.dueDate = d.dueDate ?? todayIso()
     form.categoryId = null
     form.accountId = d.accountId ?? catalog.activeAccounts[0]?.id ?? null
-    form.toAccountId = null
-    form.paid = false
+    form.toAccountId = d.transfer?.toAccountId ?? null
+    form.invoiceMonth = d.transfer?.invoiceMonth ?? null
+    form.paid = !!d.transfer
     form.notes = ''
     form.merchant = ''
     form.receiptFile = null
@@ -231,8 +244,9 @@ async function save() {
         date: form.dueDate,
         description: form.description.trim() || null,
         paid: form.paid,
+        invoiceMonth: toCard.value ? form.invoiceMonth : null,
       })
-      notifySuccess('Transferência registrada')
+      notifySuccess(toCard.value ? 'Pagamento da fatura registrado' : 'Transferência registrada')
     } else {
       const input: TransactionInput = {
         description: form.description.trim(),
@@ -291,7 +305,7 @@ async function unlink() {
   if (!target?.transferId) return
   try {
     await transfersApi.unlink(target.transferId)
-    notifySuccess('Transferência desvinculada; os dois lançamentos voltam a contar no resultado e no saldo das contas')
+    notifySuccess('Transferência desvinculada; os dois lançamentos voltam a contar no resultado')
     ui.closeTransactionForm()
     ui.dataChanged()
   } catch (err) {
@@ -303,7 +317,7 @@ async function unlink() {
 <template>
   <FormSheet :open="ui.transactionFormOpen" :title="title" @update:open="(v) => !v && ui.closeTransactionForm()">
     <form id="transaction-form" class="space-y-4" @submit.prevent="save">
-      <TypeToggle v-model="form.kind" :disabled="!!editing?.recurringBillId || linked" :allow-transfer="!editing" />
+      <TypeToggle v-model="form.kind" :disabled="!!editing?.recurringBillId || linked || invoiceGap" :allow-transfer="!editing" />
 
       <p v-if="linked" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
         <ArrowLeftRight class="mt-0.5 size-3.5 shrink-0" />
@@ -313,11 +327,16 @@ async function unlink() {
         </span>
       </p>
 
+      <p v-if="invoiceGap" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+        <CreditCard class="mt-0.5 size-3.5 shrink-0" />
+        <span>Valor calculado pela fatura do cartão: o que foi pago além das compras registradas. Registre as compras do período e ele diminui sozinho. Aqui dá para mudar só a categoria e as observações.</span>
+      </p>
+
       <FormField label="Valor" for="tx-amount" :error="errors.amount">
-        <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" />
+        <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" :disabled="invoiceGap" />
       </FormField>
 
-      <div v-if="!isTransfer && !linked && form.kind === 'EXPENSE'" class="flex items-center gap-3">
+      <div v-if="!isTransfer && !linked && !invoiceGap && form.kind === 'EXPENSE'" class="flex items-center gap-3">
         <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onReceiptPicked">
         <Button type="button" variant="outline" class="h-10" :disabled="scanning" @click="pickReceipt">
           <Camera /> {{ scanning ? 'Lendo comprovante…' : form.receiptFile ? 'Trocar comprovante' : 'Ler comprovante' }}
@@ -377,21 +396,24 @@ async function unlink() {
         </label>
 
         <p class="text-xs text-muted-foreground">
-          Sai de uma conta e entra na outra. Não conta como despesa nem como receita.
+          <template v-if="toCard">
+            Pagamento de fatura: sai da conta e quita o cartão. Não é despesa (as compras já são). O que exceder as compras registradas da fatura vira "compras não detalhadas" no cartão.
+          </template>
+          <template v-else>Sai de uma conta e entra na outra. Não conta como despesa nem como receita.</template>
         </p>
       </template>
 
       <template v-else>
         <FormField label="Descrição" for="tx-description" :error="errors.description">
-          <Input id="tx-description" v-model="form.description" placeholder="Ex.: Conta de luz" maxlength="140" autocomplete="off" />
+          <Input id="tx-description" v-model="form.description" placeholder="Ex.: Conta de luz" maxlength="140" autocomplete="off" :disabled="invoiceGap" />
         </FormField>
 
         <div class="grid grid-cols-2 gap-3">
           <FormField :label="type === 'INCOME' ? 'Data' : 'Vencimento'" for="tx-date" :error="errors.dueDate">
-            <DateInput id="tx-date" v-model="form.dueDate" />
+            <DateInput id="tx-date" v-model="form.dueDate" :disabled="invoiceGap" />
           </FormField>
           <FormField label="Conta" for="tx-account" :error="errors.accountId">
-            <AccountSelect id="tx-account" v-model="form.accountId" />
+            <AccountSelect id="tx-account" v-model="form.accountId" :disabled="invoiceGap" />
           </FormField>
         </div>
 
@@ -399,7 +421,7 @@ async function unlink() {
           <CategorySelect id="tx-category" v-model="form.categoryId" :type="type" />
         </FormField>
 
-        <div v-if="type === 'EXPENSE'" class="rounded-lg border">
+        <div v-if="type === 'EXPENSE' && !invoiceGap" class="rounded-lg border">
           <button type="button" class="flex w-full items-center justify-between px-4 py-2.5 text-sm font-semibold" :aria-expanded="showItems" @click="showItems = !showItems">
             <span>Itens<span v-if="form.items.length" class="ml-1 font-normal text-muted-foreground">({{ form.items.length }})</span></span>
             <ChevronDown :class="cn('size-4 text-muted-foreground transition-transform', showItems && 'rotate-180')" />
@@ -409,7 +431,7 @@ async function unlink() {
           </div>
         </div>
 
-        <label class="flex items-center justify-between rounded-lg border px-4 py-3">
+        <label v-if="!invoiceGap" class="flex items-center justify-between rounded-lg border px-4 py-3">
           <span class="text-sm font-semibold">{{ type === 'INCOME' ? 'Já recebido' : 'Já pago' }}</span>
           <Switch v-model="form.paid" />
         </label>
@@ -452,17 +474,17 @@ async function unlink() {
 
     <template #footer>
       <div class="flex items-center gap-2">
-        <Button v-if="editing" type="button" variant="outline" size="icon" class="text-destructive" title="Excluir" aria-label="Excluir" @click="confirmDelete = true">
+        <Button v-if="editing && !invoiceGap" type="button" variant="outline" size="icon" class="text-destructive" title="Excluir" aria-label="Excluir" @click="confirmDelete = true">
           <Trash2 />
         </Button>
         <Button
-          v-if="editing && !editing.recurringBillId && !linked" type="button" variant="outline" class="h-11"
+          v-if="editing && !editing.recurringBillId && !linked && !invoiceGap" type="button" variant="outline" class="h-11"
           title="Criar uma conta recorrente a partir deste lançamento" @click="ui.makeRecurring(editing)"
         >
           <Repeat /> Tornar recorrente
         </Button>
         <Button type="submit" form="transaction-form" class="h-11 flex-1 text-base font-semibold" :disabled="saving">
-          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : settleOccurrenceId ? 'Pagar vencimento' : isTransfer ? 'Transferir' : 'Adicionar' }}
+          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : settleOccurrenceId ? 'Pagar vencimento' : isTransfer ? (toCard ? 'Pagar fatura' : 'Transferir') : 'Adicionar' }}
         </Button>
       </div>
     </template>

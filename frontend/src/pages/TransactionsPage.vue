@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
-import { ArrowLeftRight, ListChecks, Search } from 'lucide-vue-next'
+import { ArrowLeftRight, CreditCard, ListChecks, Search } from 'lucide-vue-next'
 import { transactionsApi, transfersApi } from '@/api'
 import type { Transaction, TransactionPage, TransactionType } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { dateLong } from '@/lib/format'
+import { dateLong, dateShort, invoiceStatusLabels, monthLabel } from '@/lib/format'
 import { notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
@@ -38,6 +38,13 @@ const categoryId = ref<number | null>(route.query.categoria && route.query.categ
 const uncategorized = ref(route.query.categoria === 'nenhuma')
 const search = ref('')
 const debouncedSearch = refDebounced(search, 300)
+/** Conta filtrada é um cartão de crédito: a lista pode seguir a fatura em vez do mês civil. */
+const card = computed(() => {
+  const a = catalog.account(accountId.value)
+  return a?.type === 'CREDIT_CARD' ? a : null
+})
+const byInvoice = ref(route.query.fatura !== '0')
+const invoiceMode = computed(() => !!card.value && byInvoice.value)
 
 const page = ref<TransactionPage | null>(null)
 const loading = ref(true)
@@ -64,6 +71,7 @@ async function load() {
       categoryId: categoryId.value,
       uncategorized: uncategorized.value,
       search: debouncedSearch.value,
+      invoice: invoiceMode.value,
     })
   } catch (err) {
     notifyError(err)
@@ -72,7 +80,7 @@ async function load() {
   }
 }
 
-watch([() => period.month, () => ui.dataVersion, typeFilter, status, accountId, categoryId, uncategorized, debouncedSearch], load, { immediate: true })
+watch([() => period.month, () => ui.dataVersion, typeFilter, status, accountId, categoryId, uncategorized, debouncedSearch, invoiceMode], load, { immediate: true })
 
 async function loadSuggestionCount() {
   try {
@@ -92,14 +100,35 @@ watch(matchOpen, (open) => {
   if (!open && route.query.cruzar) router.replace({ query: { ...route.query, cruzar: undefined } })
 })
 
-watch([typeFilter, status, accountId, categoryId, uncategorized], () => {
+watch([typeFilter, status, accountId, categoryId, uncategorized, byInvoice], () => {
   router.replace({ query: {
     tipo: typeFilter.value === 'ALL' ? undefined : typeFilter.value,
     status: status.value === 'all' ? undefined : status.value,
     conta: accountId.value ?? undefined,
     categoria: uncategorized.value ? 'nenhuma' : categoryId.value ?? undefined,
+    fatura: card.value && !byInvoice.value ? '0' : undefined,
   } })
 })
+
+const invoice = computed(() => page.value?.invoice ?? null)
+const invoiceStatusClass = computed(() => ({
+  OPEN: 'bg-primary/10 text-primary',
+  CLOSED: 'bg-warning/15 text-warning',
+  PARTIAL: 'bg-warning/15 text-warning',
+  PAID: 'bg-income/15 text-income',
+}[invoice.value?.status ?? 'OPEN']))
+
+/** Abre o formulário já como transferência conta → cartão com o que falta pagar da fatura. */
+function payInvoice() {
+  const inv = invoice.value
+  if (!inv) return
+  const from = catalog.activeAccounts.find((a) => a.type !== 'CREDIT_CARD' && a.id !== inv.accountId)
+  ui.newTransaction({
+    accountId: from?.id ?? null,
+    dueDate: inv.dueDate,
+    transfer: { toAccountId: inv.accountId, amount: inv.remaining || null, description: `Pagamento da fatura de ${monthLabel(inv.month).toLowerCase()}`, invoiceMonth: inv.month },
+  })
+}
 
 /** Tipo das categorias oferecidas no filtro; sem tipo (Todos/Transferências) mostra despesas e receitas agrupadas. */
 const categoryType = computed(() => (typeFilter.value === 'EXPENSE' || typeFilter.value === 'INCOME' ? typeFilter.value : undefined))
@@ -177,6 +206,52 @@ async function togglePaid(tx: Transaction) {
       <CategorySelect v-model="categoryId" v-model:uncategorized="uncategorized" :type="categoryType" none-label="Todas as categorias" child-all-label="Todas" allow-uncategorized />
     </div>
 
+    <div v-if="card" class="rounded-xl border bg-card px-4 py-3 text-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="flex items-center gap-2 font-semibold">
+          <CreditCard class="size-4 text-muted-foreground" />
+          <template v-if="invoice">Fatura de {{ monthLabel(invoice.month).toLowerCase() }}</template>
+          <template v-else>{{ card.name }}</template>
+          <span v-if="invoice" :class="cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', invoiceStatusClass)">{{ invoiceStatusLabels[invoice.status] }}</span>
+        </span>
+        <span role="radiogroup" class="inline-flex rounded-md bg-muted p-0.5 text-xs">
+          <button type="button" role="radio" :aria-checked="byInvoice" :class="cn('rounded px-2 py-1 font-semibold', byInvoice ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="byInvoice = true">Por fatura</button>
+          <button type="button" role="radio" :aria-checked="!byInvoice" :class="cn('rounded px-2 py-1 font-semibold', !byInvoice ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="byInvoice = false">Por mês</button>
+        </span>
+      </div>
+      <template v-if="invoice">
+        <p v-if="!invoice.configured" class="mt-1 text-xs text-muted-foreground">
+          Este cartão não tem fechamento e vencimento cadastrados, então a fatura segue o mês civil.
+          <RouterLink :to="{ name: 'accounts' }" class="font-semibold text-primary underline-offset-2 hover:underline">Cadastrar</RouterLink>
+        </p>
+        <p v-else class="mt-1 text-xs text-muted-foreground">
+          Compras de {{ dateShort(invoice.start) }} a {{ dateShort(invoice.end) }} · vence em {{ dateShort(invoice.dueDate) }}
+        </p>
+        <dl class="mt-2 grid grid-cols-2 gap-2 border-t pt-2 md:grid-cols-4">
+          <div>
+            <dt class="text-[11px] font-semibold text-muted-foreground">Compras registradas</dt>
+            <dd><Money :value="invoice.purchases" class="font-semibold" /></dd>
+          </div>
+          <div class="text-right md:text-left" title="O que foi pago na fatura além das compras registradas">
+            <dt class="text-[11px] font-semibold text-muted-foreground">Não detalhado</dt>
+            <dd><Money :value="invoice.undetailed" :muted="invoice.undetailed === 0" class="font-semibold" /></dd>
+          </div>
+          <div>
+            <dt class="text-[11px] font-semibold text-muted-foreground">Pago</dt>
+            <dd><Money :value="invoice.paid" :muted="invoice.paid === 0" class="font-semibold" /></dd>
+          </div>
+          <div class="text-right">
+            <dt class="text-[11px] font-semibold text-muted-foreground">{{ invoice.remaining > 0 ? 'Falta pagar' : 'Total da fatura' }}</dt>
+            <dd><Money :value="invoice.remaining > 0 ? invoice.remaining : invoice.total" class="font-bold" /></dd>
+          </div>
+        </dl>
+        <div v-if="invoice.status !== 'PAID'" class="mt-3 flex items-center justify-between gap-3">
+          <span class="text-xs text-muted-foreground">O pagamento sai de uma conta e entra no cartão; o que exceder as compras registradas vira "compras não detalhadas".</span>
+          <Button size="sm" class="shrink-0" @click="payInvoice">Pagar fatura</Button>
+        </div>
+      </template>
+    </div>
+
     <div v-if="suggestionCount" class="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm">
       <ArrowLeftRight class="size-4 shrink-0 text-primary" />
       <span class="flex-1">
@@ -186,7 +261,7 @@ async function togglePaid(tx: Transaction) {
       <Button size="sm" @click="matchOpen = true">Revisar</Button>
     </div>
 
-    <div v-if="page" class="rounded-xl border bg-card px-4 py-2.5 text-sm">
+    <div v-if="page && !invoice" class="rounded-xl border bg-card px-4 py-2.5 text-sm">
       <div class="flex items-center justify-between gap-3">
         <span class="text-muted-foreground">{{ page.summary.count }} {{ page.summary.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
         <span class="flex items-center gap-3">

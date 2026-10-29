@@ -32,6 +32,11 @@ public class AccountService {
             .toList();
     }
 
+    /** Entidades das contas do usuário (todas, inclusive arquivadas), para uso interno de outros serviços. */
+    public List<Account> listEntities(Long userId) {
+        return accounts.findByUserIdOrderByArchivedAscNameAsc(userId);
+    }
+
     @Transactional
     public AccountDto create(User user, AccountRequest req) {
         Account account = new Account();
@@ -74,7 +79,7 @@ public class AccountService {
     public AccountDto toDto(Account a) {
         BigDecimal balance = a.getInitialBalance().add(accounts.sumPaidMovements(a.getId()));
         return new AccountDto(a.getId(), a.getName(), a.getType(), a.getInitialBalance(), a.getColor(),
-            a.isArchived(), balance);
+            a.isArchived(), balance, a.getClosingDay(), a.getDueDay());
     }
 
     private static void apply(Account account, AccountRequest req) {
@@ -86,6 +91,19 @@ public class AccountService {
         }
         if (req.archived() != null) {
             account.setArchived(req.archived());
+        }
+        if (req.type() == AccountType.CREDIT_CARD) {
+            if ((req.closingDay() == null) != (req.dueDay() == null)) {
+                throw new BusinessException("Informe o dia de fechamento e o de vencimento da fatura");
+            }
+            if (req.closingDay() != null && req.closingDay().equals(req.dueDay())) {
+                throw new BusinessException("Fechamento e vencimento precisam ser dias diferentes");
+            }
+            account.setClosingDay(req.closingDay());
+            account.setDueDay(req.dueDay());
+        } else {
+            account.setClosingDay(null);
+            account.setDueDay(null);
         }
     }
 }

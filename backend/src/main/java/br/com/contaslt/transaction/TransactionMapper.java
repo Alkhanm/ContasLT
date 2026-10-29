@@ -30,6 +30,7 @@ public final class TransactionMapper {
             t.getMerchant(), t.getReceiptFile(), t.getReceiptAccessKey(),
             t.getImportBatch() == null ? null : t.getImportBatch().getId(),
             t.getItems().stream().map(i -> new ItemDto(i.getId(), i.getDescription(), i.getQuantity(), i.getUnitPrice(),
-                i.getTotal())).toList());
+                i.getTotal())).toList(),
+            t.isInvoiceGap());
     }
 }

@@ -22,6 +22,9 @@ export interface Account {
   color: string
   archived: boolean
   balance: number
+  /** Só cartão de crédito: dia do fechamento e do vencimento da fatura. */
+  closingDay: number | null
+  dueDay: number | null
 }
 
 export interface AccountInput {
@@ -30,6 +33,29 @@ export interface AccountInput {
   initialBalance: number
   color: string
   archived?: boolean
+  closingDay?: number | null
+  dueDay?: number | null
+}
+
+export type InvoiceStatus = 'OPEN' | 'CLOSED' | 'PARTIAL' | 'PAID'
+
+/** Fatura de cartão: compras entre dois fechamentos, identificada pelo mês do vencimento. */
+export interface CardInvoice {
+  accountId: number
+  accountName: string
+  month: string
+  start: string
+  end: string
+  dueDate: string
+  /** false quando o cartão não tem fechamento/vencimento cadastrados (vale o mês civil). */
+  configured: boolean
+  purchases: number
+  /** "Compras não detalhadas": o que foi pago além das compras registradas. */
+  undetailed: number
+  total: number
+  paid: number
+  remaining: number
+  status: InvoiceStatus
 }
 
 export interface Category {
@@ -84,6 +110,8 @@ export interface Transaction {
   receiptAccessKey: string | null
   importBatchId: number | null
   items: TransactionItem[]
+  /** Despesa "compras não detalhadas" gerada pela fatura do cartão: valor e data não são editáveis. */
+  invoiceGap: boolean
 }
 
 export interface TransactionItem {
@@ -172,6 +200,8 @@ export interface TransactionPage {
   items: Transaction[]
   summary: Summary
   dayBalances: DayBalance[]
+  /** Só quando a lista é de um cartão visto por fatura. */
+  invoice: CardInvoice | null
 }
 
 export interface TransactionFilter {
@@ -185,6 +215,8 @@ export interface TransactionFilter {
   search?: string
   /** true = só transferências, false = sem transferências, null/undefined = tudo. */
   transfers?: boolean | null
+  /** Conta de cartão: listar pelo período da fatura que vence no mês, em vez do mês civil. */
+  invoice?: boolean | null
 }
 
 export interface TransferInput {
@@ -194,12 +226,15 @@ export interface TransferInput {
   date: string
   description: string | null
   paid: boolean
+  /** Destino cartão de crédito: mês da fatura paga (AAAA-MM); vazio usa a de vencimento mais próximo. */
+  invoiceMonth?: string | null
 }
 
 export interface Transfer {
   id: number
   from: Transaction
   to: Transaction
+  invoiceMonth: string | null
 }
 
 export interface TransferSuggestion {
@@ -272,6 +307,13 @@ export interface PreviewRow {
   /** Casamento com um vencimento pendente de conta recorrente; matchAmount é o valor previsto pela regra. */
   matchRecurring: boolean
   matchAmount: number | null
+  /** Linha que parece pagamento de fatura de cartão: cartão sugerido, fatura e o que já consta dela. */
+  invoiceCardId: number | null
+  invoiceCardName: string | null
+  invoiceMonth: string | null
+  invoiceDueDate: string | null
+  invoiceTotal: number | null
+  invoicePaid: number | null
 }
 
 export interface ImportPreview {
@@ -294,6 +336,9 @@ export interface ConfirmRow {
   learnRule: boolean
   /** Vincula a linha a um lançamento existente em vez de criar um novo. */
   linkTransactionId?: number | null
+  /** A linha paga a fatura deste cartão: vira transferência conta → cartão. */
+  invoiceCardId?: number | null
+  invoiceMonth?: string | null
 }
 
 export interface ImportConfirmRequest {
@@ -308,6 +353,7 @@ export interface ImportResult {
   imported: number
   skipped: number
   linked: number
+  invoicePayments: number
 }
 
 export interface ImportBatch {

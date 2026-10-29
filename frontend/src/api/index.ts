@@ -39,6 +39,7 @@ export const transactionsApi = {
         paid: filter.paid,
         search: filter.search,
         transfers: filter.transfers,
+        invoice: filter.invoice || undefined,
       },
     }),
   create: (input: TransactionInput) => api<Transaction>('/api/transactions', { method: 'POST', body: input }),

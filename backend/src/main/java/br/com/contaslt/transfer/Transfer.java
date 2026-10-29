@@ -1,6 +1,8 @@
 package br.com.contaslt.transfer;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 
 import br.com.contaslt.transaction.Transaction;
 import br.com.contaslt.user.User;
@@ -36,6 +38,10 @@ public class Transfer {
     @JoinColumn(name = "to_transaction_id")
     private Transaction toTransaction;
 
+    /** Quando o destino é um cartão de crédito: primeiro dia do mês da fatura que este pagamento quita. */
+    @Column(name = "invoice_month")
+    private LocalDate invoiceMonth;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -46,6 +52,8 @@ public class Transfer {
     public void setFromTransaction(Transaction fromTransaction) { this.fromTransaction = fromTransaction; }
     public Transaction getToTransaction() { return toTransaction; }
     public void setToTransaction(Transaction toTransaction) { this.toTransaction = toTransaction; }
+    public YearMonth getInvoiceMonth() { return invoiceMonth == null ? null : YearMonth.from(invoiceMonth); }
+    public void setInvoiceMonth(YearMonth month) { this.invoiceMonth = month == null ? null : month.atDay(1); }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     /** A outra perna em relação à informada. */

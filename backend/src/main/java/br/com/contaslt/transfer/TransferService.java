@@ -2,6 +2,7 @@ package br.com.contaslt.transfer;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import br.com.contaslt.account.Account;
 import br.com.contaslt.account.AccountService;
+import br.com.contaslt.card.CardInvoiceService;
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TextNormalizer;
@@ -33,6 +35,7 @@ import br.com.contaslt.user.User;
  * Transferências entre contas do mesmo usuário. Cada transferência é um par de lançamentos
  * (despesa na origem, receita no destino) vinculados; eles continuam valendo para o saldo de cada conta,
  * mas são ignorados em receitas, despesas e categorias, por serem só movimentação interna.
+ * Quando o destino é um cartão de crédito, a transferência é o pagamento de uma fatura.
  */
 @Service
 public class TransferService {
@@ -48,13 +51,15 @@ public class TransferService {
     private final TransactionRepository transactions;
     private final TransactionService transactionService;
     private final AccountService accounts;
+    private final CardInvoiceService cardInvoices;
 
     public TransferService(TransferRepository transfers, TransactionRepository transactions,
-            TransactionService transactionService, AccountService accounts) {
+            TransactionService transactionService, AccountService accounts, CardInvoiceService cardInvoices) {
         this.transfers = transfers;
         this.transactions = transactions;
         this.transactionService = transactionService;
         this.accounts = accounts;
+        this.cardInvoices = cardInvoices;
     }
 
     @Transactional
@@ -70,7 +75,24 @@ public class TransferService {
 
         Transaction out = leg(user, from, TransactionType.EXPENSE, req.amount(), req.date(), description, paid);
         Transaction in = leg(user, to, TransactionType.INCOME, req.amount(), req.date(), description, paid);
-        return toDto(link(user, out, in));
+        return toDto(link(user, out, in, req.invoiceMonth()));
+    }
+
+    /**
+     * Registra o pagamento de uma fatura: transferência da conta para o cartão, marcada com o mês da fatura.
+     * Usado pela importação quando uma linha do extrato é "pagamento de fatura".
+     */
+    @Transactional
+    public Transfer payInvoice(User user, Transaction out, Account card, YearMonth invoiceMonth) {
+        if (!card.isCreditCard()) {
+            throw new BusinessException("A conta \"" + card.getName() + "\" não é um cartão de crédito");
+        }
+        if (out.getAccount().getId().equals(card.getId())) {
+            throw new BusinessException("O pagamento da fatura precisa sair de outra conta, não do próprio cartão");
+        }
+        Transaction in = leg(user, card, TransactionType.INCOME, out.getAmount(), out.getDueDate(),
+            "Pagamento da " + CardInvoiceService.label(invoiceMonth), out.isPaid());
+        return link(user, out, in, invoiceMonth);
     }
 
     /** Vincula dois lançamentos existentes; a ordem informada não importa, a despesa vira a origem. */
@@ -87,7 +109,7 @@ public class TransferService {
         Transaction out = a.getType() == TransactionType.EXPENSE ? a : b;
         Transaction in = out == a ? b : a;
         validatePair(out, in);
-        return toDto(link(user, out, in));
+        return toDto(link(user, out, in, req.invoiceMonth()));
     }
 
     /** Desfaz o vínculo; os dois lançamentos continuam existindo como despesa e receita comuns. */
@@ -95,9 +117,16 @@ public class TransferService {
     public void unlink(Long userId, Long transferId) {
         Transfer t = transfers.findByIdAndUserId(transferId, userId)
             .orElseThrow(() -> new NotFoundException("Transferência não encontrada"));
+        YearMonth invoiceMonth = t.getInvoiceMonth();
+        Account card = t.getToTransaction().getAccount();
+        User user = t.getUser();
         t.getFromTransaction().setTransfer(null);
         t.getToTransaction().setTransfer(null);
         transfers.delete(t);
+        if (invoiceMonth != null) {
+            transfers.flush();
+            cardInvoices.refresh(user, card, invoiceMonth);
+        }
     }
 
     /**
@@ -180,17 +209,29 @@ public class TransferService {
         }
     }
 
-    private Transfer link(User user, Transaction out, Transaction in) {
+    /**
+     * Cria o vínculo. Se o destino é um cartão de crédito, a transferência é um pagamento de fatura: recebe o mês
+     * da fatura (informado, ou o de vencimento mais próximo da data) e a fatura é recalculada.
+     */
+    private Transfer link(User user, Transaction out, Transaction in, YearMonth invoiceMonth) {
         Transfer t = new Transfer();
         t.setUser(user);
         t.setFromTransaction(out);
         t.setToTransaction(in);
+        Account card = in.getAccount();
+        if (card.isCreditCard()) {
+            t.setInvoiceMonth(invoiceMonth != null ? invoiceMonth : CardInvoiceService.inferInvoiceMonth(card, in.getDueDate()));
+        }
         t = transfers.save(t);
         // Transferência não é despesa nem receita: perde a categoria para não poluir os relatórios.
         out.setTransfer(t);
         out.setCategory(null);
         in.setTransfer(t);
         in.setCategory(null);
+        if (t.getInvoiceMonth() != null) {
+            transfers.flush();
+            cardInvoices.refresh(user, card, t.getInvoiceMonth());
+        }
         return t;
     }
 
@@ -209,6 +250,6 @@ public class TransferService {
 
     private static TransferDto toDto(Transfer t) {
         return new TransferDto(t.getId(), TransactionMapper.toDto(t.getFromTransaction()),
-            TransactionMapper.toDto(t.getToTransaction()));
+            TransactionMapper.toDto(t.getToTransaction()), t.getInvoiceMonth());
     }
 }

@@ -108,6 +108,13 @@ public class Transaction {
     @Column(name = "linked_import", nullable = false)
     private boolean linkedImport;
 
+    /**
+     * "Compras não detalhadas" de uma fatura de cartão: despesa gerada pelo app com a diferença entre o que foi pago
+     * na fatura e as compras registradas no período. Recalculada sempre que a fatura muda.
+     */
+    @Column(name = "invoice_gap", nullable = false)
+    private boolean invoiceGap;
+
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position asc")
     @BatchSize(size = 50)
@@ -138,6 +145,8 @@ public class Transaction {
     public Transfer getTransfer() { return transfer; }
     public void setTransfer(Transfer transfer) { this.transfer = transfer; }
     public boolean isTransfer() { return transfer != null; }
+    public boolean isInvoiceGap() { return invoiceGap; }
+    public void setInvoiceGap(boolean invoiceGap) { this.invoiceGap = invoiceGap; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getAmount() { return amount; }

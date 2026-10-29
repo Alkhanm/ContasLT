@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Archive, ArchiveRestore, Plus, Trash2, Wallet } from 'lucide-vue-next'
+import { Archive, ArchiveRestore, CreditCard, Plus, Trash2, Wallet } from 'lucide-vue-next'
 import { accountsApi } from '@/api'
 import type { Account } from '@/api/types'
 import AccountDialog from '@/components/app/AccountDialog.vue'
@@ -34,7 +34,7 @@ function openEdit(a: Account) {
 
 async function toggleArchive(a: Account) {
   try {
-    await accountsApi.update(a.id, { name: a.name, type: a.type, initialBalance: a.initialBalance, color: a.color, archived: !a.archived })
+    await accountsApi.update(a.id, { name: a.name, type: a.type, initialBalance: a.initialBalance, color: a.color, archived: !a.archived, closingDay: a.closingDay, dueDay: a.dueDay })
     await catalog.reloadAccounts()
     notifySuccess(a.archived ? 'Conta restaurada' : 'Conta arquivada')
     ui.dataChanged()
@@ -72,11 +72,11 @@ async function remove() {
       <li v-for="a in catalog.accounts" :key="a.id" :class="cn('flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5', a.archived && 'opacity-60')">
         <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none rounded-md focus-visible:ring-3 focus-visible:ring-ring/50" @click="openEdit(a)">
           <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full" :style="{ backgroundColor: a.color + '22', color: a.color }">
-            <Wallet class="size-[18px]" />
+            <component :is="a.type === 'CREDIT_CARD' ? CreditCard : Wallet" class="size-[18px]" />
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold">{{ a.name }}</span>
-            <span class="block text-xs text-muted-foreground">{{ accountTypeLabels[a.type] }}<template v-if="a.archived"> · arquivada</template></span>
+            <span class="block text-xs text-muted-foreground">{{ accountTypeLabels[a.type] }}<template v-if="a.type === 'CREDIT_CARD' && a.closingDay"> · fecha dia {{ a.closingDay }}, vence dia {{ a.dueDay }}</template><template v-if="a.archived"> · arquivada</template></span>
           </span>
           <Money :value="a.balance" class="text-sm font-semibold" />
         </button>

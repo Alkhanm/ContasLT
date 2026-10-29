@@ -44,6 +44,13 @@ public class Account {
     @Column(nullable = false)
     private boolean archived;
 
+    /** Cartão de crédito: dia em que a fatura fecha e dia em que vence (1 a 28). */
+    @Column(name = "closing_day")
+    private Integer closingDay;
+
+    @Column(name = "due_day")
+    private Integer dueDay;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -60,5 +67,10 @@ public class Account {
     public void setColor(String color) { this.color = color; }
     public boolean isArchived() { return archived; }
     public void setArchived(boolean archived) { this.archived = archived; }
+    public Integer getClosingDay() { return closingDay; }
+    public void setClosingDay(Integer closingDay) { this.closingDay = closingDay; }
+    public Integer getDueDay() { return dueDay; }
+    public void setDueDay(Integer dueDay) { this.dueDay = dueDay; }
+    public boolean isCreditCard() { return type == AccountType.CREDIT_CARD; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

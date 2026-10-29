@@ -2,6 +2,7 @@ package br.com.contaslt.imports;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -20,10 +21,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import br.com.contaslt.account.Account;
 import br.com.contaslt.account.AccountService;
+import br.com.contaslt.card.CardInvoiceDtos.CardInvoiceDto;
+import br.com.contaslt.card.CardInvoiceService;
+import br.com.contaslt.card.InvoicePeriod;
+import br.com.contaslt.transfer.TransferService;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.category.CategoryRepository;
 import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.BusinessException;
+import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TextNormalizer;
 import br.com.contaslt.imports.ImportDtos.ConfirmRow;
@@ -51,11 +57,16 @@ public class ImportService {
     private final TransactionRepository transactions;
     private final ImportBatchRepository batches;
     private final RecurringBillService recurring;
+    private final TransferService transfers;
+    private final CardInvoiceService cardInvoices;
 
     public ImportService(OfxParser ofxParser, ExcelParser excelParser, AccountService accounts,
             CategoryService categories, CategoryRepository categoryRepository, CategoryRuleRepository rules,
-            TransactionRepository transactions, ImportBatchRepository batches, RecurringBillService recurring) {
+            TransactionRepository transactions, ImportBatchRepository batches, RecurringBillService recurring,
+            TransferService transfers, CardInvoiceService cardInvoices) {
         this.recurring = recurring;
+        this.transfers = transfers;
+        this.cardInvoices = cardInvoices;
         this.ofxParser = ofxParser;
         this.excelParser = excelParser;
         this.accounts = accounts;
@@ -95,6 +106,8 @@ public class ImportService {
             .collect(Collectors.toSet());
 
         Map<ParsedRow, Transaction> matches = matchExisting(user, account, parsed, min, max);
+        List<Account> cards = account.isCreditCard() ? List.of() : accounts.listEntities(user.getId()).stream()
+            .filter(a -> a.isCreditCard() && !a.isArchived()).toList();
 
         List<PreviewRow> rows = new ArrayList<>();
         int duplicates = 0;
@@ -108,6 +121,9 @@ public class ImportService {
             Optional<Category> suggestion = suggester.suggest(p.description(), p.type(), p.categoryHint());
             Transaction m = duplicate ? null : matches.get(p);
             Category mc = m == null ? null : m.getCategory();
+            Account card = duplicate || m != null ? null : invoiceCardFor(p, cards);
+            CardInvoiceDto inv = card == null ? null
+                : cardInvoices.summarize(card, CardInvoiceService.inferInvoiceMonth(card, p.date()));
             rows.add(new PreviewRow(index++, p.date(), p.description(), p.amount(), p.type(), p.externalId(), duplicate,
                 suggestion.map(Category::getId).orElse(null), suggestion.map(Category::getName).orElse(null),
                 suggestion.map(Category::getColor).orElse(null), suggestion.map(Category::getIcon).orElse(null),
@@ -115,13 +131,44 @@ public class ImportService {
                 m == null ? null : m.getAccount().getName(), m == null ? 0 : m.getItems().size(),
                 m != null && m.getReceiptFile() != null,
                 mc == null ? null : mc.getId(), mc == null ? null : mc.getName(),
-                m != null && m.getRecurringBill() != null, m == null ? null : m.getAmount()));
+                m != null && m.getRecurringBill() != null, m == null ? null : m.getAmount(),
+                inv == null ? null : card.getId(), inv == null ? null : card.getName(), inv == null ? null : inv.month(),
+                inv == null ? null : inv.dueDate(), inv == null ? null : inv.total(), inv == null ? null : inv.paid()));
         }
         return new ImportPreview(source, filename, account.getId(), rows.size(), duplicates, rows);
     }
 
     /** Janela de dias entre a data do extrato e a do lançamento manual para considerá-los a mesma compra. */
     static final int MATCH_DAYS = 3;
+
+    private static final List<String> INVOICE_WORDS = List.of("fatura", "pgto cartao", "pagto cartao", "pagamento cartao",
+        "pag cartao", "pagamento de cartao", "cartao de credito", "cartao credito");
+
+    /**
+     * Linha do extrato da conta que parece ser o pagamento da fatura de um cartão: despesa cuja descrição fala em
+     * fatura/pagamento de cartão ou cita o nome de um cartão cadastrado. O cartão citado pelo nome tem preferência;
+     * sem citação, vale o único cartão, ou o primeiro.
+     */
+    private static Account invoiceCardFor(ParsedRow row, List<Account> cards) {
+        if (cards.isEmpty() || row.type() != TransactionType.EXPENSE) {
+            return null;
+        }
+        String d = " " + TextNormalizer.normalize(row.description()).toLowerCase(Locale.ROOT) + " ";
+        Account named = null;
+        for (Account c : cards) {
+            String name = TextNormalizer.normalize(c.getName()).toLowerCase(Locale.ROOT);
+            for (String token : name.split(" ")) {
+                if (token.length() >= 4 && !token.equals("cartao") && !token.equals("credito") && d.contains(token)) {
+                    named = c;
+                }
+            }
+        }
+        boolean invoiceWord = INVOICE_WORDS.stream().anyMatch(d::contains);
+        if (named != null && (invoiceWord || d.contains("pagamento") || d.contains("pgto") || d.contains("pagto"))) {
+            return named;
+        }
+        return invoiceWord ? (named != null ? named : cards.get(0)) : null;
+    }
 
     /**
      * Procura, para cada linha do extrato, um lançamento criado à mão (comprovante, lançamento manual) com o
@@ -130,8 +177,13 @@ public class ImportService {
      */
     private Map<ParsedRow, Transaction> matchExisting(User user, Account account, List<ParsedRow> parsed,
             LocalDate min, LocalDate max) {
-        List<Transaction> candidates = transactions.findImportCandidates(user.getId(), min.minusDays(MATCH_DAYS),
-            max.plusDays(MATCH_DAYS));
+        List<Transaction> candidates = new ArrayList<>(transactions.findImportCandidates(user.getId(),
+            min.minusDays(MATCH_DAYS), max.plusDays(MATCH_DAYS)));
+        if (account.isCreditCard()) {
+            // Extrato do cartão: "pagamento recebido" casa com a perna do pagamento de fatura já registrado.
+            candidates.addAll(transactions.findInvoicePaymentLegs(account.getId(), min.minusDays(MATCH_DAYS),
+                max.plusDays(MATCH_DAYS)));
+        }
         record Pair(ParsedRow row, Transaction tx, int score) {
         }
         List<Pair> pairs = new ArrayList<>();
@@ -198,6 +250,8 @@ public class ImportService {
         int imported = 0;
         int skipped = 0;
         int linked = 0;
+        int invoicePayments = 0;
+        Set<YearMonth> touchedInvoices = new HashSet<>();
         for (ConfirmRow row : req.rows()) {
             String externalId = row.externalId() == null || row.externalId().isBlank() ? null : row.externalId().trim();
             if (externalId != null && (!seenExternal.add(externalId)
@@ -254,12 +308,28 @@ public class ImportService {
             transactions.save(t);
             imported++;
 
+            if (row.invoiceCardId() != null) {
+                if (row.type() != TransactionType.EXPENSE) {
+                    throw new BusinessException("Só uma saída pode ser pagamento de fatura: \"" + row.description() + "\"");
+                }
+                Account card = cardInvoices.requireCard(user.getId(), row.invoiceCardId());
+                YearMonth month = row.invoiceMonth() != null ? row.invoiceMonth()
+                    : CardInvoiceService.inferInvoiceMonth(card, row.date());
+                transfers.payInvoice(user, t, card, month);
+                invoicePayments++;
+            } else if (account.isCreditCard()) {
+                touchedInvoices.add(InvoicePeriod.containing(account, row.date()).month());
+            }
+
             if (category != null && Boolean.TRUE.equals(row.learnRule())) {
                 learn(user, category, row.description());
             }
         }
+        for (YearMonth month : touchedInvoices) {
+            cardInvoices.refresh(user, account, month);
+        }
         batch.setImportedCount(imported + linked);
-        return new ImportResult(batch.getId(), imported, skipped, linked);
+        return new ImportResult(batch.getId(), imported, skipped, linked, invoicePayments);
     }
 
     @Transactional(readOnly = true)

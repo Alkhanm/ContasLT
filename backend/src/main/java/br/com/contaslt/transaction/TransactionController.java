@@ -50,11 +50,12 @@ public class TransactionController {
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) Boolean paid,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) Boolean transfers) {
+            @RequestParam(required = false) Boolean transfers,
+            @RequestParam(required = false) Boolean invoice) {
         YearMonth ym = month == null || month.isBlank() ? YearMonth.now() : YearMonth.parse(month);
         List<Long> categoryIds = categoryId == null ? null : categories.idsWithChildren(currentUser.id(), categoryId);
         return transactions.list(currentUser.get(),
-            new Filter(ym, accountId, categoryIds, uncategorized, type, paid, search, transfers));
+            new Filter(ym, accountId, categoryIds, uncategorized, type, paid, search, transfers, invoice));
     }
 
     @GetMapping("/{id}")
@@ -83,6 +84,6 @@ public class TransactionController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
-        transactions.delete(currentUser.id(), id);
+        transactions.delete(currentUser.get(), id);
     }
 }

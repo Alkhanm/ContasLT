@@ -43,6 +43,7 @@ const meta = computed(() => {
   if (t.recurringBillId && t.scheduledDate && t.scheduledDate !== t.dueDate) parts.push(`previsto ${dateShort(t.scheduledDate)}`)
   if (t.recurringBillId && t.expectedAmount != null && t.expectedAmount !== t.amount) parts.push(`estimado ${money(t.expectedAmount)}`)
   if (t.items?.length) parts.push(`${t.items.length} ${t.items.length === 1 ? 'item' : 'itens'}`)
+  if (t.invoiceGap) parts.push('calculado pela fatura')
   return parts.join(' · ')
 })
 

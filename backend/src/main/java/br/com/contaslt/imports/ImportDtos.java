@@ -2,6 +2,7 @@ package br.com.contaslt.imports;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,7 +29,10 @@ public final class ImportDtos {
             Long matchTransactionId, String matchDescription, LocalDate matchDate, String matchAccountName,
             int matchItemCount, boolean matchHasReceipt, Long matchCategoryId, String matchCategoryName,
             /** Quando o casamento é com um vencimento pendente de conta recorrente: valor previsto pela regra. */
-            boolean matchRecurring, BigDecimal matchAmount) {
+            boolean matchRecurring, BigDecimal matchAmount,
+            /** Linha que parece pagamento de fatura de cartão: cartão sugerido, fatura e o que já consta dela. */
+            Long invoiceCardId, String invoiceCardName, YearMonth invoiceMonth, LocalDate invoiceDueDate,
+            BigDecimal invoiceTotal, BigDecimal invoicePaid) {
     }
 
     public record ImportPreview(ImportSource source, String filename, Long accountId, int total, int duplicates,
@@ -45,7 +49,10 @@ public final class ImportDtos {
         Boolean paid,
         Boolean learnRule,
         /** Em vez de criar um lançamento, vincula esta linha ao lançamento existente informado. */
-        Long linkTransactionId) {
+        Long linkTransactionId,
+        /** A linha é o pagamento da fatura deste cartão: vira transferência conta → cartão, ligada à fatura do mês. */
+        Long invoiceCardId,
+        YearMonth invoiceMonth) {
     }
 
     public record ImportConfirmRequest(
@@ -55,7 +62,7 @@ public final class ImportDtos {
         @NotEmpty(message = "Selecione ao menos um lançamento") @Valid List<ConfirmRow> rows) {
     }
 
-    public record ImportResult(Long batchId, int imported, int skipped, int linked) {
+    public record ImportResult(Long batchId, int imported, int skipped, int linked, int invoicePayments) {
     }
 
     public record ImportBatchDto(Long id, ImportSource source, String filename, Long accountId, String accountName,

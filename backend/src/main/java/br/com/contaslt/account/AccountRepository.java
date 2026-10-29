@@ -16,7 +16,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     @Query("""
         select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end), 0)
-        from Transaction t where t.account.id = :accountId and t.paid = true and t.transfer is null
+        from Transaction t where t.account.id = :accountId and t.paid = true
         """)
     BigDecimal sumPaidMovements(@Param("accountId") Long accountId);
 }

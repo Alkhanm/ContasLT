@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, CheckCircle2, FileSpreadsheet, FileText, Link2, Receipt, Repeat, Trash2, Upload } from 'lucide-vue-next'
+import { ArrowLeftRight, CheckCircle2, CreditCard, FileSpreadsheet, FileText, Link2, Receipt, Repeat, Trash2, Upload } from 'lucide-vue-next'
 import { importsApi, transfersApi } from '@/api'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
@@ -23,6 +23,9 @@ interface ReviewRow extends PreviewRow {
   categoryId: number | null
   /** Quando há um lançamento manual parecido: vincular a ele (true) ou criar um novo (false). */
   link: boolean
+  /** Linha que parece pagamento de fatura: registrar como pagamento do cartão escolhido (true) ou como despesa comum. */
+  payInvoice: boolean
+  invoiceCard: number | null
 }
 
 const catalog = useCatalogStore()
@@ -73,6 +76,7 @@ async function analyze() {
     preview.value = await importsApi.preview(accountId.value, file.value)
     rows.value = preview.value.rows.map((r) => ({
       ...r, selected: !r.duplicate, categoryId: r.suggestedCategoryId, link: r.matchTransactionId !== null,
+      payInvoice: r.invoiceCardId !== null, invoiceCard: r.invoiceCardId,
     }))
     step.value = 'review'
   } catch (err) {
@@ -84,6 +88,8 @@ async function analyze() {
 
 const selected = computed(() => rows.value.filter((r) => r.selected))
 const linkedCount = computed(() => selected.value.filter((r) => r.link && r.matchTransactionId !== null).length)
+const invoiceCount = computed(() => selected.value.filter((r) => r.payInvoice && r.invoiceCard !== null).length)
+const cards = computed(() => catalog.activeAccounts.filter((a) => a.type === 'CREDIT_CARD'))
 const selectedTotal = computed(() => selected.value.reduce((s, r) => s + (r.type === 'INCOME' ? r.amount : -r.amount), 0))
 const allSelected = computed(() => rows.value.length > 0 && rows.value.every((r) => r.selected))
 
@@ -101,18 +107,23 @@ async function confirm() {
       filename: preview.value.filename,
       rows: selected.value.map((r) => {
         const linking = r.link && r.matchTransactionId !== null
+        const paying = !linking && r.payInvoice && r.invoiceCard !== null
         return {
           date: r.date, description: r.description, amount: r.amount, type: r.type,
-          categoryId: linking ? null : r.categoryId, externalId: r.externalId, paid: true,
-          learnRule: !linking && r.categoryId !== null,
+          categoryId: linking || paying ? null : r.categoryId, externalId: r.externalId, paid: true,
+          learnRule: !linking && !paying && r.categoryId !== null,
           linkTransactionId: linking ? r.matchTransactionId : null,
+          invoiceCardId: paying ? r.invoiceCard : null,
+          invoiceMonth: paying ? r.invoiceMonth : null,
         }
       }),
     })
     step.value = 'done'
     notifySuccess(result.value.linked
       ? `${result.value.imported} importados, ${result.value.linked} ${result.value.linked === 1 ? 'vinculado' : 'vinculados'}`
-      : `${result.value.imported} lançamentos importados`)
+      : result.value.invoicePayments
+        ? `${result.value.imported} importados, ${result.value.invoicePayments} ${result.value.invoicePayments === 1 ? 'pagamento de fatura' : 'pagamentos de fatura'}`
+        : `${result.value.imported} lançamentos importados`)
     ui.dataChanged()
     catalog.reloadAccounts()
     loadHistory()
@@ -220,7 +231,7 @@ function reset() {
         <div>
           <p class="font-semibold">{{ preview.filename }}</p>
           <p class="text-sm text-muted-foreground">
-            {{ preview.total }} {{ preview.total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}<template v-if="preview.duplicates">, {{ preview.duplicates }} já importados (desmarcados)</template><template v-if="linkedCount">, {{ linkedCount }} {{ linkedCount === 1 ? 'será vinculado a um lançamento seu' : 'serão vinculados a lançamentos seus' }}</template>
+            {{ preview.total }} {{ preview.total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados' }}<template v-if="preview.duplicates">, {{ preview.duplicates }} já importados (desmarcados)</template><template v-if="linkedCount">, {{ linkedCount }} {{ linkedCount === 1 ? 'será vinculado a um lançamento seu' : 'serão vinculados a lançamentos seus' }}</template><template v-if="invoiceCount">, {{ invoiceCount }} {{ invoiceCount === 1 ? 'pagamento de fatura' : 'pagamentos de fatura' }}</template>
           </p>
         </div>
         <Button variant="ghost" size="sm" @click="reset">Trocar arquivo</Button>
@@ -255,8 +266,30 @@ function reset() {
                     <Link2 v-else class="size-3.5 shrink-0 text-primary" />
                     <span class="truncate">{{ r.matchRecurring ? 'Paga o vencimento' : r.matchCategoryName ?? 'Mantém o lançamento' }}</span>
                   </span>
+                  <span v-else-if="r.payInvoice && r.invoiceCard !== null" class="flex h-8 items-center gap-1.5 rounded-md border border-dashed px-2 text-xs text-muted-foreground">
+                    <CreditCard class="size-3.5 shrink-0 text-primary" />
+                    <span class="truncate">Paga a fatura</span>
+                  </span>
                   <CategorySelect v-else v-model="r.categoryId" :type="r.type" size="sm" />
                 </span>
+              </div>
+            </div>
+            <div v-if="r.invoiceCardId !== null && r.matchTransactionId === null && r.selected" class="mt-2 ml-7 space-y-2 rounded-lg bg-primary/5 px-3 py-2 text-xs">
+              <p class="flex items-start gap-1.5">
+                <CreditCard class="mt-0.5 size-3.5 shrink-0 text-primary" />
+                <span>
+                  Parece o pagamento da fatura de <strong>{{ catalog.account(r.invoiceCard)?.name ?? r.invoiceCardName }}</strong><template v-if="r.invoiceDueDate"> que vence em {{ dateNumeric(r.invoiceDueDate) }}</template><template v-if="r.invoiceTotal != null"> ({{ money(r.invoiceTotal) }} em compras registradas)</template>.
+                  Não vira despesa: sai da conta e quita o cartão; o que exceder as compras registradas vira "compras não detalhadas".
+                </span>
+              </p>
+              <div class="flex flex-wrap items-center gap-2">
+                <span role="radiogroup" class="inline-flex rounded-md bg-muted p-0.5">
+                  <button type="button" role="radio" :aria-checked="r.payInvoice" :class="cn('rounded px-2 py-1 font-semibold', r.payInvoice ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="r.payInvoice = true">Pagar fatura</button>
+                  <button type="button" role="radio" :aria-checked="!r.payInvoice" :class="cn('rounded px-2 py-1 font-semibold', !r.payInvoice ? 'bg-card shadow-xs' : 'text-muted-foreground')" @click="r.payInvoice = false">Despesa comum</button>
+                </span>
+                <select v-if="cards.length > 1 && r.payInvoice" v-model="r.invoiceCard" class="h-7 rounded-md border bg-card px-1.5 text-xs" aria-label="Cartão">
+                  <option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
               </div>
             </div>
             <div v-if="r.matchTransactionId !== null && r.selected" class="mt-2 ml-7 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-primary/5 px-3 py-2 text-xs">
@@ -298,7 +331,7 @@ function reset() {
         </span>
         <h2 class="text-xl font-bold">Importação concluída</h2>
         <p class="text-sm text-muted-foreground">
-          {{ result.imported }} {{ result.imported === 1 ? 'lançamento importado' : 'lançamentos importados' }}<template v-if="result.linked">, {{ result.linked }} {{ result.linked === 1 ? 'vinculado a um lançamento que você já tinha' : 'vinculados a lançamentos que você já tinha' }}</template><template v-if="result.skipped">, {{ result.skipped }} ignorados por já existirem</template>.
+          {{ result.imported }} {{ result.imported === 1 ? 'lançamento importado' : 'lançamentos importados' }}<template v-if="result.invoicePayments">, {{ result.invoicePayments }} {{ result.invoicePayments === 1 ? 'registrado como pagamento de fatura' : 'registrados como pagamentos de fatura' }}</template><template v-if="result.linked">, {{ result.linked }} {{ result.linked === 1 ? 'vinculado a um lançamento que você já tinha' : 'vinculados a lançamentos que você já tinha' }}</template><template v-if="result.skipped">, {{ result.skipped }} ignorados por já existirem</template>.
           As categorias escolhidas serão sugeridas nas próximas importações.
         </p>
         <RouterLink

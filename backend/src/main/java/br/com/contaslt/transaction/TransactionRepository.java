@@ -52,20 +52,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("delete from Transaction t where t.importBatch.id = :batchId")
     int deleteByImportBatchId(@Param("batchId") Long batchId);
 
-    /**
-     * Movimento líquido pago (receitas − despesas) das contas antes de uma data: ponto de partida do saldo por dia.
-     * Pernas de transferência ficam de fora: transferências não mexem no saldo de nenhuma conta.
-     */
+    /** Movimento líquido pago (receitas − despesas) das contas antes de uma data: ponto de partida do saldo por dia. */
     @Query("""
         select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end), 0)
-        from Transaction t where t.account.id in :accountIds and t.paid = true and t.transfer is null and t.dueDate < :before
+        from Transaction t where t.account.id in :accountIds and t.paid = true and t.dueDate < :before
         """)
     BigDecimal sumPaidMovementsBefore(@Param("accountIds") List<Long> accountIds, @Param("before") LocalDate before);
 
     /** Movimento líquido pago por dia, no período. Cada linha: [LocalDate, BigDecimal]. */
     @Query("""
         select t.dueDate, sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end)
-        from Transaction t where t.account.id in :accountIds and t.paid = true and t.transfer is null and t.dueDate between :from and :to
+        from Transaction t where t.account.id in :accountIds and t.paid = true and t.dueDate between :from and :to
         group by t.dueDate order by t.dueDate
         """)
     List<Object[]> sumPaidMovementsByDay(@Param("accountIds") List<Long> accountIds, @Param("from") LocalDate from,
@@ -110,6 +107,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("select t from Transaction t where t.user.id = :userId and t.importBatch is null and t.externalId is null "
         + "and t.transfer is null and t.recurringBill is null and t.dueDate between :from and :to")
     List<Transaction> findImportCandidates(@Param("userId") Long userId, @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    /**
+     * Compras registradas no cartão num período da fatura (sem pernas de transferência nem o ajuste de compras não
+     * detalhadas): despesas somam, estornos (receitas) abatem.
+     */
+    @Query("""
+        select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.EXPENSE then t.amount else -t.amount end), 0)
+        from Transaction t where t.account.id = :cardId and t.transfer is null and t.invoiceGap = false
+        and t.dueDate between :from and :to
+        """)
+    BigDecimal sumCardPurchases(@Param("cardId") Long cardId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    List<Transaction> findByAccountIdAndInvoiceGapTrueAndDueDateBetween(Long cardId, LocalDate from, LocalDate to);
+
+    /** Pernas de entrada de pagamento de fatura no cartão: candidatas a casar com "pagamento recebido" do OFX do cartão. */
+    @EntityGraph(attributePaths = {"account", "category"})
+    @Query("select t from Transaction t where t.account.id = :cardId and t.transfer is not null and t.importBatch is null "
+        + "and t.type = br.com.contaslt.common.TransactionType.INCOME and t.dueDate between :from and :to")
+    List<Transaction> findInvoicePaymentLegs(@Param("cardId") Long cardId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
     Optional<Transaction> findFirstByUserIdAndReceiptAccessKey(Long userId, String receiptAccessKey);

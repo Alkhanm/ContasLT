@@ -1,4 +1,4 @@
-import type { AccountType, Frequency, Transaction } from '@/api/types'
+import type { AccountType, Frequency, Transaction, InvoiceStatus } from '@/api/types'
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const brlPlain = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -144,4 +144,11 @@ export function parseMoneyInput(text: string): number | null {
   const digits = text.replace(/\D/g, '')
   if (!digits) return null
   return Number(digits) / 100
+}
+
+export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
+  OPEN: 'Aberta',
+  CLOSED: 'Fechada',
+  PARTIAL: 'Paga em parte',
+  PAID: 'Paga',
 }

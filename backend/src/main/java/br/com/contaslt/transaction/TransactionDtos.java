@@ -1,5 +1,7 @@
 package br.com.contaslt.transaction;
 
+import br.com.contaslt.card.CardInvoiceDtos.CardInvoiceDto;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -59,7 +61,9 @@ public final class TransactionDtos {
             /** Só em ocorrências de conta recorrente: data prevista pela regra e valor estimado por ela. */
             LocalDate scheduledDate, BigDecimal expectedAmount, String externalId,
             Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName,
-            String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items) {
+            String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items,
+            /** Despesa "compras não detalhadas" gerada pela fatura do cartão (valor e data não são editáveis). */
+            boolean invoiceGap) {
     }
 
     /**
@@ -82,6 +86,8 @@ public final class TransactionDtos {
     public record DayBalance(LocalDate date, BigDecimal balance) {
     }
 
-    public record TransactionPage(List<TransactionDto> items, Summary summary, List<DayBalance> dayBalances) {
+    /** {@code invoice}: só quando a lista é de um cartão de crédito visto por fatura. */
+    public record TransactionPage(List<TransactionDto> items, Summary summary, List<DayBalance> dayBalances,
+            CardInvoiceDto invoice) {
     }
 }
