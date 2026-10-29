@@ -4,6 +4,7 @@ import br.com.contaslt.card.CardInvoiceDtos.CardInvoiceDto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 
 import br.com.contaslt.common.TransactionType;
@@ -40,7 +41,11 @@ public final class TransactionDtos {
         @Size(max = 120) String merchant,
         @Size(max = 80) String receiptFile,
         @Size(max = 44) String receiptAccessKey,
-        @Valid @Size(max = 200) List<ItemRequest> items) {
+        @Valid @Size(max = 200) List<ItemRequest> items,
+        /** Pagamento de fatura de cartão: as compras do cartão na fatura do mês ficam agregadas nesta despesa. */
+        Long invoiceCardId,
+        /** Mês da fatura (AAAA-MM); se vazio com cartão informado, usa a fatura de vencimento mais próximo. */
+        YearMonth invoiceMonth) {
     }
 
     public record PaidRequest(@NotNull Boolean paid) {
@@ -62,8 +67,16 @@ public final class TransactionDtos {
             LocalDate scheduledDate, BigDecimal expectedAmount, String externalId,
             Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName,
             String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items,
-            /** Despesa "compras não detalhadas" gerada pela fatura do cartão (valor e data não são editáveis). */
-            boolean invoiceGap) {
+            /** Pagamento de fatura: cartão e mês da fatura cujas compras esta despesa agrega; {@code invoice} traz o resumo. */
+            Long invoiceCardId, String invoiceCardName, YearMonth invoiceMonth, CardInvoiceDto invoice) {
+
+        public TransactionDto withInvoice(CardInvoiceDto inv) {
+            return new TransactionDto(id, description, amount, type, dueDate, paid, notes, accountId, accountName,
+                categoryId, categoryName, categoryColor, categoryIcon, recurringBillId, installmentNumber, installmentTotal,
+                scheduledDate, expectedAmount, externalId, transferId, transferPeerTransactionId, transferPeerAccountId,
+                transferPeerAccountName, merchant, receiptFile, receiptAccessKey, importBatchId, items,
+                invoiceCardId, invoiceCardName, invoiceMonth, inv);
+        }
     }
 
     /**

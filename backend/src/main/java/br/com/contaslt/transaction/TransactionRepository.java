@@ -85,16 +85,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("to") LocalDate to);
 
     @EntityGraph(attributePaths = {"account", "category", "transfer"})
-    @Query("select t from Transaction t where t.user.id = :userId and t.dueDate between :from and :to order by t.dueDate desc, t.id desc")
+    @Query("select t from Transaction t where t.user.id = :userId and t.account.type <> br.com.contaslt.account.AccountType.CREDIT_CARD "
+        + "and t.dueDate between :from and :to order by t.dueDate desc, t.id desc")
     List<Transaction> findByUserAndPeriod(@Param("userId") Long userId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
     @EntityGraph(attributePaths = {"account", "category", "transfer"})
-    @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate < :today order by t.dueDate asc")
+    @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate < :today "
+        + "and t.account.type <> br.com.contaslt.account.AccountType.CREDIT_CARD order by t.dueDate asc")
     List<Transaction> findOverdue(@Param("userId") Long userId, @Param("today") LocalDate today);
 
     @EntityGraph(attributePaths = {"account", "category", "transfer"})
-    @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate between :from and :to order by t.dueDate asc")
+    @Query("select t from Transaction t where t.user.id = :userId and t.paid = false and t.dueDate between :from and :to "
+        + "and t.account.type <> br.com.contaslt.account.AccountType.CREDIT_CARD order by t.dueDate asc")
     List<Transaction> findUpcoming(@Param("userId") Long userId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
@@ -113,29 +116,38 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
      */
     @EntityGraph(attributePaths = {"account", "category"})
     @Query("select t from Transaction t where t.user.id = :userId and t.importBatch is null and t.externalId is null "
-        + "and t.transfer is null and t.recurringBill is null and t.dueDate between :from and :to")
+        + "and t.transfer is null and t.recurringBill is null and t.dueDate between :from and :to "
+        + "and (case when t.account.type = br.com.contaslt.account.AccountType.CREDIT_CARD then true else false end) = :creditCard")
     List<Transaction> findImportCandidates(@Param("userId") Long userId, @Param("from") LocalDate from,
-            @Param("to") LocalDate to);
+            @Param("to") LocalDate to, @Param("creditCard") boolean creditCard);
 
     /**
-     * Compras registradas no cartão num período da fatura (sem pernas de transferência nem o ajuste de compras não
-     * detalhadas): despesas somam, estornos (receitas) abatem.
+     * Compras registradas no cartão num período da fatura (sem pernas de transferência): despesas somam, estornos
+     * (receitas) abatem.
      */
     @Query("""
         select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.EXPENSE then t.amount else -t.amount end), 0)
-        from Transaction t where t.account.id = :cardId and t.transfer is null and t.invoiceGap = false
-        and t.dueDate between :from and :to
+        from Transaction t where t.account.id = :cardId and t.transfer is null and t.dueDate between :from and :to
         """)
     BigDecimal sumCardPurchases(@Param("cardId") Long cardId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    List<Transaction> findByAccountIdAndInvoiceGapTrueAndDueDateBetween(Long cardId, LocalDate from, LocalDate to);
+    @Query("select count(t) from Transaction t where t.account.id = :cardId and t.transfer is null and t.dueDate between :from and :to")
+    long countCardPurchases(@Param("cardId") Long cardId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    /** Pernas de entrada de pagamento de fatura no cartão: candidatas a casar com "pagamento recebido" do OFX do cartão. */
+    /** Pagamentos registrados de uma fatura: despesas (em qualquer conta) ligadas ao cartão e ao mês. */
     @EntityGraph(attributePaths = {"account", "category"})
-    @Query("select t from Transaction t where t.account.id = :cardId and t.transfer is not null and t.importBatch is null "
-        + "and t.type = br.com.contaslt.common.TransactionType.INCOME and t.dueDate between :from and :to")
-    List<Transaction> findInvoicePaymentLegs(@Param("cardId") Long cardId, @Param("from") LocalDate from,
-            @Param("to") LocalDate to);
+    List<Transaction> findByCardAccountIdAndCardInvoiceMonth(Long cardId, LocalDate month);
+
+    /** Meses de fatura do cartão que já têm pagamento registrado. */
+    @Query("select distinct t.cardInvoiceMonth from Transaction t where t.cardAccount.id = :cardId")
+    List<LocalDate> findPaidInvoiceMonths(@Param("cardId") Long cardId);
+
+    /** Total líquido de compras do cartão (todas as datas): base do saldo devedor. */
+    @Query("""
+        select coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.EXPENSE then t.amount else -t.amount end), 0)
+        from Transaction t where t.account.id = :cardId and t.transfer is null
+        """)
+    BigDecimal sumCardPurchases(@Param("cardId") Long cardId);
 
     Optional<Transaction> findFirstByUserIdAndReceiptAccessKey(Long userId, String receiptAccessKey);
 
@@ -149,6 +161,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     /** Lançamentos ainda não vinculados a nenhuma transferência, candidatos ao cruzamento entre contas. */
     @EntityGraph(attributePaths = {"account", "category"})
-    @Query("select t from Transaction t where t.user.id = :userId and t.transfer is null and t.dueDate >= :from order by t.dueDate asc, t.id asc")
+    @Query("select t from Transaction t where t.user.id = :userId and t.transfer is null and t.dueDate >= :from "
+        + "and t.account.type <> br.com.contaslt.account.AccountType.CREDIT_CARD order by t.dueDate asc, t.id asc")
     List<Transaction> findUnlinkedSince(@Param("userId") Long userId, @Param("from") LocalDate from);
 }

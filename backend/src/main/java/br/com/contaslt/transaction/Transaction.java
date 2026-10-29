@@ -3,6 +3,7 @@ package br.com.contaslt.transaction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -109,11 +110,15 @@ public class Transaction {
     private boolean linkedImport;
 
     /**
-     * "Compras não detalhadas" de uma fatura de cartão: despesa gerada pelo app com a diferença entre o que foi pago
-     * na fatura e as compras registradas no período. Recalculada sempre que a fatura muda.
+     * Pagamento de fatura de cartão: esta despesa (na conta que pagou) agrega as compras do cartão {@code cardAccount}
+     * da fatura que vence em {@code cardInvoiceMonth}. As compras em si não entram em listas nem totais.
      */
-    @Column(name = "invoice_gap", nullable = false)
-    private boolean invoiceGap;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "card_account_id")
+    private Account cardAccount;
+
+    @Column(name = "card_invoice_month")
+    private LocalDate cardInvoiceMonth;
 
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position asc")
@@ -145,8 +150,13 @@ public class Transaction {
     public Transfer getTransfer() { return transfer; }
     public void setTransfer(Transfer transfer) { this.transfer = transfer; }
     public boolean isTransfer() { return transfer != null; }
-    public boolean isInvoiceGap() { return invoiceGap; }
-    public void setInvoiceGap(boolean invoiceGap) { this.invoiceGap = invoiceGap; }
+    public Account getCardAccount() { return cardAccount; }
+    public void setCardAccount(Account cardAccount) { this.cardAccount = cardAccount; }
+    public YearMonth getCardInvoiceMonth() { return cardInvoiceMonth == null ? null : YearMonth.from(cardInvoiceMonth); }
+    public void setCardInvoiceMonth(YearMonth month) { this.cardInvoiceMonth = month == null ? null : month.atDay(1); }
+    public boolean isInvoicePayment() { return cardAccount != null; }
+    /** Compra no cartão de crédito: fica agregada na fatura, fora das listas e dos totais. */
+    public boolean isCardPurchase() { return account != null && account.isCreditCard(); }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getAmount() { return amount; }

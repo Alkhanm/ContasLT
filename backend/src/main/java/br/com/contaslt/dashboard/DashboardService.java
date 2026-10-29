@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.contaslt.account.AccountDtos.AccountDto;
+import br.com.contaslt.account.AccountType;
 import br.com.contaslt.account.AccountService;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.common.TransactionType;
@@ -104,7 +105,9 @@ public class DashboardService {
         categoryTotals.sort(Comparator.comparing(CategoryTotal::total).reversed());
 
         List<AccountDto> accountList = accounts.list(user.getId(), false);
-        BigDecimal currentBalance = accountList.stream().map(AccountDto::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Cartão de crédito não é caixa: o saldo total soma só as contas de dinheiro.
+        BigDecimal currentBalance = accountList.stream().filter(a -> a.type() != AccountType.CREDIT_CARD)
+            .map(AccountDto::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<MonthTotal> history = new ArrayList<>();
         List<Transaction> historyItems = transactions.findByUserAndPeriod(user.getId(), historyStart.atDay(1),

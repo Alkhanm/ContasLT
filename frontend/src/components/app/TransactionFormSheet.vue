@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowLeftRight, Camera, ChevronDown, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
-import type { ReceiptScan, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionType } from '@/api/types'
+import type { Account, ReceiptScan, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -14,10 +14,11 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import DateInput from './DateInput.vue'
 import FormField from './FormField.vue'
 import FormSheet from './FormSheet.vue'
+import Money from './Money.vue'
 import MoneyInput from './MoneyInput.vue'
 import ReceiptItemsEditor from './ReceiptItemsEditor.vue'
 import TypeToggle, { type FormKind } from './TypeToggle.vue'
-import { dateShort, money, todayIso } from '@/lib/format'
+import { dateShort, money, monthLabel, parseLocalDate, shiftMonth, todayIso } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { useCatalogStore } from '@/stores/catalog'
@@ -43,7 +44,8 @@ const form = reactive({
   items: [] as TransactionItemInput[],
   /** Em ocorrência de conta recorrente: aplicar só nela ou nela e nos próximos vencimentos. */
   scope: 'THIS' as TransactionEditScope,
-  /** Transferência para cartão: mês da fatura que ela paga (AAAA-MM). */
+  /** Pagamento de fatura de cartão: cartão e mês da fatura (AAAA-MM) cujas compras esta despesa agrega. */
+  invoiceCardId: null as number | null,
   invoiceMonth: null as string | null,
 })
 const scopes: { value: TransactionEditScope; label: string }[] = [
@@ -152,15 +154,89 @@ const confirmUnlink = ref(false)
 
 const editing = computed(() => ui.editingTransaction)
 const isTransfer = computed(() => form.kind === 'TRANSFER')
-/** "Compras não detalhadas" da fatura: só categoria e observações são editáveis. */
-const invoiceGap = computed(() => editing.value?.invoiceGap === true)
-const toCard = computed(() => catalog.account(form.toAccountId)?.type === 'CREDIT_CARD')
+/** Cartões do usuário; a seção "pagamento de fatura" só existe se houver algum. */
+const cards = computed(() => catalog.activeAccounts.filter((a) => a.type === 'CREDIT_CARD'))
+/** Compra no cartão: a conta escolhida é um cartão (a compra fica agregada na fatura, fora das listas). */
+const onCard = computed(() => catalog.account(form.accountId)?.type === 'CREDIT_CARD')
+const isInvoice = computed(() => form.invoiceCardId !== null)
+const invoiceCard = computed(() => catalog.account(form.invoiceCardId))
+/** Resumo e compras da fatura escolhida, para mostrar o que fica agregado nesta despesa. */
+const invoicePreview = ref<TransactionPage | null>(null)
+const showInvoiceItems = ref(false)
+
+/** Meses de fatura oferecidos: dois antes e um depois do mês da data, com o vencimento de cada um. */
+const invoiceMonths = computed(() => {
+  const base = form.dueDate ? form.dueDate.slice(0, 7) : todayIso().slice(0, 7)
+  const card = invoiceCard.value
+  const out: { value: string; label: string }[] = []
+  for (let i = -2; i <= 1; i++) {
+    const m = shiftMonth(base, i)
+    const due = card?.dueDay ? ` · vence ${String(card.dueDay).padStart(2, '0')}/${m.slice(5, 7)}` : ''
+    out.push({ value: m, label: `${monthLabel(m).toLowerCase()}${due}` })
+  }
+  if (form.invoiceMonth && !out.some((o) => o.value === form.invoiceMonth)) {
+    out.unshift({ value: form.invoiceMonth, label: monthLabel(form.invoiceMonth).toLowerCase() })
+  }
+  return out
+})
+
+/** Fatura de vencimento mais próximo da data, para sugerir o mês. */
+function nearestInvoiceMonth(card: Account, date: string): string {
+  const base = date.slice(0, 7)
+  if (!card.dueDay) return base
+  const target = parseLocalDate(date).getTime()
+  let best = base
+  let bestDistance = Infinity
+  for (let i = -1; i <= 1; i++) {
+    const m = shiftMonth(base, i)
+    const due = parseLocalDate(`${m}-${String(card.dueDay).padStart(2, '0')}`).getTime()
+    const distance = Math.abs(due - target)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = m
+    }
+  }
+  return best
+}
+
+function toggleInvoice(on: boolean) {
+  if (!on) {
+    form.invoiceCardId = null
+    form.invoiceMonth = null
+    return
+  }
+  const card = cards.value[0]
+  if (!card) return
+  form.invoiceCardId = card.id
+  form.invoiceMonth = nearestInvoiceMonth(card, form.dueDate || todayIso())
+}
+
+watch(() => form.invoiceCardId, (id, old) => {
+  const card = catalog.account(id)
+  if (card && (old === null || !form.invoiceMonth)) form.invoiceMonth = nearestInvoiceMonth(card, form.dueDate || todayIso())
+})
+
+watch([() => form.invoiceCardId, () => form.invoiceMonth, () => ui.transactionFormOpen], async ([id, month, open]) => {
+  invoicePreview.value = null
+  if (!open || !id || !month) return
+  try {
+    invoicePreview.value = await transactionsApi.list({ month, accountId: id, invoice: true })
+  } catch {
+    invoicePreview.value = null
+  }
+}, { immediate: true })
+
+/** Pago além das compras registradas (compras sem comprovante lido). */
+const invoiceUndetailed = computed(() => {
+  const purchases = invoicePreview.value?.invoice?.purchases ?? 0
+  return form.amount ? Math.max(0, form.amount - purchases) : 0
+})
 /** Lançamento existente que é perna de uma transferência vinculada. */
 const linked = computed(() => editing.value?.transferId != null)
 const type = computed<TransactionType>(() => (form.kind === 'INCOME' ? 'INCOME' : 'EXPENSE'))
 const title = computed(() => (editing.value
   ? 'Editar lançamento'
-  : form.kind === 'TRANSFER' ? (toCard ? 'Pagar fatura do cartão' : 'Nova transferência') : form.kind === 'INCOME' ? 'Nova receita' : 'Nova despesa'))
+  : form.kind === 'TRANSFER' ? 'Nova transferência' : isInvoice.value ? 'Pagar fatura do cartão' : form.kind === 'INCOME' ? 'Nova receita' : 'Nova despesa'))
 
 watch(() => ui.transactionFormOpen, async (open) => {
   if (!open) return
@@ -186,19 +262,23 @@ watch(() => ui.transactionFormOpen, async (open) => {
     form.receiptAccessKey = tx.receiptAccessKey
     form.items = (tx.items ?? []).map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
     showItems.value = form.items.length > 0
-    form.invoiceMonth = null
+    form.invoiceCardId = tx.invoiceCardId
+    form.invoiceMonth = tx.invoiceMonth
+    showInvoiceItems.value = false
     loadReceiptImage(tx.receiptFile)
   } else {
     const d = ui.formDefaults
-    form.kind = d.transfer ? 'TRANSFER' : d.type ?? 'EXPENSE'
-    form.amount = d.transfer?.amount ?? null
-    form.description = d.transfer?.description ?? ''
+    form.kind = d.type ?? 'EXPENSE'
+    form.amount = d.invoice?.amount ?? null
+    form.description = d.invoice?.description ?? ''
     form.dueDate = d.dueDate ?? todayIso()
     form.categoryId = null
-    form.accountId = d.accountId ?? catalog.activeAccounts[0]?.id ?? null
-    form.toAccountId = d.transfer?.toAccountId ?? null
-    form.invoiceMonth = d.transfer?.invoiceMonth ?? null
-    form.paid = !!d.transfer
+    form.accountId = d.accountId ?? catalog.activeAccounts.find((a) => a.type !== 'CREDIT_CARD')?.id ?? catalog.activeAccounts[0]?.id ?? null
+    form.toAccountId = null
+    form.invoiceCardId = d.invoice?.cardId ?? null
+    form.invoiceMonth = d.invoice?.month ?? null
+    showInvoiceItems.value = false
+    form.paid = !!d.invoice
     form.notes = ''
     form.merchant = ''
     form.receiptFile = null
@@ -244,9 +324,8 @@ async function save() {
         date: form.dueDate,
         description: form.description.trim() || null,
         paid: form.paid,
-        invoiceMonth: toCard.value ? form.invoiceMonth : null,
       })
-      notifySuccess(toCard.value ? 'Pagamento da fatura registrado' : 'Transferência registrada')
+      notifySuccess('Transferência registrada')
     } else {
       const input: TransactionInput = {
         description: form.description.trim(),
@@ -261,6 +340,8 @@ async function save() {
         receiptFile: form.receiptFile,
         receiptAccessKey: form.receiptAccessKey,
         items: form.items.filter((i) => i.description.trim()).map((i) => ({ ...i, description: i.description.trim(), total: i.total || 0 })),
+        invoiceCardId: type.value === 'EXPENSE' && !onCard.value ? form.invoiceCardId : null,
+        invoiceMonth: type.value === 'EXPENSE' && !onCard.value ? form.invoiceMonth : null,
       }
       if (editing.value) {
         const scope = editing.value.recurringBillId ? form.scope : undefined
@@ -271,7 +352,7 @@ async function save() {
         notifySuccess('Vencimento pago com o comprovante')
       } else {
         await transactionsApi.create(input)
-        notifySuccess(type.value === 'INCOME' ? 'Receita adicionada' : 'Despesa adicionada')
+        notifySuccess(type.value === 'INCOME' ? 'Receita adicionada' : isInvoice.value ? 'Fatura registrada' : onCard.value ? 'Compra no cartão registrada' : 'Despesa adicionada')
       }
     }
     ui.closeTransactionForm()
@@ -317,7 +398,7 @@ async function unlink() {
 <template>
   <FormSheet :open="ui.transactionFormOpen" :title="title" @update:open="(v) => !v && ui.closeTransactionForm()">
     <form id="transaction-form" class="space-y-4" @submit.prevent="save">
-      <TypeToggle v-model="form.kind" :disabled="!!editing?.recurringBillId || linked || invoiceGap" :allow-transfer="!editing" />
+      <TypeToggle v-model="form.kind" :disabled="!!editing?.recurringBillId || linked" :allow-transfer="!editing" />
 
       <p v-if="linked" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
         <ArrowLeftRight class="mt-0.5 size-3.5 shrink-0" />
@@ -327,16 +408,11 @@ async function unlink() {
         </span>
       </p>
 
-      <p v-if="invoiceGap" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-        <CreditCard class="mt-0.5 size-3.5 shrink-0" />
-        <span>Valor calculado pela fatura do cartão: o que foi pago além das compras registradas. Registre as compras do período e ele diminui sozinho. Aqui dá para mudar só a categoria e as observações.</span>
-      </p>
-
       <FormField label="Valor" for="tx-amount" :error="errors.amount">
-        <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" :disabled="invoiceGap" />
+        <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" />
       </FormField>
 
-      <div v-if="!isTransfer && !linked && !invoiceGap && form.kind === 'EXPENSE'" class="flex items-center gap-3">
+      <div v-if="!isTransfer && !linked && !isInvoice && form.kind === 'EXPENSE'" class="flex items-center gap-3">
         <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onReceiptPicked">
         <Button type="button" variant="outline" class="h-10" :disabled="scanning" @click="pickReceipt">
           <Camera /> {{ scanning ? 'Lendo comprovante…' : form.receiptFile ? 'Trocar comprovante' : 'Ler comprovante' }}
@@ -396,32 +472,74 @@ async function unlink() {
         </label>
 
         <p class="text-xs text-muted-foreground">
-          <template v-if="toCard">
-            Pagamento de fatura: sai da conta e quita o cartão. Não é despesa (as compras já são). O que exceder as compras registradas da fatura vira "compras não detalhadas" no cartão.
-          </template>
-          <template v-else>Sai de uma conta e entra na outra. Não conta como despesa nem como receita.</template>
+          Sai de uma conta e entra na outra. Não conta como despesa nem como receita.
         </p>
       </template>
 
       <template v-else>
         <FormField label="Descrição" for="tx-description" :error="errors.description">
-          <Input id="tx-description" v-model="form.description" placeholder="Ex.: Conta de luz" maxlength="140" autocomplete="off" :disabled="invoiceGap" />
+          <Input id="tx-description" v-model="form.description" placeholder="Ex.: Conta de luz" maxlength="140" autocomplete="off" />
         </FormField>
 
         <div class="grid grid-cols-2 gap-3">
           <FormField :label="type === 'INCOME' ? 'Data' : 'Vencimento'" for="tx-date" :error="errors.dueDate">
-            <DateInput id="tx-date" v-model="form.dueDate" :disabled="invoiceGap" />
+            <DateInput id="tx-date" v-model="form.dueDate" />
           </FormField>
           <FormField label="Conta" for="tx-account" :error="errors.accountId">
-            <AccountSelect id="tx-account" v-model="form.accountId" :disabled="invoiceGap" />
+            <AccountSelect id="tx-account" v-model="form.accountId" />
           </FormField>
+        </div>
+
+        <p v-if="onCard && type === 'EXPENSE'" class="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <CreditCard class="mt-0.5 size-3.5 shrink-0" />
+          <span>Compra no cartão: fica na fatura do período, fora da lista geral e dos totais. O que conta como despesa é a fatura paga.</span>
+        </p>
+
+        <div v-if="type === 'EXPENSE' && !onCard && !linked && cards.length" class="rounded-lg border">
+          <label class="flex items-center justify-between px-4 py-2.5">
+            <span class="flex items-center gap-2 text-sm font-semibold"><CreditCard class="size-4 text-muted-foreground" /> Pagamento de fatura de cartão</span>
+            <Switch :model-value="isInvoice" @update:model-value="toggleInvoice" />
+          </label>
+          <div v-if="isInvoice" class="space-y-3 border-t px-4 py-3">
+            <div class="grid grid-cols-2 gap-3">
+              <FormField label="Cartão" for="tx-invoice-card">
+                <select id="tx-invoice-card" v-model="form.invoiceCardId" class="h-9 w-full rounded-md border bg-transparent px-3 text-sm">
+                  <option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
+              </FormField>
+              <FormField label="Fatura" for="tx-invoice-month">
+                <select id="tx-invoice-month" v-model="form.invoiceMonth" class="h-9 w-full rounded-md border bg-transparent px-3 text-sm">
+                  <option v-for="m in invoiceMonths" :key="m.value" :value="m.value">{{ m.label }}</option>
+                </select>
+              </FormField>
+            </div>
+            <div v-if="invoicePreview?.invoice" class="text-xs">
+              <button type="button" class="flex w-full items-center justify-between font-semibold" :aria-expanded="showInvoiceItems" @click="showInvoiceItems = !showInvoiceItems">
+                <span>
+                  {{ invoicePreview.invoice.count }} {{ invoicePreview.invoice.count === 1 ? 'compra registrada' : 'compras registradas' }} · {{ money(invoicePreview.invoice.purchases) }}
+                  <span v-if="invoiceUndetailed > 0" class="font-normal text-muted-foreground"> · não detalhado {{ money(invoiceUndetailed) }}</span>
+                </span>
+                <ChevronDown :class="cn('size-4 text-muted-foreground transition-transform', showInvoiceItems && 'rotate-180')" />
+              </button>
+              <p class="mt-1 text-muted-foreground">
+                Compras de {{ dateShort(invoicePreview.invoice.start) }} a {{ dateShort(invoicePreview.invoice.end) }} ficam agregadas nesta despesa. Elas não aparecem na lista nem contam de novo.
+              </p>
+              <ul v-if="showInvoiceItems && invoicePreview.items.length" class="mt-2 divide-y rounded-md border">
+                <li v-for="t in invoicePreview.items" :key="t.id" class="flex items-center justify-between gap-2 px-2 py-1.5">
+                  <span class="min-w-0 truncate">{{ dateShort(t.dueDate) }} · {{ t.description }}<span v-if="t.items?.length" class="text-muted-foreground"> ({{ t.items.length }} itens)</span></span>
+                  <Money :value="t.amount" :type="t.type" class="shrink-0 font-semibold" />
+                </li>
+              </ul>
+              <p v-else-if="showInvoiceItems" class="mt-2 text-muted-foreground">Nenhuma compra registrada nesse período ainda. Comprovantes lidos depois entram aqui sozinhos.</p>
+            </div>
+          </div>
         </div>
 
         <FormField v-if="!linked" label="Categoria" for="tx-category" :error="errors.categoryId">
           <CategorySelect id="tx-category" v-model="form.categoryId" :type="type" />
         </FormField>
 
-        <div v-if="type === 'EXPENSE' && !invoiceGap" class="rounded-lg border">
+        <div v-if="type === 'EXPENSE' && !isInvoice" class="rounded-lg border">
           <button type="button" class="flex w-full items-center justify-between px-4 py-2.5 text-sm font-semibold" :aria-expanded="showItems" @click="showItems = !showItems">
             <span>Itens<span v-if="form.items.length" class="ml-1 font-normal text-muted-foreground">({{ form.items.length }})</span></span>
             <ChevronDown :class="cn('size-4 text-muted-foreground transition-transform', showItems && 'rotate-180')" />
@@ -431,7 +549,7 @@ async function unlink() {
           </div>
         </div>
 
-        <label v-if="!invoiceGap" class="flex items-center justify-between rounded-lg border px-4 py-3">
+        <label class="flex items-center justify-between rounded-lg border px-4 py-3">
           <span class="text-sm font-semibold">{{ type === 'INCOME' ? 'Já recebido' : 'Já pago' }}</span>
           <Switch v-model="form.paid" />
         </label>
@@ -474,17 +592,17 @@ async function unlink() {
 
     <template #footer>
       <div class="flex items-center gap-2">
-        <Button v-if="editing && !invoiceGap" type="button" variant="outline" size="icon" class="text-destructive" title="Excluir" aria-label="Excluir" @click="confirmDelete = true">
+        <Button v-if="editing" type="button" variant="outline" size="icon" class="text-destructive" title="Excluir" aria-label="Excluir" @click="confirmDelete = true">
           <Trash2 />
         </Button>
         <Button
-          v-if="editing && !editing.recurringBillId && !linked && !invoiceGap" type="button" variant="outline" class="h-11"
+          v-if="editing && !editing.recurringBillId && !linked" type="button" variant="outline" class="h-11"
           title="Criar uma conta recorrente a partir deste lançamento" @click="ui.makeRecurring(editing)"
         >
           <Repeat /> Tornar recorrente
         </Button>
         <Button type="submit" form="transaction-form" class="h-11 flex-1 text-base font-semibold" :disabled="saving">
-          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : settleOccurrenceId ? 'Pagar vencimento' : isTransfer ? (toCard ? 'Pagar fatura' : 'Transferir') : 'Adicionar' }}
+          {{ saving ? 'Salvando…' : editing ? 'Salvar alterações' : settleOccurrenceId ? 'Pagar vencimento' : isTransfer ? 'Transferir' : isInvoice ? 'Registrar fatura' : 'Adicionar' }}
         </Button>
       </div>
     </template>

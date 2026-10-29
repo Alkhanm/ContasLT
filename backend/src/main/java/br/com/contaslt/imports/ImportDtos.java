@@ -32,7 +32,9 @@ public final class ImportDtos {
             boolean matchRecurring, BigDecimal matchAmount,
             /** Linha que parece pagamento de fatura de cartão: cartão sugerido, fatura e o que já consta dela. */
             Long invoiceCardId, String invoiceCardName, YearMonth invoiceMonth, LocalDate invoiceDueDate,
-            BigDecimal invoiceTotal, BigDecimal invoicePaid) {
+            BigDecimal invoiceTotal, BigDecimal invoicePaid,
+            /** Extrato do cartão: linha "pagamento recebido", que já está representada pela fatura paga na conta. */
+            boolean invoicePaymentReceived) {
     }
 
     public record ImportPreview(ImportSource source, String filename, Long accountId, int total, int duplicates,
@@ -50,7 +52,7 @@ public final class ImportDtos {
         Boolean learnRule,
         /** Em vez de criar um lançamento, vincula esta linha ao lançamento existente informado. */
         Long linkTransactionId,
-        /** A linha é o pagamento da fatura deste cartão: vira transferência conta → cartão, ligada à fatura do mês. */
+        /** A linha é o pagamento da fatura deste cartão: a despesa fica ligada ao cartão e ao mês da fatura. */
         Long invoiceCardId,
         YearMonth invoiceMonth) {
     }

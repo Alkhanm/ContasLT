@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Cartão de crédito: compras no cartão, fatura como recorte, pagamento como transferência e "compras não detalhadas". */
+/** Cartão de crédito: compras fora das listas, fatura como recorte, pagamento como despesa que agrega as compras. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class CardInvoiceTest {
@@ -51,11 +51,19 @@ class CardInvoiceTest {
     }
 
     @Test
-    void invoicePeriodGroupsPurchasesBetweenClosings() {
+    void cardPurchasesStayOutOfTheMainListAndGroupByInvoicePeriod() {
         transaction(cardId, "Mercado 25/09", 100, "EXPENSE", "2034-09-25");   // fecha em 25/09 → vence 05/10
         transaction(cardId, "Farmácia 26/09", 50, "EXPENSE", "2034-09-26");   // já é da fatura de novembro
         transaction(cardId, "Posto 10/09", 200, "EXPENSE", "2034-09-10");
+        transaction(checkingId, "Padaria", 20, "EXPENSE", "2034-09-10");
 
+        // Lista geral: só a conta de dinheiro; compras do cartão não aparecem nem contam como despesa.
+        JsonNode all = body(mvc.get().uri("/api/transactions?month=2034-09").headers(auth()).exchange());
+        assertThat(all.get("items")).hasSize(1);
+        assertThat(all.get("summary").get("expense").decimalValue()).isEqualByComparingTo("20");
+        assertThat(all.get("summary").get("outflow").decimalValue()).isEqualByComparingTo("20");
+
+        // Visão do cartão por fatura: compras entre dois fechamentos.
         JsonNode page = body(mvc.get().uri("/api/transactions?month=2034-10&accountId=" + cardId + "&invoice=true")
             .headers(auth()).exchange());
         assertThat(page.get("items")).hasSize(2);
@@ -65,70 +73,71 @@ class CardInvoiceTest {
         assertThat(inv.get("end").asString()).isEqualTo("2034-09-25");
         assertThat(inv.get("dueDate").asString()).isEqualTo("2034-10-05");
         assertThat(inv.get("purchases").decimalValue()).isEqualByComparingTo("300");
-        assertThat(inv.get("undetailed").decimalValue()).isEqualByComparingTo("0");
+        assertThat(inv.get("count").asInt()).isEqualTo(2);
         assertThat(inv.get("paid").decimalValue()).isEqualByComparingTo("0");
         assertThat(inv.get("status").asString()).isEqualTo("OPEN"); // datas no futuro: ainda não fechou
 
-        // Sem "invoice", a lista do cartão volta a ser o mês civil.
+        // Sem "invoice", a visão do cartão volta a ser o mês civil.
         JsonNode plain = body(mvc.get().uri("/api/transactions?month=2034-09&accountId=" + cardId).headers(auth()).exchange());
         assertThat(plain.get("items")).hasSize(3);
         assertThat(plain.get("invoice").isNull()).isTrue();
+
+        // Saldo do cartão = dívida em aberto (nenhuma fatura paga ainda).
+        assertThat(cardBalance()).isEqualByComparingTo("-350");
     }
 
     @Test
-    void payingMoreThanRegisteredCreatesUndetailedPurchasesAndSettlesInvoice() {
+    void invoicePaymentIsTheExpenseAndAggregatesThePurchases() {
         transaction(cardId, "Mercado", 300, "EXPENSE", "2034-09-10");
+        transaction(cardId, "Farmácia nov", 50, "EXPENSE", "2034-09-26"); // fatura de novembro, segue em aberto
 
-        // Paga a fatura de outubro (R$ 500) a partir da conta corrente, no vencimento.
-        MvcTestResult paid = mvc.post().uri("/api/transfers").headers(auth()).contentType(MediaType.APPLICATION_JSON)
-            .content(json.writeValueAsString(Map.of("fromAccountId", checkingId, "toAccountId", cardId, "amount", 500,
-                "date", "2034-10-05", "description", "Pagamento fatura"))).exchange();
+        // Paga a fatura de outubro (R$ 500) como despesa da conta corrente ligada ao cartão.
+        Map<String, Object> m = new HashMap<>();
+        m.put("description", "Fatura Nubank");
+        m.put("amount", 500);
+        m.put("type", "EXPENSE");
+        m.put("dueDate", "2034-10-05");
+        m.put("paid", true);
+        m.put("accountId", checkingId);
+        m.put("invoiceCardId", cardId);
+        MvcTestResult paid = mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(m)).exchange();
         assertThat(paid).hasStatus(201);
-        assertThat(body(paid).get("invoiceMonth").asString()).isEqualTo("2034-10");
+        JsonNode dto = body(paid);
+        assertThat(dto.get("invoiceCardId").asLong()).isEqualTo(cardId);
+        assertThat(dto.get("invoiceMonth").asString()).isEqualTo("2034-10"); // inferido pelo vencimento mais próximo
+        assertThat(dto.get("invoice").get("purchases").decimalValue()).isEqualByComparingTo("300");
+        assertThat(dto.get("invoice").get("count").asInt()).isEqualTo(1);
+        assertThat(dto.get("invoice").get("undetailed").decimalValue()).isEqualByComparingTo("200");
+        assertThat(dto.get("invoice").get("status").asString()).isEqualTo("PAID");
 
+        // Na lista geral de outubro aparece só a fatura, como despesa de 500, com o resumo agregado.
+        JsonNode oct = body(mvc.get().uri("/api/transactions?month=2034-10").headers(auth()).exchange());
+        assertThat(oct.get("items")).hasSize(1);
+        assertThat(oct.get("items").get(0).get("invoice").get("count").asInt()).isEqualTo(1);
+        assertThat(oct.get("summary").get("expense").decimalValue()).isEqualByComparingTo("500");
+
+        // Cartão: a fatura de outubro foi paga; só a compra de novembro continua devida.
+        assertThat(cardBalance()).isEqualByComparingTo("-50");
         JsonNode inv = body(mvc.get().uri("/api/accounts/" + cardId + "/invoices?month=2034-10").headers(auth()).exchange());
-        assertThat(inv.get("purchases").decimalValue()).isEqualByComparingTo("300");
-        assertThat(inv.get("undetailed").decimalValue()).isEqualByComparingTo("200");
-        assertThat(inv.get("total").decimalValue()).isEqualByComparingTo("500");
         assertThat(inv.get("paid").decimalValue()).isEqualByComparingTo("500");
-        assertThat(inv.get("status").asString()).isEqualTo("PAID");
+        assertThat(inv.get("paymentTransactionId").asLong()).isEqualTo(dto.get("id").asLong());
 
-        // O ajuste aparece como despesa no cartão, na data do fechamento, e o cartão zera depois do pagamento.
-        JsonNode page = body(mvc.get().uri("/api/transactions?month=2034-10&accountId=" + cardId + "&invoice=true")
-            .headers(auth()).exchange());
-        JsonNode gap = null;
-        for (JsonNode t : page.get("items")) {
-            if (t.get("invoiceGap").asBoolean()) {
-                gap = t;
-            }
-        }
-        assertThat(gap).isNotNull();
-        assertThat(gap.get("amount").decimalValue()).isEqualByComparingTo("200");
-        assertThat(gap.get("dueDate").asString()).isEqualTo("2034-09-25");
-        assertThat(gap.get("description").asString()).contains("Compras não detalhadas");
-        assertThat(cardBalance()).isEqualByComparingTo("0");
-
-        // Registrar depois uma compra do período (comprovante lido mais tarde) reduz o ajuste.
-        transaction(cardId, "Farmácia", 120, "EXPENSE", "2034-09-20");
+        // Comprovante lido depois entra na fatura e reduz o "não detalhado".
+        transaction(cardId, "Restaurante", 120, "EXPENSE", "2034-09-20");
         inv = body(mvc.get().uri("/api/accounts/" + cardId + "/invoices?month=2034-10").headers(auth()).exchange());
         assertThat(inv.get("purchases").decimalValue()).isEqualByComparingTo("420");
         assertThat(inv.get("undetailed").decimalValue()).isEqualByComparingTo("80");
-        assertThat(inv.get("status").asString()).isEqualTo("PAID");
-        assertThat(cardBalance()).isEqualByComparingTo("0");
+        assertThat(cardBalance()).isEqualByComparingTo("-50");
 
-        // O ajuste não é editado nem excluído à mão.
-        assertThat(mvc.delete().uri("/api/transactions/" + gap.get("id").asLong()).headers(auth()).exchange()).hasStatus(422);
-
-        // Desvincular o pagamento remove o ajuste.
-        long transferId = body(paid).get("id").asLong();
-        assertThat(mvc.delete().uri("/api/transfers/" + transferId).headers(auth()).exchange()).hasStatus(204);
-        inv = body(mvc.get().uri("/api/accounts/" + cardId + "/invoices?month=2034-10").headers(auth()).exchange());
-        assertThat(inv.get("undetailed").decimalValue()).isEqualByComparingTo("0");
-        assertThat(inv.get("paid").decimalValue()).isEqualByComparingTo("0");
+        // Pagar a fatura a partir do próprio cartão não faz sentido.
+        m.put("accountId", cardId);
+        assertThat(mvc.post().uri("/api/transactions").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(m)).exchange()).hasStatus(422);
     }
 
     @Test
-    void statementLineThatPaysTheInvoiceBecomesTransferToTheCard() {
+    void statementLineThatPaysTheInvoiceBecomesLinkedExpense() {
         transaction(cardId, "Mercado", 300, "EXPENSE", "2034-09-10");
         byte[] ofx = ofx(row("2034-10-05", "-480.00", "PAGAMENTO FATURA NUBANK", "F1"),
             row("2034-10-06", "-35.90", "PADARIA", "F2"));
@@ -168,23 +177,23 @@ class CardInvoiceTest {
         assertThat(res).hasStatus(201);
         assertThat(body(res).get("invoicePayments").asInt()).isEqualTo(1);
 
-        // A linha virou transferência: não é despesa da conta corrente; o cartão recebeu o pagamento e gerou o ajuste.
+        // A fatura é despesa da conta corrente (480 + 35,90) e agrega a compra do cartão.
         JsonNode checking = body(mvc.get().uri("/api/transactions?month=2034-10&accountId=" + checkingId).headers(auth()).exchange());
-        assertThat(checking.get("summary").get("expense").decimalValue()).isEqualByComparingTo("35.90");
-        assertThat(checking.get("summary").get("transferOut").decimalValue()).isEqualByComparingTo("480");
+        assertThat(checking.get("summary").get("expense").decimalValue()).isEqualByComparingTo("515.90");
         JsonNode inv = body(mvc.get().uri("/api/accounts/" + cardId + "/invoices?month=2034-10").headers(auth()).exchange());
         assertThat(inv.get("paid").decimalValue()).isEqualByComparingTo("480");
         assertThat(inv.get("undetailed").decimalValue()).isEqualByComparingTo("180");
         assertThat(inv.get("status").asString()).isEqualTo("PAID");
+        assertThat(cardBalance()).isEqualByComparingTo("0");
 
-        // Importar o OFX do próprio cartão depois: o "pagamento recebido" casa com a perna já registrada.
-        byte[] cardOfx = ofx(row("2034-10-05", "480.00", "Pagamento recebido", "C1"));
+        // OFX do próprio cartão: "Pagamento recebido" é sinalizado para não virar receita nem estorno.
+        byte[] cardOfx = ofx(row("2034-10-05", "480.00", "Pagamento recebido", "C1"),
+            row("2034-09-12", "-45.00", "IFOOD", "C2"));
         MockMultipartFile cardFile = new MockMultipartFile("file", "cartao.ofx", "application/x-ofx", cardOfx);
         JsonNode cardPreview = body(mvc.post().uri("/api/imports/preview").headers(auth()).multipart()
             .file(cardFile).param("accountId", String.valueOf(cardId)).exchange());
-        JsonNode received = rowNamed(cardPreview, "Pagamento recebido");
-        assertThat(received.get("matchTransactionId").isNull()).isFalse();
-        assertThat(received.get("matchDescription").asString()).contains("Pagamento da fatura");
+        assertThat(rowNamed(cardPreview, "Pagamento recebido").get("invoicePaymentReceived").asBoolean()).isTrue();
+        assertThat(rowNamed(cardPreview, "IFOOD").get("invoicePaymentReceived").asBoolean()).isFalse();
     }
 
     private java.math.BigDecimal cardBalance() {

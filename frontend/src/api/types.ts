@@ -49,13 +49,15 @@ export interface CardInvoice {
   dueDate: string
   /** false quando o cartão não tem fechamento/vencimento cadastrados (vale o mês civil). */
   configured: boolean
+  /** Compras registradas no período e quantas são. */
   purchases: number
-  /** "Compras não detalhadas": o que foi pago além das compras registradas. */
-  undetailed: number
-  total: number
+  count: number
+  /** Pago: despesas ligadas à fatura. Não detalhado: pago além das compras registradas. */
   paid: number
+  undetailed: number
   remaining: number
   status: InvoiceStatus
+  paymentTransactionId: number | null
 }
 
 export interface Category {
@@ -110,8 +112,11 @@ export interface Transaction {
   receiptAccessKey: string | null
   importBatchId: number | null
   items: TransactionItem[]
-  /** Despesa "compras não detalhadas" gerada pela fatura do cartão: valor e data não são editáveis. */
-  invoiceGap: boolean
+  /** Pagamento de fatura: cartão e mês cujas compras esta despesa agrega; invoice traz o resumo. */
+  invoiceCardId: number | null
+  invoiceCardName: string | null
+  invoiceMonth: string | null
+  invoice: CardInvoice | null
 }
 
 export interface TransactionItem {
@@ -172,6 +177,9 @@ export interface TransactionInput {
   receiptFile?: string | null
   receiptAccessKey?: string | null
   items?: TransactionItemInput[]
+  /** Pagamento de fatura de cartão: as compras do cartão na fatura do mês ficam agregadas nesta despesa. */
+  invoiceCardId?: number | null
+  invoiceMonth?: string | null
 }
 
 export interface Summary {
@@ -232,15 +240,12 @@ export interface TransferInput {
   date: string
   description: string | null
   paid: boolean
-  /** Destino cartão de crédito: mês da fatura paga (AAAA-MM); vazio usa a de vencimento mais próximo. */
-  invoiceMonth?: string | null
 }
 
 export interface Transfer {
   id: number
   from: Transaction
   to: Transaction
-  invoiceMonth: string | null
 }
 
 export interface TransferSuggestion {
@@ -320,6 +325,8 @@ export interface PreviewRow {
   invoiceDueDate: string | null
   invoiceTotal: number | null
   invoicePaid: number | null
+  /** Extrato do cartão: "pagamento recebido", já representado pela fatura paga na conta. */
+  invoicePaymentReceived: boolean
 }
 
 export interface ImportPreview {

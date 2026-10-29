@@ -1,6 +1,8 @@
 package br.com.contaslt.account;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -8,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import br.com.contaslt.account.AccountDtos.AccountDto;
 import br.com.contaslt.account.AccountDtos.AccountRequest;
+import br.com.contaslt.card.InvoicePeriod;
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.transaction.TransactionRepository;
@@ -76,10 +79,24 @@ public class AccountService {
         accounts.save(account);
     }
 
+    /**
+     * Saldo da conta: saldo inicial + movimentos pagos. Para cartão de crédito é o saldo devedor em aberto (negativo):
+     * compras registradas cuja fatura ainda não teve pagamento registrado.
+     */
     public AccountDto toDto(Account a) {
-        BigDecimal balance = a.getInitialBalance().add(accounts.sumPaidMovements(a.getId()));
+        BigDecimal balance = a.isCreditCard() ? a.getInitialBalance().subtract(openDebt(a))
+            : a.getInitialBalance().add(accounts.sumPaidMovements(a.getId()));
         return new AccountDto(a.getId(), a.getName(), a.getType(), a.getInitialBalance(), a.getColor(),
             a.isArchived(), balance, a.getClosingDay(), a.getDueDay());
+    }
+
+    private BigDecimal openDebt(Account card) {
+        BigDecimal debt = transactions.sumCardPurchases(card.getId());
+        for (LocalDate month : transactions.findPaidInvoiceMonths(card.getId())) {
+            InvoicePeriod p = InvoicePeriod.of(card, YearMonth.from(month));
+            debt = debt.subtract(transactions.sumCardPurchases(card.getId(), p.start(), p.end()));
+        }
+        return debt;
     }
 
     private static void apply(Account account, AccountRequest req) {

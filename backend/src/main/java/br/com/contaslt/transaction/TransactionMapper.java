@@ -18,6 +18,7 @@ public final class TransactionMapper {
         RecurringBill r = t.getRecurringBill();
         Transfer tr = t.getTransfer();
         Transaction peer = tr == null ? null : tr.peerOf(t);
+        Account card = t.getCardAccount();
         return new TransactionDto(t.getId(), t.getDescription(), t.getAmount(), t.getType(), t.getDueDate(),
             t.isPaid(), t.getNotes(), a.getId(), a.getName(),
             c == null ? null : c.getId(), c == null ? null : c.getName(), c == null ? null : c.getColor(),
@@ -31,6 +32,6 @@ public final class TransactionMapper {
             t.getImportBatch() == null ? null : t.getImportBatch().getId(),
             t.getItems().stream().map(i -> new ItemDto(i.getId(), i.getDescription(), i.getQuantity(), i.getUnitPrice(),
                 i.getTotal())).toList(),
-            t.isInvoiceGap());
+            card == null ? null : card.getId(), card == null ? null : card.getName(), t.getCardInvoiceMonth(), null);
     }
 }

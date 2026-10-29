@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import br.com.contaslt.account.Account;
 import br.com.contaslt.account.AccountDtos.AccountDto;
 import br.com.contaslt.account.AccountService;
+import br.com.contaslt.account.AccountType;
 import br.com.contaslt.card.CardInvoiceDtos.CardInvoiceDto;
 import br.com.contaslt.card.CardInvoiceService;
 import br.com.contaslt.card.InvoicePeriod;
@@ -82,22 +83,29 @@ public class TransactionService {
         for (YearMonth ym = YearMonth.from(range.from()); !ym.isAfter(YearMonth.from(range.to())); ym = ym.plusMonths(1)) {
             recurring.ensureOccurrences(user, ym);
         }
-        CardInvoiceDto invoice = null;
-        if (range.invoice() != null) {
-            cardInvoices.refresh(user, range.card(), range.invoice().month());
-            invoice = cardInvoices.summarize(range.card(), range.invoice().month());
-        }
+        CardInvoiceDto invoice = range.invoice() == null ? null
+            : cardInvoices.summarize(range.card(), range.invoice().month());
         List<Transaction> items = transactions.findAll(spec(user.getId(), filter, range),
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
         List<AccountDto> scope = accountScope(user.getId(), filter);
-        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(),
+        return new TransactionPage(items.stream().map(this::toDto).toList(),
             cash(summarize(items), scope, range), dayBalances(scope, range), invoice);
     }
 
-    /** Contas do recorte de caixa: a filtrada, ou todas as ativas. */
+    /** DTO com o resumo da fatura agregada, quando o lançamento é um pagamento de fatura. */
+    private TransactionDto toDto(Transaction t) {
+        TransactionDto dto = TransactionMapper.toDto(t);
+        if (t.isInvoicePayment() && t.getCardInvoiceMonth() != null) {
+            dto = dto.withInvoice(cardInvoices.summarize(t.getCardAccount(), t.getCardInvoiceMonth()));
+        }
+        return dto;
+    }
+
+    /** Contas do recorte de caixa: a filtrada, ou todas as ativas de dinheiro (cartão de crédito não é caixa). */
     private List<AccountDto> accountScope(Long userId, Filter f) {
         return accounts.list(userId, true).stream()
-            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId()) : !a.archived())
+            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId())
+                : !a.archived() && a.type() != AccountType.CREDIT_CARD)
             .toList();
     }
 
@@ -169,7 +177,7 @@ public class TransactionService {
 
     @Transactional(readOnly = true)
     public TransactionDto get(Long userId, Long id) {
-        return TransactionMapper.toDto(require(userId, id));
+        return toDto(require(userId, id));
     }
 
     @Transactional
@@ -177,67 +185,38 @@ public class TransactionService {
         Transaction t = new Transaction();
         t.setUser(user);
         apply(user.getId(), t, req);
-        transactions.save(t);
-        cardInvoices.refreshFor(user, t.getAccount(), t.getDueDate());
-        return TransactionMapper.toDto(t);
+        return toDto(transactions.save(t));
     }
 
     @Transactional
     public TransactionDto update(User user, Long id, TransactionRequest req, EditScope scope) {
         Transaction t = require(user.getId(), id);
-        if (t.isInvoiceGap()) {
-            // Só categoria e observações; o resto é calculado pela fatura.
-            Category category = categories.requireOrNull(user.getId(), req.categoryId());
-            if (category != null && category.getType() != TransactionType.EXPENSE) {
-                throw new BusinessException("A categoria escolhida não é do mesmo tipo do lançamento");
-            }
-            t.setCategory(category);
-            t.setNotes(req.notes());
-            return TransactionMapper.toDto(t);
-        }
-        Account previousAccount = t.getAccount();
-        LocalDate previousDate = t.getDueDate();
         LocalDate previousScheduled = t.getScheduledDate() != null ? t.getScheduledDate() : t.getDueDate();
         apply(user.getId(), t, req);
         if (scope == EditScope.FOLLOWING && t.getRecurringBill() != null) {
             recurring.applyToFollowing(user, t, previousScheduled);
         }
-        cardInvoices.refreshFor(user, previousAccount, previousDate);
-        cardInvoices.refreshFor(user, t.getAccount(), t.getDueDate());
-        return TransactionMapper.toDto(t);
+        return toDto(t);
     }
 
     @Transactional
     public TransactionDto setPaid(Long userId, Long id, boolean paid) {
         Transaction t = require(userId, id);
-        CardInvoiceService.rejectManualChange(t);
         t.setPaid(paid);
-        return TransactionMapper.toDto(t);
+        return toDto(t);
     }
 
     @Transactional
     public void delete(User user, Long id) {
         Transaction t = require(user.getId(), id);
-        CardInvoiceService.rejectManualChange(t);
         Transfer tr = t.getTransfer();
-        YearMonth invoiceMonth = null;
-        Account card = null;
         if (tr != null) {
             // Desfaz o vínculo antes: a outra perna continua existindo como lançamento comum.
-            invoiceMonth = tr.getInvoiceMonth();
-            card = tr.getToTransaction().getAccount();
             tr.getFromTransaction().setTransfer(null);
             tr.getToTransaction().setTransfer(null);
             transfers.delete(tr);
         }
-        Account account = t.getAccount();
-        LocalDate date = t.getDueDate();
         transactions.delete(t);
-        transactions.flush();
-        cardInvoices.refreshFor(user, account, date);
-        if (invoiceMonth != null) {
-            cardInvoices.refresh(user, card, invoiceMonth);
-        }
     }
 
     public Transaction require(Long userId, Long id) {
@@ -295,6 +274,7 @@ public class TransactionService {
         t.setNotes(req.notes());
         t.setAccount(account);
         t.setCategory(category);
+        applyInvoiceLink(userId, t, req, account);
         t.setMerchant(blankToNull(req.merchant()));
         t.setReceiptAccessKey(blankToNull(req.receiptAccessKey()));
         String receiptFile = blankToNull(req.receiptFile());
@@ -316,6 +296,29 @@ public class TransactionService {
         t.replaceItems(items);
     }
 
+    /**
+     * Pagamento de fatura: despesa numa conta de dinheiro ligada a um cartão e a um mês de fatura. As compras do
+     * cartão naquele período passam a ser vistas dentro dela.
+     */
+    private void applyInvoiceLink(Long userId, Transaction t, TransactionRequest req, Account account) {
+        if (req.invoiceCardId() == null) {
+            t.setCardAccount(null);
+            t.setCardInvoiceMonth(null);
+            return;
+        }
+        if (req.type() != TransactionType.EXPENSE) {
+            throw new BusinessException("Pagamento de fatura precisa ser uma despesa");
+        }
+        if (account.isCreditCard()) {
+            throw new BusinessException("O pagamento da fatura sai de uma conta de dinheiro, não do próprio cartão");
+        }
+        Account card = cardInvoices.requireCard(userId, req.invoiceCardId());
+        YearMonth month = req.invoiceMonth() != null ? req.invoiceMonth()
+            : CardInvoiceService.inferInvoiceMonth(card, req.dueDate());
+        t.setCardAccount(card);
+        t.setCardInvoiceMonth(month);
+    }
+
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
     }
@@ -331,6 +334,10 @@ public class TransactionService {
             List<Predicate> p = new ArrayList<>();
             p.add(cb.equal(root.get("user").get("id"), userId));
             p.add(cb.between(root.get("dueDate"), range.from(), range.to()));
+            if (f.accountId() == null) {
+                // Compras de cartão só aparecem na visão do próprio cartão; na lista geral entra a fatura paga.
+                p.add(cb.notEqual(root.get("account").get("type"), AccountType.CREDIT_CARD));
+            }
             if (f.accountId() != null) {
                 p.add(cb.equal(root.get("account").get("id"), f.accountId()));
             }

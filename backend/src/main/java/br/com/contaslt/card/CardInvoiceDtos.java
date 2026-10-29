@@ -14,18 +14,18 @@ public final class CardInvoiceDtos {
         OPEN,
         /** Fechada e sem pagamento registrado. */
         CLOSED,
-        /** Pagamento registrado, mas menor que as compras. */
+        /** Pagamento registrado, mas menor que as compras registradas. */
         PARTIAL,
         PAID
     }
 
     /**
-     * Resumo de uma fatura. {@code purchases} são as compras registradas; {@code undetailed} é o ajuste
-     * "compras não detalhadas" gerado quando o pagamento supera o que foi registrado; {@code total} soma os dois;
-     * {@code paid} é o que já foi pago (transferências ligadas à fatura).
+     * Resumo de uma fatura: o recorte das compras do cartão entre dois fechamentos. {@code purchases}/{@code count}
+     * são as compras registradas no período; {@code paid} é o que foi pago (despesas ligadas à fatura);
+     * {@code undetailed} é o que foi pago além das compras registradas (compras sem comprovante lido).
      */
     public record CardInvoiceDto(Long accountId, String accountName, YearMonth month, LocalDate start, LocalDate end,
-            LocalDate dueDate, boolean configured, BigDecimal purchases, BigDecimal undetailed, BigDecimal total,
-            BigDecimal paid, BigDecimal remaining, InvoiceStatus status) {
+            LocalDate dueDate, boolean configured, BigDecimal purchases, long count, BigDecimal paid,
+            BigDecimal undetailed, BigDecimal remaining, InvoiceStatus status, Long paymentTransactionId) {
     }
 }

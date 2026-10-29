@@ -75,7 +75,7 @@ async function analyze() {
   try {
     preview.value = await importsApi.preview(accountId.value, file.value)
     rows.value = preview.value.rows.map((r) => ({
-      ...r, selected: !r.duplicate, categoryId: r.suggestedCategoryId, link: r.matchTransactionId !== null,
+      ...r, selected: !r.duplicate && !r.invoicePaymentReceived, categoryId: r.suggestedCategoryId, link: r.matchTransactionId !== null,
       payInvoice: r.invoiceCardId !== null, invoiceCard: r.invoiceCardId,
     }))
     step.value = 'review'
@@ -258,6 +258,7 @@ function reset() {
                 <span class="min-w-0 md:flex-1">
                   <span class="block text-sm font-semibold md:truncate">{{ r.description }}</span>
                   <span v-if="r.duplicate" class="text-[11px] font-semibold text-warning">Já importado</span>
+                  <span v-else-if="r.invoicePaymentReceived" class="text-[11px] font-semibold text-muted-foreground" title="O pagamento da fatura já é uma despesa na conta que pagou; aqui ele não é receita nem estorno">Pagamento da fatura · não importar</span>
                   <span v-else-if="r.suggestedCategoryId && r.categoryId === r.suggestedCategoryId" class="text-[11px] text-muted-foreground">Categoria sugerida</span>
                 </span>
                 <span class="mt-2 block md:mt-0 md:w-56 md:shrink-0">
@@ -279,7 +280,7 @@ function reset() {
                 <CreditCard class="mt-0.5 size-3.5 shrink-0 text-primary" />
                 <span>
                   Parece o pagamento da fatura de <strong>{{ catalog.account(r.invoiceCard)?.name ?? r.invoiceCardName }}</strong><template v-if="r.invoiceDueDate"> que vence em {{ dateNumeric(r.invoiceDueDate) }}</template><template v-if="r.invoiceTotal != null"> ({{ money(r.invoiceTotal) }} em compras registradas)</template>.
-                  Não vira despesa: sai da conta e quita o cartão; o que exceder as compras registradas vira "compras não detalhadas".
+                  Vira a despesa da fatura, com as compras do cartão desse período agregadas dentro dela; o que exceder as compras registradas aparece como "não detalhado".
                 </span>
               </p>
               <div class="flex flex-wrap items-center gap-2">

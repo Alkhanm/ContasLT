@@ -118,16 +118,22 @@ const invoiceStatusClass = computed(() => ({
   PAID: 'bg-income/15 text-income',
 }[invoice.value?.status ?? 'OPEN']))
 
-/** Abre o formulário já como transferência conta → cartão com o que falta pagar da fatura. */
+/** Abre o formulário como despesa da fatura (na conta que paga), já ligada ao cartão e ao mês. */
 function payInvoice() {
   const inv = invoice.value
   if (!inv) return
-  const from = catalog.activeAccounts.find((a) => a.type !== 'CREDIT_CARD' && a.id !== inv.accountId)
+  const from = catalog.activeAccounts.find((a) => a.type !== 'CREDIT_CARD')
   ui.newTransaction({
     accountId: from?.id ?? null,
     dueDate: inv.dueDate,
-    transfer: { toAccountId: inv.accountId, amount: inv.remaining || null, description: `Pagamento da fatura de ${monthLabel(inv.month).toLowerCase()}`, invoiceMonth: inv.month },
+    invoice: { cardId: inv.accountId, month: inv.month, amount: inv.remaining || null, description: `Fatura ${card.value?.name ?? ''} ${monthLabel(inv.month).toLowerCase()}`.trim() },
   })
+}
+
+function openPayment() {
+  const id = invoice.value?.paymentTransactionId
+  const tx = id ? page.value?.items.find((t) => t.id === id) : null
+  if (tx) ui.editTransaction(tx)
 }
 
 /** Tipo das categorias oferecidas no filtro; sem tipo (Todos/Transferências) mostra despesas e receitas agrupadas. */
@@ -230,24 +236,28 @@ async function togglePaid(tx: Transaction) {
         <dl class="mt-2 grid grid-cols-2 gap-2 border-t pt-2 md:grid-cols-4">
           <div>
             <dt class="text-[11px] font-semibold text-muted-foreground">Compras registradas</dt>
-            <dd><Money :value="invoice.purchases" class="font-semibold" /></dd>
+            <dd><Money :value="invoice.purchases" class="font-semibold" /> <span class="text-xs text-muted-foreground">({{ invoice.count }})</span></dd>
           </div>
-          <div class="text-right md:text-left" title="O que foi pago na fatura além das compras registradas">
-            <dt class="text-[11px] font-semibold text-muted-foreground">Não detalhado</dt>
-            <dd><Money :value="invoice.undetailed" :muted="invoice.undetailed === 0" class="font-semibold" /></dd>
-          </div>
-          <div>
+          <div class="text-right md:text-left">
             <dt class="text-[11px] font-semibold text-muted-foreground">Pago</dt>
             <dd><Money :value="invoice.paid" :muted="invoice.paid === 0" class="font-semibold" /></dd>
           </div>
+          <div title="O que foi pago na fatura além das compras registradas: compras sem comprovante lido">
+            <dt class="text-[11px] font-semibold text-muted-foreground">Não detalhado</dt>
+            <dd><Money :value="invoice.undetailed" :muted="invoice.undetailed === 0" class="font-semibold" /></dd>
+          </div>
           <div class="text-right">
-            <dt class="text-[11px] font-semibold text-muted-foreground">{{ invoice.remaining > 0 ? 'Falta pagar' : 'Total da fatura' }}</dt>
-            <dd><Money :value="invoice.remaining > 0 ? invoice.remaining : invoice.total" class="font-bold" /></dd>
+            <dt class="text-[11px] font-semibold text-muted-foreground">{{ invoice.paid > 0 ? 'Total pago' : 'A pagar' }}</dt>
+            <dd><Money :value="invoice.paid > 0 ? invoice.paid : invoice.purchases" class="font-bold" /></dd>
           </div>
         </dl>
-        <div v-if="invoice.status !== 'PAID'" class="mt-3 flex items-center justify-between gap-3">
-          <span class="text-xs text-muted-foreground">O pagamento sai de uma conta e entra no cartão; o que exceder as compras registradas vira "compras não detalhadas".</span>
-          <Button size="sm" class="shrink-0" @click="payInvoice">Pagar fatura</Button>
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <span class="text-xs text-muted-foreground">
+            <template v-if="invoice.paid > 0">A fatura é a despesa que aparece nos lançamentos; estas compras ficam agregadas nela.</template>
+            <template v-else>As compras ficam só aqui. O que entra nos lançamentos é a fatura paga, pelo extrato ou à mão.</template>
+          </span>
+          <Button v-if="invoice.paymentTransactionId" size="sm" variant="outline" class="shrink-0" @click="openPayment">Ver fatura paga</Button>
+          <Button v-else size="sm" class="shrink-0" @click="payInvoice">Pagar fatura</Button>
         </div>
       </template>
     </div>
