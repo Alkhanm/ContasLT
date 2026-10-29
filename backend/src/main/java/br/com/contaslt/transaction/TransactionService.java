@@ -89,7 +89,7 @@ public class TransactionService {
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
         List<AccountDto> scope = accountScope(user.getId(), filter);
         return new TransactionPage(items.stream().map(this::toDto).toList(),
-            cash(summarize(items), scope, range), dayBalances(scope, range), invoice);
+            summarize(items), dayBalances(scope, range), invoice);
     }
 
     /** DTO com o resumo da fatura agregada, quando o lançamento é um pagamento de fatura. */
@@ -107,36 +107,6 @@ public class TransactionService {
             .filter(a -> f.accountId() != null ? a.id().equals(f.accountId())
                 : !a.archived() && a.type() != AccountType.CREDIT_CARD)
             .toList();
-    }
-
-    /**
-     * Plano de caixa do resumo: saldo das contas no início do período, entradas e saídas pagas (transferências
-     * incluídas, como no extrato) e saldo ao fim; o previsto soma o que ainda está pendente no período.
-     */
-    private Summary cash(Summary result, List<AccountDto> scope, Range range) {
-        if (scope.isEmpty()) {
-            return result.withCash(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
-        }
-        List<Long> ids = scope.stream().map(AccountDto::id).toList();
-        BigDecimal previous = scope.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
-            .add(transactions.sumPaidMovementsBefore(ids, range.from()));
-        BigDecimal in = BigDecimal.ZERO;
-        BigDecimal out = BigDecimal.ZERO;
-        BigDecimal pendingNet = BigDecimal.ZERO;
-        for (Object[] row : transactions.sumMovementsByTypeAndPaid(ids, range.from(), range.to())) {
-            boolean income = row[0] == TransactionType.INCOME;
-            BigDecimal amount = (BigDecimal) row[2];
-            if (Boolean.TRUE.equals(row[1])) {
-                if (income) {
-                    in = in.add(amount);
-                } else {
-                    out = out.add(amount);
-                }
-            } else {
-                pendingNet = income ? pendingNet.add(amount) : pendingNet.subtract(amount);
-            }
-        }
-        return result.withCash(previous, in, out, pendingNet);
     }
 
     private Range range(Long userId, Filter f) {
@@ -224,37 +194,40 @@ public class TransactionService {
             .orElseThrow(() -> new NotFoundException("Lançamento não encontrado"));
     }
 
+    /** Totais do que está listado, só o pago; o pendente fica à parte e entra no saldo previsto. */
     public static Summary summarize(List<Transaction> items) {
+        BigDecimal transfer = BigDecimal.ZERO;
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
+        BigDecimal pendingTransfer = BigDecimal.ZERO;
         BigDecimal pendingIncome = BigDecimal.ZERO;
         BigDecimal pendingExpense = BigDecimal.ZERO;
-        BigDecimal transferOut = BigDecimal.ZERO;
-        BigDecimal transferIn = BigDecimal.ZERO;
         for (Transaction t : items) {
+            boolean in = t.getType() == TransactionType.INCOME;
+            BigDecimal amount = t.getAmount();
             if (t.isTransfer()) {
-                if (t.getType() == TransactionType.INCOME) {
-                    transferIn = transferIn.add(t.getAmount());
+                BigDecimal signed = in ? amount : amount.negate();
+                if (t.isPaid()) {
+                    transfer = transfer.add(signed);
                 } else {
-                    transferOut = transferOut.add(t.getAmount());
+                    pendingTransfer = pendingTransfer.add(signed);
                 }
-                continue;
-            }
-            if (t.getType() == TransactionType.INCOME) {
-                income = income.add(t.getAmount());
-                if (!t.isPaid()) {
-                    pendingIncome = pendingIncome.add(t.getAmount());
+            } else if (in) {
+                if (t.isPaid()) {
+                    income = income.add(amount);
+                } else {
+                    pendingIncome = pendingIncome.add(amount);
                 }
+            } else if (t.isPaid()) {
+                expense = expense.add(amount);
             } else {
-                expense = expense.add(t.getAmount());
-                if (!t.isPaid()) {
-                    pendingExpense = pendingExpense.add(t.getAmount());
-                }
+                pendingExpense = pendingExpense.add(amount);
             }
         }
-        BigDecimal balance = income.subtract(expense);
-        return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut,
-            transferIn, items.size(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        BigDecimal balance = transfer.add(income).subtract(expense);
+        BigDecimal projected = balance.add(pendingTransfer).add(pendingIncome).subtract(pendingExpense);
+        return new Summary(transfer, income, expense, balance, pendingTransfer, pendingIncome, pendingExpense,
+            projected, items.size());
     }
 
     private void apply(Long userId, Transaction t, TransactionRequest req) {

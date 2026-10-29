@@ -55,7 +55,7 @@ class DayBalanceTest {
     }
 
     @Test
-    void cashSummaryFollowsTheAccountLikeABankStatement() {
+    void summaryFollowsTheStatementWithTransfersAndOnlyWhatIsPaid() {
         token = body(mvc.post().uri("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("name", "Saldo", "email", "saldo" + System.nanoTime() + "@exemplo.com",
                 "password", "segredo1"))).exchange()).get("token").asString();
@@ -73,29 +73,30 @@ class DayBalanceTest {
         transaction(pfId, "Aluguel fev", 700, "EXPENSE", "2033-02-10", true);
         transaction(pfId, "Boleto fev", 50, "EXPENSE", "2033-02-20", false);
 
-        // PF em fevereiro: caixa como no extrato (transferência entra), resultado sem a transferência.
-        JsonNode pf = body(mvc.get().uri("/api/transactions?month=2033-02&accountId=" + pfId).headers(auth()).exchange()).get("summary");
-        assertThat(pf.get("previousBalance").asDouble()).isEqualTo(-200);
-        assertThat(pf.get("inflow").asDouble()).isEqualTo(800);
-        assertThat(pf.get("outflow").asDouble()).isEqualTo(700);
-        assertThat(pf.get("currentBalance").asDouble()).isEqualTo(-100);
-        assertThat(pf.get("projectedBalance").asDouble()).isEqualTo(-150);
+        // PF em fevereiro: transferência + receitas − despesas = saldo; só o pago, o pendente vai para o previsto.
+        JsonNode page = body(mvc.get().uri("/api/transactions?month=2033-02&accountId=" + pfId).headers(auth()).exchange());
+        JsonNode pf = page.get("summary");
+        assertThat(pf.get("transfer").asDouble()).isEqualTo(800);
         assertThat(pf.get("income").asDouble()).isEqualTo(0);
-        assertThat(pf.get("expense").asDouble()).isEqualTo(750);
-        assertThat(pf.get("transferIn").asDouble()).isEqualTo(800);
+        assertThat(pf.get("expense").asDouble()).isEqualTo(700);
+        assertThat(pf.get("balance").asDouble()).isEqualTo(100);
+        assertThat(pf.get("pendingExpense").asDouble()).isEqualTo(50);
+        assertThat(pf.get("projectedBalance").asDouble()).isEqualTo(50);
+        // O saldo da conta ao fim do mês continua no cabeçalho do dia: janeiro (−200) + fevereiro (+100).
+        assertThat(at(page.get("dayBalances"), "2033-02-28")).isEqualTo(-100);
 
-        // O caixa não depende dos outros filtros: filtrando "pendentes", o saldo da conta é o mesmo.
+        // O resumo segue os filtros: só pendentes → nada pago, previsto com o boleto.
         JsonNode pending = body(mvc.get().uri("/api/transactions?month=2033-02&accountId=" + pfId + "&paid=false").headers(auth()).exchange()).get("summary");
-        assertThat(pending.get("currentBalance").asDouble()).isEqualTo(-100);
-        assertThat(pending.get("expense").asDouble()).isEqualTo(50);
+        assertThat(pending.get("balance").asDouble()).isEqualTo(0);
+        assertThat(pending.get("pendingExpense").asDouble()).isEqualTo(50);
+        assertThat(pending.get("projectedBalance").asDouble()).isEqualTo(-50);
 
-        // Todas as contas: a transferência se anula; saldo anterior inclui o saldo inicial da PJ.
+        // Todas as contas: as duas pernas da transferência se anulam.
         JsonNode all = body(mvc.get().uri("/api/transactions?month=2033-02").headers(auth()).exchange()).get("summary");
-        assertThat(all.get("previousBalance").asDouble()).isEqualTo(500 + 1000 - 200);
-        assertThat(all.get("inflow").asDouble()).isEqualTo(800);
-        assertThat(all.get("outflow").asDouble()).isEqualTo(1500);
-        assertThat(all.get("currentBalance").asDouble()).isEqualTo(600);
-        assertThat(all.get("balance").asDouble()).isEqualTo(-750);
+        assertThat(all.get("transfer").asDouble()).isEqualTo(0);
+        assertThat(all.get("expense").asDouble()).isEqualTo(700);
+        assertThat(all.get("balance").asDouble()).isEqualTo(-700);
+        assertThat(all.get("projectedBalance").asDouble()).isEqualTo(-750);
     }
 
     private static double at(JsonNode days, String date) {

@@ -80,25 +80,14 @@ public final class TransactionDtos {
     }
 
     /**
-     * Totais da listagem, em dois planos.
-     * <p><b>Resultado</b> (segue os filtros da lista): {@code income}/{@code expense} ignoram pernas de transferência;
-     * {@code balance} = receitas − despesas; transferOut/transferIn somam o que saiu e entrou por movimentação interna.</p>
-     * <p><b>Caixa</b> (só o recorte de contas: todas as ativas ou a filtrada; ignora os demais filtros, como o extrato
-     * do banco): {@code previousBalance} é o saldo das contas no início do período (saldo inicial + tudo que estava pago
-     * antes); {@code inflow}/{@code outflow} são as entradas e saídas pagas no período, transferências incluídas;
-     * {@code currentBalance} = anterior + entradas − saídas, o saldo que bate com o banco; {@code projectedBalance}
-     * soma ainda o que está pendente no período.</p>
+     * Totais dos lançamentos listados (seguem os filtros), como no extrato: só o que está pago entra em
+     * {@code transfer} (líquido das transferências: o que entrou − o que saiu), {@code income} e {@code expense};
+     * {@code balance} = transferência + receitas − despesas. {@code pendingTransfer}/{@code pendingIncome}/
+     * {@code pendingExpense} somam o que ainda está pendente e {@code projectedBalance} = saldo + pendentes.
      */
-    public record Summary(BigDecimal income, BigDecimal expense, BigDecimal balance,
-            BigDecimal pendingIncome, BigDecimal pendingExpense, BigDecimal transferOut, BigDecimal transferIn,
-            int count, BigDecimal previousBalance, BigDecimal inflow, BigDecimal outflow, BigDecimal currentBalance,
-            BigDecimal projectedBalance) {
-
-        public Summary withCash(BigDecimal previous, BigDecimal in, BigDecimal out, BigDecimal pendingNet) {
-            BigDecimal current = previous.add(in).subtract(out);
-            return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut, transferIn,
-                count, previous, in, out, current, current.add(pendingNet));
-        }
+    public record Summary(BigDecimal transfer, BigDecimal income, BigDecimal expense, BigDecimal balance,
+            BigDecimal pendingTransfer, BigDecimal pendingIncome, BigDecimal pendingExpense,
+            BigDecimal projectedBalance, int count) {
     }
 
     /** Saldo das contas (todas ou a filtrada) ao fim do dia, contando só o que está pago, como o saldo da conta. */

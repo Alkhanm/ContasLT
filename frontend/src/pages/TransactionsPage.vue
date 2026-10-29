@@ -147,6 +147,14 @@ function balanceType(value: number) {
   return value < 0 ? 'EXPENSE' : value > 0 ? 'INCOME' : 'NEUTRAL'
 }
 
+/** Pendente do tipo filtrado (receitas, despesas ou transferências), mostrado ao lado do total pago. */
+const pendingOfType = computed(() => {
+  const s = page.value?.summary
+  if (!s) return 0
+  return typeFilter.value === 'INCOME' ? s.pendingIncome : typeFilter.value === 'EXPENSE' ? s.pendingExpense
+    : typeFilter.value === 'TRANSFER' ? s.pendingTransfer : 0
+})
+
 const dayBalance = computed(() => new Map((page.value?.dayBalances ?? []).map((d) => [d.date, d.balance])))
 
 const groups = computed(() => {
@@ -274,40 +282,18 @@ async function togglePaid(tx: Transaction) {
     <div v-if="page && !invoice" class="rounded-xl border bg-card px-4 py-2.5 text-sm">
       <div class="flex items-center justify-between gap-3">
         <span class="text-muted-foreground">{{ page.summary.count }} {{ page.summary.count === 1 ? 'lançamento' : 'lançamentos' }}</span>
-        <span class="flex items-center gap-3">
-          <span v-if="page.summary.transferOut > 0 || page.summary.transferIn > 0" class="inline-flex items-center gap-1 text-muted-foreground" title="Transferências entre contas, fora do resultado">
-            <ArrowLeftRight class="size-3.5" />
-            <Money :value="Math.max(page.summary.transferOut, page.summary.transferIn)" muted class="font-semibold" />
-          </span>
-          <Money v-if="typeFilter === 'INCOME'" :value="page.summary.income" type="INCOME" signed class="font-semibold" />
-          <Money v-else-if="typeFilter === 'EXPENSE'" :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" />
+        <span v-if="typeFilter !== 'ALL'" class="flex items-baseline gap-2">
+          <span v-if="pendingOfType !== 0" class="text-xs text-muted-foreground">pendente <Money :value="pendingOfType" :signed="typeFilter === 'TRANSFER'" muted class="font-semibold" /></span>
+          <Money v-if="typeFilter === 'TRANSFER'" :value="page.summary.transfer" :signed="page.summary.transfer !== 0" class="font-semibold" />
+          <Money v-else :value="typeFilter === 'INCOME' ? page.summary.income : page.summary.expense" :type="typeFilter" signed class="font-semibold" />
         </span>
       </div>
-      <dl class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-4" :title="accountId ? 'Caixa da conta, como no extrato: transferências entram e saem; só o que está pago' : 'Caixa de todas as contas ativas: só o que está pago'">
+      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-4" title="Só o que está pago, como no extrato: transferência + receitas − despesas = saldo atual">
         <div>
-          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo anterior</dt>
-          <dd><Money :value="page.summary.previousBalance" class="font-semibold" /></dd>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Transferência</dt>
+          <dd><Money :value="page.summary.transfer" :signed="page.summary.transfer !== 0" :muted="page.summary.transfer === 0" class="font-semibold" /></dd>
         </div>
         <div class="text-right md:text-left">
-          <dt class="text-[11px] font-semibold text-muted-foreground">Entradas</dt>
-          <dd><Money :value="page.summary.inflow" type="INCOME" signed class="font-semibold" /></dd>
-        </div>
-        <div>
-          <dt class="text-[11px] font-semibold text-muted-foreground">Saídas</dt>
-          <dd><Money :value="page.summary.outflow" type="EXPENSE" signed class="font-semibold" /></dd>
-        </div>
-        <div class="text-right">
-          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
-          <dd>
-            <Money :value="page.summary.currentBalance" class="font-bold" />
-            <span v-if="page.summary.projectedBalance !== page.summary.currentBalance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais o que ainda está pendente no período">
-              previsto <Money :value="page.summary.projectedBalance" class="font-semibold" />
-            </span>
-          </dd>
-        </div>
-      </dl>
-      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-3 gap-2 border-t pt-2" title="Resultado dos lançamentos listados: receitas e despesas, sem transferências">
-        <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Receitas</dt>
           <dd><Money :value="page.summary.income" type="INCOME" signed class="font-semibold" /></dd>
         </div>
@@ -316,8 +302,13 @@ async function togglePaid(tx: Transaction) {
           <dd><Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" /></dd>
         </div>
         <div class="text-right">
-          <dt class="text-[11px] font-semibold text-muted-foreground">Resultado</dt>
-          <dd><Money :value="page.summary.balance" :type="balanceType(page.summary.balance)" :signed="page.summary.balance !== 0" class="font-semibold" /></dd>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
+          <dd>
+            <Money :value="page.summary.balance" :type="balanceType(page.summary.balance)" :signed="page.summary.balance !== 0" class="font-bold" />
+            <span v-if="page.summary.projectedBalance !== page.summary.balance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais o que ainda está pendente no período">
+              previsto <Money :value="page.summary.projectedBalance" class="font-semibold" />
+            </span>
+          </dd>
         </div>
       </dl>
     </div>

@@ -182,25 +182,20 @@ export interface TransactionInput {
   invoiceMonth?: string | null
 }
 
+/**
+ * Totais dos lançamentos listados (seguem os filtros), como no extrato: só o pago entra em transferência
+ * (líquido: entrou − saiu), receitas e despesas; saldo = transferência + receitas − despesas.
+ * Os pendentes ficam à parte e entram só no saldo previsto.
+ */
 export interface Summary {
+  transfer: number
   income: number
   expense: number
-  /** Resultado do período (receitas − despesas), seguindo os filtros da lista. */
   balance: number
-  /**
-   * Plano de caixa das contas do recorte (todas ou a filtrada), como o extrato: saldo no início do período,
-   * entradas e saídas pagas (transferências incluídas), saldo ao fim e saldo previsto (com os pendentes).
-   */
-  previousBalance: number
-  inflow: number
-  outflow: number
-  currentBalance: number
-  projectedBalance: number
+  pendingTransfer: number
   pendingIncome: number
   pendingExpense: number
-  /** Movimentação interna entre contas, fora de receitas/despesas. */
-  transferOut: number
-  transferIn: number
+  projectedBalance: number
   count: number
 }
 

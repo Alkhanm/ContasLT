@@ -131,7 +131,7 @@ class ApiFlowTest {
         JsonNode page = body(mvc.get().uri("/api/transactions?month=" + YearMonth.now()).headers(auth()).exchange());
         assertThat(page.get("items")).hasSize(1);
         assertThat(page.get("items").get(0).get("recurringBillId").asLong()).isEqualTo(billId);
-        assertThat(page.get("summary").get("expense").decimalValue()).isEqualByComparingTo("1500");
+        assertThat(page.get("summary").get("pendingExpense").decimalValue()).isEqualByComparingTo("1500"); // ocorrência nasce pendente
 
         // Próximo mês também gera a ocorrência, de forma idempotente.
         String next = YearMonth.now().plusMonths(1).toString();
@@ -262,9 +262,9 @@ class ApiFlowTest {
         JsonNode page = body(mvc.get().uri("/api/transactions?month=" + month).headers(auth()).exchange());
         assertThat(page.get("items")).hasSize(4);
         assertThat(page.get("summary").get("income").decimalValue()).isEqualByComparingTo("1000");
-        assertThat(page.get("summary").get("expense").decimalValue()).isEqualByComparingTo("1600");
-        assertThat(page.get("summary").get("transferOut").decimalValue()).isEqualByComparingTo("600");
-        assertThat(page.get("summary").get("transferIn").decimalValue()).isEqualByComparingTo("600");
+        assertThat(page.get("summary").get("pendingExpense").decimalValue()).isEqualByComparingTo("1600");
+        assertThat(page.get("summary").get("transfer").decimalValue()).isEqualByComparingTo("0"); // 600 saiu, 600 entrou
+        assertThat(page.get("summary").get("balance").decimalValue()).isEqualByComparingTo("1000");
         // O saldo de cada conta considera as pernas: a PJ recebeu 1000 e transferiu 600.
         JsonNode accounts = body(mvc.get().uri("/api/accounts").headers(auth()).exchange());
         for (JsonNode a : accounts) {

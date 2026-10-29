@@ -61,7 +61,7 @@ class CardInvoiceTest {
         JsonNode all = body(mvc.get().uri("/api/transactions?month=2034-09").headers(auth()).exchange());
         assertThat(all.get("items")).hasSize(1);
         assertThat(all.get("summary").get("expense").decimalValue()).isEqualByComparingTo("20");
-        assertThat(all.get("summary").get("outflow").decimalValue()).isEqualByComparingTo("20");
+        assertThat(all.get("summary").get("balance").decimalValue()).isEqualByComparingTo("-20");
 
         // Visão do cartão por fatura: compras entre dois fechamentos.
         JsonNode page = body(mvc.get().uri("/api/transactions?month=2034-10&accountId=" + cardId + "&invoice=true")
