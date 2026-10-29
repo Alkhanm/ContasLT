@@ -67,18 +67,24 @@ public final class TransactionDtos {
     }
 
     /**
-     * Totais da listagem. Receitas e despesas ignoram pernas de transferência; transferOut/transferIn
-     * somam, separadamente, o que saiu e o que entrou por movimentação interna entre as contas listadas.
-     * {@code balance} é o resultado do mês (receitas − despesas); {@code previousBalance} é o resultado acumulado
-     * de todos os meses anteriores com os mesmos filtros, e {@code currentBalance} = anterior + resultado do mês.
+     * Totais da listagem, em dois planos.
+     * <p><b>Resultado</b> (segue os filtros da lista): {@code income}/{@code expense} ignoram pernas de transferência;
+     * {@code balance} = receitas − despesas; transferOut/transferIn somam o que saiu e entrou por movimentação interna.</p>
+     * <p><b>Caixa</b> (só o recorte de contas: todas as ativas ou a filtrada; ignora os demais filtros, como o extrato
+     * do banco): {@code previousBalance} é o saldo das contas no início do período (saldo inicial + tudo que estava pago
+     * antes); {@code inflow}/{@code outflow} são as entradas e saídas pagas no período, transferências incluídas;
+     * {@code currentBalance} = anterior + entradas − saídas, o saldo que bate com o banco; {@code projectedBalance}
+     * soma ainda o que está pendente no período.</p>
      */
     public record Summary(BigDecimal income, BigDecimal expense, BigDecimal balance,
             BigDecimal pendingIncome, BigDecimal pendingExpense, BigDecimal transferOut, BigDecimal transferIn,
-            int count, BigDecimal previousBalance, BigDecimal currentBalance) {
+            int count, BigDecimal previousBalance, BigDecimal inflow, BigDecimal outflow, BigDecimal currentBalance,
+            BigDecimal projectedBalance) {
 
-        public Summary withPreviousBalance(BigDecimal previous) {
+        public Summary withCash(BigDecimal previous, BigDecimal in, BigDecimal out, BigDecimal pendingNet) {
+            BigDecimal current = previous.add(in).subtract(out);
             return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut, transferIn,
-                count, previous, previous.add(balance));
+                count, previous, in, out, current, current.add(pendingNet));
         }
     }
 

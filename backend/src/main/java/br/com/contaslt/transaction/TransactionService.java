@@ -35,12 +35,8 @@ import br.com.contaslt.transaction.TransactionDtos.TransactionRequest;
 import br.com.contaslt.transfer.Transfer;
 import br.com.contaslt.transfer.TransferRepository;
 import br.com.contaslt.user.User;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 
 @Service
 public class TransactionService {
@@ -68,18 +64,16 @@ public class TransactionService {
     private final RecurringBillService recurring;
     private final TransferRepository transfers;
     private final CardInvoiceService cardInvoices;
-    private final EntityManager em;
 
     public TransactionService(TransactionRepository transactions, AccountService accounts,
             CategoryService categories, RecurringBillService recurring, TransferRepository transfers,
-            CardInvoiceService cardInvoices, EntityManager em) {
+            CardInvoiceService cardInvoices) {
         this.transactions = transactions;
         this.accounts = accounts;
         this.categories = categories;
         this.recurring = recurring;
         this.transfers = transfers;
         this.cardInvoices = cardInvoices;
-        this.em = em;
     }
 
     @Transactional
@@ -93,11 +87,48 @@ public class TransactionService {
             cardInvoices.refresh(user, range.card(), range.invoice().month());
             invoice = cardInvoices.summarize(range.card(), range.invoice().month());
         }
-        List<Transaction> items = transactions.findAll(spec(user.getId(), filter, range, true),
+        List<Transaction> items = transactions.findAll(spec(user.getId(), filter, range),
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
-        Summary summary = summarize(items).withPreviousBalance(previousBalance(user.getId(), filter, range));
-        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(), summary,
-            dayBalances(user.getId(), filter, range), invoice);
+        List<AccountDto> scope = accountScope(user.getId(), filter);
+        return new TransactionPage(items.stream().map(TransactionMapper::toDto).toList(),
+            cash(summarize(items), scope, range), dayBalances(scope, range), invoice);
+    }
+
+    /** Contas do recorte de caixa: a filtrada, ou todas as ativas. */
+    private List<AccountDto> accountScope(Long userId, Filter f) {
+        return accounts.list(userId, true).stream()
+            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId()) : !a.archived())
+            .toList();
+    }
+
+    /**
+     * Plano de caixa do resumo: saldo das contas no início do período, entradas e saídas pagas (transferências
+     * incluídas, como no extrato) e saldo ao fim; o previsto soma o que ainda está pendente no período.
+     */
+    private Summary cash(Summary result, List<AccountDto> scope, Range range) {
+        if (scope.isEmpty()) {
+            return result.withCash(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+        List<Long> ids = scope.stream().map(AccountDto::id).toList();
+        BigDecimal previous = scope.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
+            .add(transactions.sumPaidMovementsBefore(ids, range.from()));
+        BigDecimal in = BigDecimal.ZERO;
+        BigDecimal out = BigDecimal.ZERO;
+        BigDecimal pendingNet = BigDecimal.ZERO;
+        for (Object[] row : transactions.sumMovementsByTypeAndPaid(ids, range.from(), range.to())) {
+            boolean income = row[0] == TransactionType.INCOME;
+            BigDecimal amount = (BigDecimal) row[2];
+            if (Boolean.TRUE.equals(row[1])) {
+                if (income) {
+                    in = in.add(amount);
+                } else {
+                    out = out.add(amount);
+                }
+            } else {
+                pendingNet = income ? pendingNet.add(amount) : pendingNet.subtract(amount);
+            }
+        }
+        return result.withCash(previous, in, out, pendingNet);
     }
 
     private Range range(Long userId, Filter f) {
@@ -112,33 +143,10 @@ public class TransactionService {
     }
 
     /**
-     * Saldo anterior: receitas − despesas de todos os meses antes do mês listado, com os mesmos filtros da lista
-     * (conta, categoria, situação, busca). Pernas de transferência ficam de fora, como no resultado do mês.
-     */
-    private BigDecimal previousBalance(Long userId, Filter f, Range range) {
-        if (Boolean.TRUE.equals(f.transfers())) {
-            return BigDecimal.ZERO;
-        }
-        CriteriaBuilder cb = em.getCriteriaBuilder();
-        CriteriaQuery<BigDecimal> q = cb.createQuery(BigDecimal.class);
-        Root<Transaction> root = q.from(Transaction.class);
-        Predicate filters = spec(userId, f, range, false).toPredicate(root, q, cb);
-        var signed = cb.<BigDecimal>selectCase()
-            .when(cb.equal(root.get("type"), TransactionType.INCOME), root.<BigDecimal>get("amount"))
-            .otherwise(cb.neg(root.<BigDecimal>get("amount")));
-        q.select(cb.coalesce(cb.sum(signed), BigDecimal.ZERO))
-            .where(filters, cb.isNull(root.get("transfer")));
-        return em.createQuery(q).getSingleResult();
-    }
-
-    /**
      * Saldo ao fim de cada dia do mês: saldo inicial das contas + movimentos pagos até o dia. Usa todas as contas
      * ativas, ou só a filtrada; ignora os outros filtros, porque o saldo da conta não depende do que está na lista.
      */
-    private List<DayBalance> dayBalances(Long userId, Filter f, Range range) {
-        List<AccountDto> selected = accounts.list(userId, true).stream()
-            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId()) : !a.archived())
-            .toList();
+    private List<DayBalance> dayBalances(List<AccountDto> selected, Range range) {
         if (selected.isEmpty()) {
             return List.of();
         }
@@ -267,7 +275,7 @@ public class TransactionService {
         }
         BigDecimal balance = income.subtract(expense);
         return new Summary(income, expense, balance, pendingIncome, pendingExpense, transferOut,
-            transferIn, items.size(), BigDecimal.ZERO, balance);
+            transferIn, items.size(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     private void apply(Long userId, Transaction t, TransactionRequest req) {
@@ -312,8 +320,7 @@ public class TransactionService {
         return s == null || s.isBlank() ? null : s.trim();
     }
 
-    /** {@code inRange}: true = lançamentos do período listado; false = tudo que vence antes dele (saldo anterior). */
-    private static Specification<Transaction> spec(Long userId, Filter f, Range range, boolean inRange) {
+    private static Specification<Transaction> spec(Long userId, Filter f, Range range) {
         return (root, query, cb) -> {
             if (query != null && query.getResultType() == Transaction.class) {
                 root.fetch("account", JoinType.LEFT);
@@ -323,11 +330,7 @@ public class TransactionService {
             }
             List<Predicate> p = new ArrayList<>();
             p.add(cb.equal(root.get("user").get("id"), userId));
-            if (inRange) {
-                p.add(cb.between(root.get("dueDate"), range.from(), range.to()));
-            } else {
-                p.add(cb.lessThan(root.get("dueDate"), range.from()));
-            }
+            p.add(cb.between(root.get("dueDate"), range.from(), range.to()));
             if (f.accountId() != null) {
                 p.add(cb.equal(root.get("account").get("id"), f.accountId()));
             }

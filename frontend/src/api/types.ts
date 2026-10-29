@@ -177,11 +177,17 @@ export interface TransactionInput {
 export interface Summary {
   income: number
   expense: number
-  /** Resultado do mês (receitas − despesas). */
+  /** Resultado do período (receitas − despesas), seguindo os filtros da lista. */
   balance: number
-  /** Resultado acumulado dos meses anteriores, com os mesmos filtros; currentBalance = anterior + resultado do mês. */
+  /**
+   * Plano de caixa das contas do recorte (todas ou a filtrada), como o extrato: saldo no início do período,
+   * entradas e saídas pagas (transferências incluídas), saldo ao fim e saldo previsto (com os pendentes).
+   */
   previousBalance: number
+  inflow: number
+  outflow: number
   currentBalance: number
+  projectedBalance: number
   pendingIncome: number
   pendingExpense: number
   /** Movimentação interna entre contas, fora de receitas/despesas. */

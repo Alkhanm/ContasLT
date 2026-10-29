@@ -273,12 +273,31 @@ async function togglePaid(tx: Transaction) {
           <Money v-else-if="typeFilter === 'EXPENSE'" :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" />
         </span>
       </div>
-      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-4">
-        <div title="Resultado acumulado dos meses anteriores (receitas − despesas), com os mesmos filtros">
+      <dl class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-4" :title="accountId ? 'Caixa da conta, como no extrato: transferências entram e saem; só o que está pago' : 'Caixa de todas as contas ativas: só o que está pago'">
+        <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Saldo anterior</dt>
-          <dd><Money :value="page.summary.previousBalance" :type="balanceType(page.summary.previousBalance)" :signed="page.summary.previousBalance !== 0" class="font-semibold" /></dd>
+          <dd><Money :value="page.summary.previousBalance" class="font-semibold" /></dd>
         </div>
         <div class="text-right md:text-left">
+          <dt class="text-[11px] font-semibold text-muted-foreground">Entradas</dt>
+          <dd><Money :value="page.summary.inflow" type="INCOME" signed class="font-semibold" /></dd>
+        </div>
+        <div>
+          <dt class="text-[11px] font-semibold text-muted-foreground">Saídas</dt>
+          <dd><Money :value="page.summary.outflow" type="EXPENSE" signed class="font-semibold" /></dd>
+        </div>
+        <div class="text-right">
+          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
+          <dd>
+            <Money :value="page.summary.currentBalance" class="font-bold" />
+            <span v-if="page.summary.projectedBalance !== page.summary.currentBalance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais o que ainda está pendente no período">
+              previsto <Money :value="page.summary.projectedBalance" class="font-semibold" />
+            </span>
+          </dd>
+        </div>
+      </dl>
+      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-3 gap-2 border-t pt-2" title="Resultado dos lançamentos listados: receitas e despesas, sem transferências">
+        <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Receitas</dt>
           <dd><Money :value="page.summary.income" type="INCOME" signed class="font-semibold" /></dd>
         </div>
@@ -286,9 +305,9 @@ async function togglePaid(tx: Transaction) {
           <dt class="text-[11px] font-semibold text-muted-foreground">Despesas</dt>
           <dd><Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" /></dd>
         </div>
-        <div class="text-right" title="Saldo anterior + receitas − despesas do mês">
-          <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
-          <dd><Money :value="page.summary.currentBalance" :type="balanceType(page.summary.currentBalance)" :signed="page.summary.currentBalance !== 0" class="font-bold" /></dd>
+        <div class="text-right">
+          <dt class="text-[11px] font-semibold text-muted-foreground">Resultado</dt>
+          <dd><Money :value="page.summary.balance" :type="balanceType(page.summary.balance)" :signed="page.summary.balance !== 0" class="font-semibold" /></dd>
         </div>
       </dl>
     </div>

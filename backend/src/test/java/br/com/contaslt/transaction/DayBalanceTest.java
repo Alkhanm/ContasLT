@@ -55,34 +55,47 @@ class DayBalanceTest {
     }
 
     @Test
-    void previousBalanceCarriesResultOfEarlierMonthsIntoCurrentBalance() {
+    void cashSummaryFollowsTheAccountLikeABankStatement() {
         token = body(mvc.post().uri("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("name", "Saldo", "email", "saldo" + System.nanoTime() + "@exemplo.com",
                 "password", "segredo1"))).exchange()).get("token").asString();
-        long accountId = body(mvc.get().uri("/api/accounts").headers(auth()).exchange()).get(0).get("id").asLong();
+        long pfId = body(mvc.get().uri("/api/accounts").headers(auth()).exchange()).get(0).get("id").asLong();
+        long pjId = body(mvc.post().uri("/api/accounts").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("name", "PJ", "type", "CHECKING", "initialBalance", 500, "color", "#1B5E3F")))
+            .exchange()).get("id").asLong();
 
-        transaction(accountId, "Salário jan", 1000, "INCOME", "2033-01-05", true);
-        transaction(accountId, "Aluguel jan", 700, "EXPENSE", "2033-01-10", true);
-        transaction(accountId, "Salário fev", 1000, "INCOME", "2033-02-05", true);
-        transaction(accountId, "Aluguel fev", 700, "EXPENSE", "2033-02-10", false); // pendente também conta no resultado
-        transaction(accountId, "Mercado mar", 100, "EXPENSE", "2033-03-02", true);
+        transaction(pjId, "Cliente jan", 1000, "INCOME", "2033-01-05", true);
+        transaction(pfId, "Mercado jan", 200, "EXPENSE", "2033-01-10", true);
+        // Fevereiro: pró-labore PJ → PF (transferência), uma despesa paga e uma pendente na PF.
+        assertThat(mvc.post().uri("/api/transfers").headers(auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("fromAccountId", pjId, "toAccountId", pfId, "amount", 800,
+                "date", "2033-02-05", "description", "Pró-labore"))).exchange()).hasStatus(201);
+        transaction(pfId, "Aluguel fev", 700, "EXPENSE", "2033-02-10", true);
+        transaction(pfId, "Boleto fev", 50, "EXPENSE", "2033-02-20", false);
 
-        JsonNode jan = body(mvc.get().uri("/api/transactions?month=2033-01").headers(auth()).exchange()).get("summary");
-        assertThat(jan.get("previousBalance").asDouble()).isEqualTo(0);
-        assertThat(jan.get("balance").asDouble()).isEqualTo(300);
-        assertThat(jan.get("currentBalance").asDouble()).isEqualTo(300);
+        // PF em fevereiro: caixa como no extrato (transferência entra), resultado sem a transferência.
+        JsonNode pf = body(mvc.get().uri("/api/transactions?month=2033-02&accountId=" + pfId).headers(auth()).exchange()).get("summary");
+        assertThat(pf.get("previousBalance").asDouble()).isEqualTo(-200);
+        assertThat(pf.get("inflow").asDouble()).isEqualTo(800);
+        assertThat(pf.get("outflow").asDouble()).isEqualTo(700);
+        assertThat(pf.get("currentBalance").asDouble()).isEqualTo(-100);
+        assertThat(pf.get("projectedBalance").asDouble()).isEqualTo(-150);
+        assertThat(pf.get("income").asDouble()).isEqualTo(0);
+        assertThat(pf.get("expense").asDouble()).isEqualTo(750);
+        assertThat(pf.get("transferIn").asDouble()).isEqualTo(800);
 
-        JsonNode feb = body(mvc.get().uri("/api/transactions?month=2033-02").headers(auth()).exchange()).get("summary");
-        assertThat(feb.get("previousBalance").asDouble()).isEqualTo(300);
-        assertThat(feb.get("currentBalance").asDouble()).isEqualTo(600);
+        // O caixa não depende dos outros filtros: filtrando "pendentes", o saldo da conta é o mesmo.
+        JsonNode pending = body(mvc.get().uri("/api/transactions?month=2033-02&accountId=" + pfId + "&paid=false").headers(auth()).exchange()).get("summary");
+        assertThat(pending.get("currentBalance").asDouble()).isEqualTo(-100);
+        assertThat(pending.get("expense").asDouble()).isEqualTo(50);
 
-        // Março: saldo anterior acumula janeiro e fevereiro; o filtro de situação vale também para o anterior.
-        JsonNode mar = body(mvc.get().uri("/api/transactions?month=2033-03").headers(auth()).exchange()).get("summary");
-        assertThat(mar.get("previousBalance").asDouble()).isEqualTo(600);
-        assertThat(mar.get("currentBalance").asDouble()).isEqualTo(500);
-        JsonNode marPaid = body(mvc.get().uri("/api/transactions?month=2033-03&paid=true").headers(auth()).exchange()).get("summary");
-        assertThat(marPaid.get("previousBalance").asDouble()).isEqualTo(1300);
-        assertThat(marPaid.get("currentBalance").asDouble()).isEqualTo(1200);
+        // Todas as contas: a transferência se anula; saldo anterior inclui o saldo inicial da PJ.
+        JsonNode all = body(mvc.get().uri("/api/transactions?month=2033-02").headers(auth()).exchange()).get("summary");
+        assertThat(all.get("previousBalance").asDouble()).isEqualTo(500 + 1000 - 200);
+        assertThat(all.get("inflow").asDouble()).isEqualTo(800);
+        assertThat(all.get("outflow").asDouble()).isEqualTo(1500);
+        assertThat(all.get("currentBalance").asDouble()).isEqualTo(600);
+        assertThat(all.get("balance").asDouble()).isEqualTo(-750);
     }
 
     private static double at(JsonNode days, String date) {
