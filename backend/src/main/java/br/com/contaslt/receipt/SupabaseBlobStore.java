@@ -94,10 +94,19 @@ final class SupabaseBlobStore implements ReceiptBlobStore {
     }
 
     private HttpRequest.Builder request(String path) {
-        return HttpRequest.newBuilder(URI.create(base + path))
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(base + path))
             .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer " + key)
             .header("apikey", key);
+        // Chave legada (service_role) é um JWT e vai também no Authorization. As chaves novas (sb_secret_...) não
+        // são JWT: o Storage responde "Invalid Compact JWS" se forem mandadas ali; só o apikey as autentica.
+        if (looksLikeJwt(key)) {
+            b.header("Authorization", "Bearer " + key);
+        }
+        return b;
+    }
+
+    static boolean looksLikeJwt(String key) {
+        return key.chars().filter(c -> c == '.').count() == 2 && !key.startsWith("sb_");
     }
 
     private HttpResponse<String> send(HttpRequest req) throws IOException {

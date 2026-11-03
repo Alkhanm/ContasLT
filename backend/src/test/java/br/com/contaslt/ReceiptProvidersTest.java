@@ -55,6 +55,7 @@ class ReceiptProvidersTest {
         String method = ex.getRequestMethod();
         byte[] body = ex.getRequestBody().readAllBytes();
         calls.add(method + " " + path + " auth=" + ex.getRequestHeaders().getFirst("Authorization"));
+        assertThat(ex.getRequestHeaders().getFirst("apikey")).isIn("eyJhbGciOi.service.key", "sb_secret_abc123", null);
         if (path.equals("/storage/v1/bucket") && method.equals("POST")) {
             bucketExists = true;
             reply(ex, 200, "{\"name\":\"receipts\"}");
@@ -99,7 +100,7 @@ class ReceiptProvidersTest {
         return new AppProperties(null, null, new AppProperties.Receipts(provider),
             new AppProperties.Ollama("http://127.0.0.1:1", "x", Duration.ofSeconds(1)),
             new AppProperties.OpenAi(base + "/v1/", "sk-test", "vision-test", Duration.ofSeconds(5)),
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "service-key", "receipts")), null, null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "eyJhbGciOi.service.key", "receipts")), null, null);
     }
 
     @Test
@@ -111,16 +112,26 @@ class ReceiptProvidersTest {
 
         assertThat(stored.name()).startsWith("u7-").endsWith(".jpg");
         assertThat(calls).anyMatch(c -> c.startsWith("POST /storage/v1/bucket"))
-            .allMatch(c -> c.endsWith("auth=Bearer service-key"));
+            .allMatch(c -> c.endsWith("auth=Bearer eyJhbGciOi.service.key"));
         assertThat(storage.load(7L, stored.name())).contains(stored.bytes());
         assertThat(storage.load(8L, stored.name())).isEmpty();               // de outro usuario
         assertThat(storage.load(7L, "u7-" + "0".repeat(36) + ".jpg")).isEmpty(); // inexistente
     }
 
     @Test
+    void newSecretKeyGoesOnlyInTheApikeyHeader() {
+        var cfg = new AppProperties(null, null, new AppProperties.Receipts(Provider.NONE), null, null,
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "sb_secret_abc123", "receipts")), null, null);
+        ReceiptStorage storage = new ReceiptStorage(cfg);
+        var img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        storage.store(4L, img);
+        assertThat(calls).isNotEmpty().allMatch(c -> c.endsWith("auth=null"));   // sem Authorization: Bearer
+    }
+
+    @Test
     void supabaseUrlPastedFromTheS3PageStillHitsTheRestApi() {
         var cfg = new AppProperties(null, null, new AppProperties.Receipts(Provider.NONE), null, null,
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base + "/storage/v1/s3", "service-key", "receipts")), null, null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base + "/storage/v1/s3", "eyJhbGciOi.service.key", "receipts")), null, null);
         ReceiptStorage storage = new ReceiptStorage(cfg);
         var img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_RGB);
         ReceiptStorage.Stored stored = storage.store(3L, img);
