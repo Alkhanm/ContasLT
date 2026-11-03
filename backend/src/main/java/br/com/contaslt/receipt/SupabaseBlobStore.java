@@ -29,8 +29,14 @@ final class SupabaseBlobStore implements ReceiptBlobStore {
         if (key == null || key.isBlank()) {
             throw new IllegalStateException("SUPABASE_SERVICE_KEY é obrigatória quando SUPABASE_URL está definida");
         }
-        String url = projectUrl.replaceAll("/+$", "");
-        this.base = url.endsWith("/storage/v1") ? url : url + "/storage/v1";
+        // Só esquema e host: aceita a URL do projeto (https://<ref>.supabase.co) e também a do endpoint S3
+        // (.../storage/v1/s3) ou qualquer outro caminho colado por engano, que levaria a API REST a responder
+        // como S3 ("Missing signature").
+        URI uri = URI.create(projectUrl.trim());
+        if (uri.getHost() == null) {
+            throw new IllegalStateException("SUPABASE_URL inválida: " + projectUrl + " (esperado https://<ref>.supabase.co)");
+        }
+        this.base = uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "") + "/storage/v1";
         this.key = key;
         this.bucket = bucket == null || bucket.isBlank() ? "receipts" : bucket;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();

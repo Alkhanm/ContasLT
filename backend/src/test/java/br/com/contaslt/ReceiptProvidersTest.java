@@ -118,6 +118,17 @@ class ReceiptProvidersTest {
     }
 
     @Test
+    void supabaseUrlPastedFromTheS3PageStillHitsTheRestApi() {
+        var cfg = new AppProperties(null, null, new AppProperties.Receipts(Provider.NONE), null, null,
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base + "/storage/v1/s3", "service-key", "receipts")), null, null);
+        ReceiptStorage storage = new ReceiptStorage(cfg);
+        var img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        ReceiptStorage.Stored stored = storage.store(3L, img);
+        assertThat(calls).anyMatch(c -> c.startsWith("POST /storage/v1/object/receipts/" + stored.name()));
+        assertThat(storage.load(3L, stored.name())).contains(stored.bytes());
+    }
+
+    @Test
     void openAiCompatibleProviderParsesChatCompletion() {
         ReceiptScanner scanner = new ReceiptScanner(props(Provider.OPENAI), new ObjectMapper());
 

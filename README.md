@@ -80,8 +80,8 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Modelo com visão e *structured outputs* (ex.: `gemini-2.5-flash` no Gemini) |
 | `OPENAI_TIMEOUT` | `PT2M` | Tempo máximo de uma leitura |
 | `STORAGE_DIR` | `./data` | Pasta das imagens de comprovantes (`receipts/`), quando não há Supabase |
-| `SUPABASE_URL` | vazio | URL do projeto Supabase (`https://<ref>.supabase.co`). Definida, os comprovantes vão para um bucket privado do Supabase Storage em vez do disco |
-| `SUPABASE_SERVICE_KEY` | vazio | Chave `service_role` do projeto (o backend é o único cliente do bucket) |
+| `SUPABASE_URL` | vazio | URL do projeto Supabase (`https://<ref>.supabase.co`, a "Project URL" em Settings › API; **não** a URL do endpoint S3). Definida, os comprovantes vão para um bucket privado do Supabase Storage em vez do disco |
+| `SUPABASE_SERVICE_KEY` | vazio | Chave secreta do projeto: `service_role` (legada, JWT) ou `sb_secret_...` (nova). Nunca a `anon`/`publishable`: o bucket é privado, sem RLS, e só a chave secreta passa |
 | `SUPABASE_BUCKET` | `receipts` | Nome do bucket (criado na primeira gravação, se não existir) |
 | `SPRING_PROFILES_ACTIVE` | vazio | `prod` em produção: exige `JWT_SECRET` e `CORS_ORIGINS`, desliga o Ollama por padrão e esconde mensagens internas de erro |
 
