@@ -32,6 +32,7 @@ public final class TransactionMapper {
             t.getImportBatch() == null ? null : t.getImportBatch().getId(),
             t.getItems().stream().map(i -> new ItemDto(i.getId(), i.getDescription(), i.getQuantity(), i.getUnitPrice(),
                 i.getTotal())).toList(),
-            card == null ? null : card.getId(), card == null ? null : card.getName(), t.getCardInvoiceMonth(), null);
+            card == null ? null : card.getId(), card == null ? null : card.getName(), t.getCardInvoiceMonth(), null,
+            t.getReceiptScanStatus(), t.getReceiptScanTotal(), t.getReceiptScanDate());
     }
 }

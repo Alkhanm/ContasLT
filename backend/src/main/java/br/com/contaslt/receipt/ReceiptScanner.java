@@ -67,14 +67,26 @@ public class ReceiptScanner {
     }
 
     public ReceiptScan scan(byte[] image) {
+        return parse(ask(image));
+    }
+
+    /** O JSON cru devolvido pelo modelo; {@link #parse} o converte. Separado para o worker enviar o texto ao servidor. */
+    public String ask(byte[] image) {
         return switch (provider()) {
             case NONE -> throw new BusinessException("A leitura de comprovantes não está disponível neste servidor.");
-            case OLLAMA -> parse(askOllama(image));
-            case OPENAI -> parse(askOpenAi(image));
+            case WORKER -> throw new IllegalStateException("Com provider=worker a leitura é feita pelo worker, não aqui");
+            case OLLAMA -> askOllama(image);
+            case OPENAI -> askOpenAi(image);
         };
     }
 
-    private AppProperties.Receipts.Provider provider() {
+    /** Nome do modelo configurado no provedor ativo (para logs). */
+    public String model() {
+        return provider() == AppProperties.Receipts.Provider.OPENAI && props.openai() != null ? props.openai().model()
+            : props.ollama() == null ? "?" : props.ollama().model();
+    }
+
+    public AppProperties.Receipts.Provider provider() {
         return props.receipts() == null ? AppProperties.Receipts.Provider.OLLAMA : props.receipts().providerOrDefault();
     }
 
@@ -154,7 +166,7 @@ public class ReceiptScanner {
             return http.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {
             log.warn("{} indisponível em {}: {}", who, url, e.toString());
-            throw new BusinessException("O leitor de comprovantes (" + who + ") não respondeu. Tente de novo em instantes.");
+            throw new ScannerUnavailableException("O leitor de comprovantes (" + who + ") não respondeu. Tente de novo em instantes.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Leitura do comprovante interrompida");
@@ -162,7 +174,7 @@ public class ReceiptScanner {
     }
 
     /** Converte a resposta JSON do modelo no registro tipado, tolerando campos ausentes ou mal formatados. */
-    ReceiptScan parse(String content) {
+    public ReceiptScan parse(String content) {
         JsonNode n;
         try {
             n = json.readTree(content);

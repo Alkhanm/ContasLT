@@ -2,9 +2,12 @@
 # Instala o ContasLT como serviço do usuário (systemd --user): faz o build, cria o serviço e o deixa
 # ligado no boot. Sem sudo. Rode de novo depois de mudar o código: refaz o build e reinicia o serviço.
 #
-# Uso: ./install.sh [--port N] [--uninstall]
+# Uso: ./install.sh [--port N] [--uninstall] | ./install.sh --worker [--uninstall]
 #   --port N      porta HTTP do serviço; fica gravada em .env e vale nas próximas execuções
 #   --uninstall   para o serviço, desliga do boot e remove o arquivo da unidade (banco e dados ficam)
+#   --worker      em vez do app completo, instala só o worker da fila de comprovantes (contaslt-worker): lê as
+#                 fotos enviadas ao servidor (Railway) com o Ollama deste computador. Precisa de CONTASLT_URL e
+#                 WORKER_TOKEN no .env. Sem Docker nem npm. Com --uninstall remove o worker.
 #
 # Depois: systemctl --user status contaslt | journalctl --user -u contaslt -f | systemctl --user restart contaslt
 set -euo pipefail
@@ -16,6 +19,7 @@ UNIT="$UNIT_DIR/$SERVICE.service"
 RUN_DIR="$ROOT/run"
 # Porta: --port > variável PORT > PORT no .env > padrão (o mesmo do prod.sh).
 PORT_ARG=
+WORKER=0 UNINSTALL=0
 PORT_FROM_ENV_FILE="$(grep -s '^PORT=' "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d '"' || true)"
 
 if [[ -t 1 ]]; then C_INFO=$'\e[32m' C_WARN=$'\e[33m' C_OFF=$'\e[0m'; else C_INFO= C_WARN= C_OFF=; fi
@@ -26,16 +30,90 @@ fail() { warn "$*"; exit 1; }
 while (( $# )); do
   case "$1" in
     --port) [[ "${2:-}" =~ ^[0-9]+$ ]] || fail "--port precisa de um número."; PORT_ARG="$2"; shift 2 ;;
-    --uninstall)
-      systemctl --user disable --now "$SERVICE" 2>/dev/null || true
-      rm -f "$UNIT"
-      systemctl --user daemon-reload
-      info "Serviço removido. O banco (docker 'contaslt-db') e a pasta data/ foram mantidos."
-      exit 0 ;;
-    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    --worker) WORKER=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) fail "Opção desconhecida: $1" ;;
   esac
 done
+
+# Copia o jar recém-compilado para run/ de forma atômica (rename): a JVM em execução continua lendo o jar antigo
+# até reiniciar, em vez de quebrar quando o Maven sobrescreve target/*.jar.
+copy_jar() {
+  mkdir -p "$RUN_DIR"
+  local built_jar
+  built_jar="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
+  cp "$built_jar" "$RUN_DIR/contaslt.jar.new" && mv -f "$RUN_DIR/contaslt.jar.new" "$RUN_DIR/contaslt.jar"
+}
+
+# ---------- Worker da fila de comprovantes (--worker) ----------
+# O servidor no Railway não tem modelo de visão: guarda a foto numa fila e este serviço, no seu computador,
+# puxa cada tarefa, lê com o Ollama local e devolve o resultado. Só faz chamadas de saída.
+if (( WORKER )); then
+  WSERVICE=contaslt-worker
+  WUNIT="$UNIT_DIR/$WSERVICE.service"
+  if (( UNINSTALL )); then
+    systemctl --user disable --now "$WSERVICE" 2>/dev/null || true
+    rm -f "$WUNIT"; systemctl --user daemon-reload
+    info "Worker removido."; exit 0
+  fi
+  command -v java >/dev/null 2>&1 || fail "Java 21 é necessário (sudo apt install openjdk-21-jdk)."
+  java_major="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
+  [[ "$java_major" =~ ^[0-9]+$ && "$java_major" -ge 21 ]] || fail "Java 21 ou mais novo é necessário (encontrado: $java_major)."
+  for var in CONTASLT_URL WORKER_TOKEN; do
+    grep -qs "^$var=." "$ROOT/.env" || fail "Falta $var no .env. Ex.: CONTASLT_URL=https://contaslt-production.up.railway.app e WORKER_TOKEN igual ao configurado no Railway (openssl rand -base64 32)."
+  done
+  chmod 600 "$ROOT/.env"
+  if ! curl -fsS localhost:11434 >/dev/null 2>&1; then
+    warn "Ollama não está respondendo em localhost:11434. O worker espera ele subir antes de pegar tarefas (ollama pull qwen3.5:9b-q8_0)."
+  fi
+  info "Build do backend (o worker é o mesmo jar, com --worker)..."
+  (cd "$ROOT/backend" && ./mvnw -q -DskipTests package)
+  copy_jar
+  mkdir -p "$UNIT_DIR"
+  cat > "$WUNIT" <<UNIT
+[Unit]
+Description=ContasLT worker (lê os comprovantes do servidor com o Ollama local)
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT
+EnvironmentFile=$ROOT/.env
+ExecStart=$(command -v java) -Xmx256m -jar $RUN_DIR/contaslt.jar --worker
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
+UNIT
+  systemctl --user daemon-reload
+  systemctl --user enable "$WSERVICE" >/dev/null 2>&1
+  systemctl --user restart "$WSERVICE"
+  if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]]; then
+    loginctl enable-linger "$USER" 2>/dev/null && info "Linger ativado: o worker sobe no boot mesmo sem login." \
+      || warn "Para o worker subir no boot sem login: sudo loginctl enable-linger $USER"
+  fi
+  sleep 3
+  if systemctl --user is-active --quiet "$WSERVICE"; then
+    info "Worker no ar. Log: journalctl --user -u $WSERVICE -f"
+    journalctl --user -u "$WSERVICE" -n 3 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
+  else
+    warn "O worker não subiu. Últimas linhas (journalctl --user -u $WSERVICE):"
+    journalctl --user -u "$WSERVICE" -n 15 --no-pager -o cat 2>/dev/null | sed 's/^/    /' >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+if (( UNINSTALL )); then
+  systemctl --user disable --now "$SERVICE" 2>/dev/null || true
+  rm -f "$UNIT"
+  systemctl --user daemon-reload
+  info "Serviço removido. O banco (docker 'contaslt-db') e a pasta data/ foram mantidos."
+  exit 0
+fi
 
 # ---------- Pré-requisitos ----------
 missing=()
@@ -80,11 +158,10 @@ fi
 info "Build do frontend e do backend..."
 "$ROOT/prod.sh" --build-only
 
-# Cópias estáveis para o serviço, trocadas de forma atômica (rename): a JVM em execução continua lendo o
-# jar antigo até reiniciar, em vez de quebrar quando o Maven sobrescreve target/*.jar.
-mkdir -p "$RUN_DIR"
-built_jar="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
-cp "$built_jar" "$RUN_DIR/contaslt.jar.new" && mv -f "$RUN_DIR/contaslt.jar.new" "$RUN_DIR/contaslt.jar"
+# Cópias estáveis para o serviço (ver copy_jar); o dist segue a mesma ideia.
+copy_jar
+# O worker (se instalado) usa o mesmo jar: reinicia para pegar a versão nova.
+systemctl --user try-restart contaslt-worker 2>/dev/null || true
 rm -rf "$RUN_DIR/dist.new" && cp -r "$ROOT/frontend/dist" "$RUN_DIR/dist.new"
 if [[ -d "$RUN_DIR/dist" ]]; then mv "$RUN_DIR/dist" "$RUN_DIR/dist.old"; fi
 mv "$RUN_DIR/dist.new" "$RUN_DIR/dist" && rm -rf "$RUN_DIR/dist.old"

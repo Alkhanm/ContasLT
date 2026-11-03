@@ -117,7 +117,15 @@ export interface Transaction {
   invoiceCardName: string | null
   invoiceMonth: string | null
   invoice: CardInvoice | null
+  /** Leitura adiada do comprovante (worker no computador): PENDING, DIVERGENT (total/data lidos diferem) ou FAILED. */
+  receiptScanStatus: ReceiptScanStatus | null
+  receiptScanTotal: number | null
+  receiptScanDate: string | null
 }
+
+export type ReceiptScanStatus = 'PENDING' | 'DIVERGENT' | 'FAILED'
+/** ACCEPT usa total e data do cupom; DISMISS mantém o lançado; RETRY manda a foto de novo para a fila. */
+export type ReceiptScanAction = 'ACCEPT' | 'DISMISS' | 'RETRY'
 
 export interface TransactionItem {
   id: number | null
@@ -162,6 +170,14 @@ export interface ReceiptScan {
   recurringMatchAmount: number | null
   recurringMatchCategoryId: number | null
   recurringMatchAccountId: number | null
+  /**
+   * Fila do worker: DONE (dados acima válidos), PENDING (só receiptFile; consultar receiptsApi.job até terminar)
+   * ou FAILED (error). workerOnline diz se o computador com o leitor está respondendo agora.
+   */
+  jobId: number | null
+  status: 'DONE' | 'PENDING' | 'FAILED'
+  workerOnline: boolean
+  error: string | null
 }
 
 export interface TransactionInput {

@@ -34,6 +34,13 @@ public class ReceiptController {
         return receipts.scan(currentUser.get(), file, ignoreTransactionId);
     }
 
+    /** Estado de uma leitura na fila do worker; pronta, devolve o mesmo que o {@code scan} direto devolveria. */
+    @GetMapping("/jobs/{id}")
+    public ReceiptScanResponse job(@PathVariable Long id,
+            @RequestParam(value = "ignoreTransactionId", required = false) Long ignoreTransactionId) {
+        return receipts.job(currentUser.get(), id, ignoreTransactionId);
+    }
+
     @GetMapping(value = "/{file}", produces = MediaType.IMAGE_JPEG_VALUE)
     public ResponseEntity<byte[]> image(@PathVariable String file) {
         byte[] bytes = receipts.image(currentUser.id(), file)

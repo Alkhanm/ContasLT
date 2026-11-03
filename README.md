@@ -70,7 +70,8 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `PORT` | `8080` | Porta HTTP (o Railway injeta a dele) |
 | `TOMCAT_THREADS` | `16` | Threads de requisição |
 | `SPA_DIR` | vazio | Pasta com o build do frontend (`frontend/dist`); quando informada, o backend serve o frontend e devolve `index.html` para as rotas da aplicação |
-| `RECEIPT_PROVIDER` | `ollama` (`none` no profile `prod`) | Quem lê os comprovantes: `ollama` (local), `openai` (API compatível com OpenAI) ou `none` (recurso desligado; o botão "Ler comprovante" responde com um aviso) |
+| `RECEIPT_PROVIDER` | `ollama` (`worker` no profile `prod`) | Quem lê os comprovantes: `ollama` (local), `worker` (fila lida pelo computador do usuário, ver abaixo), `openai` (API compatível com OpenAI) ou `none` (desligado) |
+| `WORKER_TOKEN` | vazio | Segredo do worker (`X-Worker-Token`) para as rotas `/api/worker/**`; vazio = rotas fechadas |
 | `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
 | `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
 | `OLLAMA_TIMEOUT` | `PT3M` | Tempo máximo de uma leitura |
@@ -114,11 +115,9 @@ JWT_SECRET=<openssl rand -base64 48>
 CORS_ORIGINS=https://contaslt.web.app,https://contaslt.firebaseapp.com
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_SERVICE_KEY=<service_role>
-# Leitura de comprovantes (opcional; sem isso o recurso fica desligado):
-RECEIPT_PROVIDER=openai
-OPENAI_API_KEY=<chave>
-# OPENAI_URL=https://generativelanguage.googleapis.com/v1beta/openai   (Gemini, tem cota gratuita)
-# OPENAI_MODEL=gemini-2.5-flash
+# Leitura de comprovantes pelo worker do seu computador (padrão em prod): o mesmo segredo vai no .env do PC.
+WORKER_TOKEN=<openssl rand -base64 32>
+# Alternativa sem o PC: RECEIPT_PROVIDER=openai + OPENAI_API_KEY (OPENAI_URL/OPENAI_MODEL para Gemini, Groq...)
 ```
 
 A imagem já vem com a JVM ajustada para 1 GB (`JAVA_TOOL_OPTIONS` no `Dockerfile`: heap em 60% da memória, SerialGC, só o compilador C1, arquivo CDS gerado no build). Para mudar, sobrescreva `JAVA_TOOL_OPTIONS` nas variáveis. A subida leva cerca de um minuto nesse tamanho de máquina; o healthcheck espera até 5.
@@ -130,6 +129,24 @@ cd backend && docker build -t contaslt-backend .
 docker run --rm --network host --memory 1g --cpus 0.5 -e PORT=8590 -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=$(openssl rand -base64 48) -e CORS_ORIGINS='http://localhost:[*]' contaslt-backend
 ```
+
+### Leitura de comprovantes em produção: o worker no seu computador
+
+O servidor não tem modelo de visão. Com `RECEIPT_PROVIDER=worker` (padrão no profile `prod`), "Ler comprovante" guarda a foto no Supabase e cria uma **tarefa**; a resposta volta na hora com a foto anexada, e o app consulta a tarefa enquanto o computador responde. Um serviço no seu PC, o **worker**, puxa as tarefas do servidor, lê cada foto com o Ollama local e devolve o resultado. Nada entra no seu computador: o worker só faz chamadas de saída (HTTPS para o Railway, HTTP para o Ollama em `localhost`), e se autentica com um segredo próprio, separado do login dos usuários.
+
+- **Computador ligado:** o formulário espera e é preenchido como sempre (uns 25 s).
+- **Computador desligado:** o app avisa, você salva o lançamento normalmente com a foto anexada. Quando o PC ligar, o worker lê a foto e os itens, o estabelecimento e a chave do cupom entram sozinhos no lançamento (sem sobrescrever o que você digitou). Se o total ou a data do cupom não baterem com o lançado, o lançamento mostra um aviso com "Usar o do comprovante" / "Manter o lançado". Se a leitura falhar três vezes, aparece "Tentar de novo".
+
+Instalação, no PC com o Ollama:
+
+```bash
+openssl rand -base64 32          # gere o segredo e cadastre como WORKER_TOKEN no Railway
+printf 'CONTASLT_URL=https://contaslt-production.up.railway.app\nWORKER_TOKEN=<o mesmo segredo>\n' >> .env
+./install.sh --worker            # serviço de usuário contaslt-worker, sobe no boot
+journalctl --user -u contaslt-worker -f
+```
+
+O worker é o mesmo jar do backend rodando com `--worker` (sem Spring, sem banco, ~150 MB de RAM). Variáveis: `CONTASLT_URL`, `WORKER_TOKEN`, `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` e `WORKER_POLL` (segundos entre consultas, padrão 10). Ele não pega tarefas enquanto o Ollama não responde, e uma tarefa reservada que não voltar em 5 minutos volta para a fila. `./install.sh --worker --uninstall` remove o serviço.
 
 ### 3. Firebase Hosting (frontend)
 
@@ -143,7 +160,7 @@ O `firebase.json` devolve `index.html` para as rotas do Vue Router e põe cache 
 ### O que muda em relação ao uso local
 
 - Comprovantes: no Railway o disco não sobrevive ao deploy, por isso o Supabase Storage. Sem `SUPABASE_URL` o backend continua gravando em `STORAGE_DIR` (uso local ou um *volume* do Railway montado nessa pasta).
-- Leitura de comprovantes: não há Ollama no servidor. `RECEIPT_PROVIDER=openai` usa qualquer API de chat compatível com OpenAI que aceite imagem e `response_format` com JSON Schema; `none` deixa só o botão respondendo "não disponível".
+- Leitura de comprovantes: não há Ollama no servidor. O padrão em produção é a fila com o worker do seu computador (acima). `RECEIPT_PROVIDER=openai` usa qualquer API de chat compatível com OpenAI que aceite imagem e `response_format` com JSON Schema; `none` deixa só o botão respondendo "não disponível".
 - CI: `.github/workflows/ci.yml` roda `mvnw test` (H2) e `npm run build` em cada push/PR.
 
 ## Como funciona
@@ -192,7 +209,10 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/transfers/link` | Vincula uma despesa e uma receita existentes como transferência |
 | GET | `/api/transfers/suggestions` | Pares candidatos: mesmo valor, contas diferentes, até 3 dias de diferença |
 | DELETE | `/api/transfers/{id}` | Desvincula; os dois lançamentos continuam como despesa/receita comuns |
-| POST | `/api/receipts/scan` (multipart `file`) | Lê a foto do comprovante com o modelo de visão e devolve itens, total, data e sugestões |
+| POST | `/api/receipts/scan` (multipart `file`) | Lê a foto do comprovante com o modelo de visão e devolve itens, total, data e sugestões; com o provedor `worker`, devolve `status=PENDING` e `jobId` |
+| GET | `/api/receipts/jobs/{id}` | Estado da leitura na fila; pronta, a mesma resposta do `scan` |
+| POST | `/api/transactions/{id}/receipt-scan` | `{action: ACCEPT\|DISMISS\|RETRY}` para o aviso de leitura adiada (usar o lido, manter o lançado, ler de novo) |
+| POST/GET | `/api/worker/ping`, `/api/worker/jobs/claim`, `/api/worker/jobs/{id}/image`, `/api/worker/jobs/{id}/result`, `/api/worker/jobs/{id}/fail` | Rotas do worker (header `X-Worker-Token`, sem JWT) |
 | GET | `/api/receipts/{file}` | Imagem do comprovante (só do próprio usuário) |
 | GET/POST/DELETE | `/api/category-rules` | Regras de categorização |
 | GET | `/api/dashboard?month=AAAA-MM` | Totais, categorias, vencidos, próximos 7 dias, 6 meses |

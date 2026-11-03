@@ -20,6 +20,7 @@ import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.transaction.TransactionDtos.EditScope;
 import br.com.contaslt.transaction.TransactionDtos.PaidRequest;
+import br.com.contaslt.transaction.TransactionDtos.ReceiptScanRequest;
 import br.com.contaslt.transaction.TransactionDtos.TransactionDto;
 import br.com.contaslt.transaction.TransactionDtos.TransactionPage;
 import br.com.contaslt.transaction.TransactionDtos.TransactionRequest;
@@ -79,6 +80,12 @@ public class TransactionController {
     @PatchMapping("/{id}/paid")
     public TransactionDto setPaid(@PathVariable Long id, @Valid @RequestBody PaidRequest req) {
         return transactions.setPaid(currentUser.id(), id, req.paid());
+    }
+
+    /** Resposta ao aviso de leitura adiada do comprovante: usar o lido, manter o lançado ou ler de novo. */
+    @PostMapping("/{id}/receipt-scan")
+    public TransactionDto receiptScan(@PathVariable Long id, @Valid @RequestBody ReceiptScanRequest req) {
+        return transactions.resolveReceiptScan(currentUser.get(), id, req.action());
     }
 
     @DeleteMapping("/{id}")

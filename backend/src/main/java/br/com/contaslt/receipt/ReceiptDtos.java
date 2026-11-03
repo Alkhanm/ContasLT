@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import jakarta.validation.constraints.NotBlank;
+
 public final class ReceiptDtos {
 
     private ReceiptDtos() {
@@ -30,6 +32,33 @@ public final class ReceiptDtos {
             Long duplicateOfTransactionId, String duplicateOfDescription, LocalDate duplicateOfDate,
             /** Vencimento pendente de conta recorrente que este comprovante parece pagar. */
             Long recurringMatchTransactionId, String recurringMatchDescription, LocalDate recurringMatchDate,
-            BigDecimal recurringMatchAmount, Long recurringMatchCategoryId, Long recurringMatchAccountId) {
+            BigDecimal recurringMatchAmount, Long recurringMatchCategoryId, Long recurringMatchAccountId,
+            /**
+             * Fila do worker: {@code status} DONE (dados acima válidos), PENDING (só {@code receiptFile}; consulte
+             * {@code GET /api/receipts/jobs/{jobId}}) ou FAILED ({@code error}). {@code workerOnline} diz se vale esperar.
+             */
+            Long jobId, String status, boolean workerOnline, String error) {
+
+        public static ReceiptScanResponse pending(Long jobId, String receiptFile, boolean workerOnline) {
+            return new ReceiptScanResponse(receiptFile, "", null, true, null, BigDecimal.ZERO, "", null, List.of(),
+                null, null, null, null, null, null, null, null, null, null, null, jobId, "PENDING", workerOnline, null);
+        }
+
+        public static ReceiptScanResponse failed(Long jobId, String receiptFile, boolean workerOnline, String error) {
+            return new ReceiptScanResponse(receiptFile, "", null, true, null, BigDecimal.ZERO, "", null, List.of(),
+                null, null, null, null, null, null, null, null, null, null, null, jobId, "FAILED", workerOnline, error);
+        }
+    }
+
+    /** Tarefa reservada para o worker. */
+    public record ClaimedJob(Long id, String receiptFile) {
+    }
+
+    /** JSON cru devolvido pelo modelo de visão no worker. */
+    public record WorkerResult(@NotBlank String content) {
+    }
+
+    /** {@code retryable}: erro do ambiente (Ollama fora do ar), volta para a fila sem contar tentativa. */
+    public record WorkerFailure(String error, boolean retryable) {
     }
 }

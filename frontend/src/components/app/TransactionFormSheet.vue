@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowLeftRight, Camera, ChevronDown, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
+import { ArrowLeftRight, Camera, ChevronDown, Clock, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
-import type { Account, ReceiptScan, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
+import type { Account, ReceiptScan, ReceiptScanAction, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -17,6 +17,7 @@ import FormSheet from './FormSheet.vue'
 import Money from './Money.vue'
 import MoneyInput from './MoneyInput.vue'
 import ReceiptItemsEditor from './ReceiptItemsEditor.vue'
+import ReceiptScanNotice from './ReceiptScanNotice.vue'
 import TypeToggle, { type FormKind } from './TypeToggle.vue'
 import { dateShort, money, monthLabel, parseLocalDate, shiftMonth, todayIso } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,13 @@ const scopes: { value: TransactionEditScope; label: string }[] = [
 ]
 const errors = ref<Record<string, string>>({})
 const scanning = ref(false)
+/** Esperando o worker do computador ler a foto (fila em produção). */
+const waitingWorker = ref(false)
+/** A foto ficou na fila com o leitor offline: salvar normalmente; os itens chegam depois. */
+const deferred = ref(false)
+/** Invalida uma espera em andamento quando o formulário fecha ou outra foto é escolhida. */
+let pollToken = 0
+const scanBusy = ref(false)
 const showItems = ref(false)
 const receiptUrl = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -105,47 +113,113 @@ async function onReceiptPicked(e: Event) {
   input.value = ''
   if (!file) return
   scanning.value = true
+  deferred.value = false
   duplicate.value = null
   recurringMatch.value = null
   settleOccurrenceId.value = null
+  const token = ++pollToken
   try {
-    const scan = await receiptsApi.scan(file, editing.value?.id)
-    form.kind = 'EXPENSE'
-    form.receiptFile = scan.receiptFile
-    form.receiptAccessKey = scan.accessKey
-    form.merchant = scan.merchant
-    if (scan.total != null) form.amount = scan.total
-    if (scan.merchant && !form.description.trim()) form.description = scan.merchant
-    if (scan.date) form.dueDate = scan.date
-    if (!form.categoryId && scan.suggestedCategoryId) form.categoryId = scan.suggestedCategoryId
-    form.items = scan.items.map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
-    showItems.value = form.items.length > 0
-    form.paid = scan.paid
-    loadReceiptImage(scan.receiptFile)
-    // Pago no crédito: a compra vai para o cartão, não para a conta corrente.
-    const method = (scan.paymentMethod ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    if (method.includes('credito') && !editing.value) {
-      const cardAccount = catalog.activeAccounts.find((a) => a.type === 'CREDIT_CARD')
-      if (cardAccount) form.accountId = cardAccount.id
+    let scan = await receiptsApi.scan(file, editing.value?.id)
+    if (scan.status === 'PENDING') {
+      // Fila do worker: a foto já está guardada; mostra e espera o computador ler, se ele estiver online.
+      form.kind = 'EXPENSE'
+      form.receiptFile = scan.receiptFile
+      form.receiptAccessKey = null
+      loadReceiptImage(scan.receiptFile)
+      const result = await waitForJob(scan, token)
+      if (token !== pollToken) return
+      if (!result) {
+        deferred.value = true
+        notifySuccess(scan.workerOnline ? 'O leitor demorou demais. Salve o lançamento; os itens entram quando a leitura terminar.'
+          : 'Leitor offline. Foto guardada: salve o lançamento e os itens entram quando o computador ligar.')
+        return
+      }
+      scan = result
     }
-    if (scan.duplicateOfTransactionId) {
-      duplicate.value = scan
-      notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
-    } else if (scan.recurringMatchTransactionId && !editing.value) {
-      recurringMatch.value = scan
-      acceptRecurringMatch()
-      notifySuccess(`Parece o pagamento de ${scan.recurringMatchDescription}. Confira e salve.`)
-    } else {
-      notifySuccess(!scan.paid && scan.date
-        ? `Fatura lida: vence em ${dateShort(scan.date)}. Confira os dados.`
-        : scan.items.length
-          ? `Comprovante lido: ${scan.items.length} ${scan.items.length === 1 ? 'item' : 'itens'}`
-          : 'Comprovante lido. Confira os dados.')
+    if (scan.status === 'FAILED') {
+      notifyError(new Error(scan.error || 'Não foi possível ler o comprovante. A foto continua anexada.'))
+      return
     }
+    applyScan(scan)
   } catch (err) {
     notifyError(err)
   } finally {
-    scanning.value = false
+    if (token === pollToken) {
+      scanning.value = false
+      waitingWorker.value = false
+    }
+  }
+}
+
+/** Consulta a tarefa a cada 2,5 s enquanto o worker responde (até 3 min); null = ficou para depois. */
+async function waitForJob(initial: ReceiptScan, token: number): Promise<ReceiptScan | null> {
+  let online = initial.workerOnline
+  const deadline = Date.now() + 180_000
+  while (online && Date.now() < deadline) {
+    waitingWorker.value = true
+    await new Promise((r) => setTimeout(r, 2500))
+    if (token !== pollToken || !ui.transactionFormOpen) return null
+    const job = await receiptsApi.job(initial.jobId!, editing.value?.id)
+    if (job.status !== 'PENDING') return job
+    online = job.workerOnline
+  }
+  return null
+}
+
+/** Preenche o formulário com o que o modelo leu. */
+function applyScan(scan: ReceiptScan) {
+  form.kind = 'EXPENSE'
+  form.receiptFile = scan.receiptFile
+  form.receiptAccessKey = scan.accessKey
+  form.merchant = scan.merchant
+  if (scan.total != null) form.amount = scan.total
+  if (scan.merchant && !form.description.trim()) form.description = scan.merchant
+  if (scan.date) form.dueDate = scan.date
+  if (!form.categoryId && scan.suggestedCategoryId) form.categoryId = scan.suggestedCategoryId
+  form.items = scan.items.map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))
+  showItems.value = form.items.length > 0
+  form.paid = scan.paid
+  loadReceiptImage(scan.receiptFile)
+  // Pago no crédito: a compra vai para o cartão, não para a conta corrente.
+  const method = (scan.paymentMethod ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (method.includes('credito') && !editing.value) {
+    const cardAccount = catalog.activeAccounts.find((a) => a.type === 'CREDIT_CARD')
+    if (cardAccount) form.accountId = cardAccount.id
+  }
+  if (scan.duplicateOfTransactionId) {
+    duplicate.value = scan
+    notifyError(new Error(`Este cupom já foi lançado em ${scan.duplicateOfDate ? dateShort(scan.duplicateOfDate) : ''}: ${scan.duplicateOfDescription}`))
+  } else if (scan.recurringMatchTransactionId && !editing.value) {
+    recurringMatch.value = scan
+    acceptRecurringMatch()
+    notifySuccess(`Parece o pagamento de ${scan.recurringMatchDescription}. Confira e salve.`)
+  } else {
+    notifySuccess(!scan.paid && scan.date
+      ? `Fatura lida: vence em ${dateShort(scan.date)}. Confira os dados.`
+      : scan.items.length
+        ? `Comprovante lido: ${scan.items.length} ${scan.items.length === 1 ? 'item' : 'itens'}`
+        : 'Comprovante lido. Confira os dados.')
+  }
+}
+
+/** Aviso de leitura adiada no lançamento em edição: usar o lido, manter o lançado ou ler de novo. */
+async function onScanAction(action: ReceiptScanAction) {
+  const tx = editing.value
+  if (!tx) return
+  scanBusy.value = true
+  try {
+    const updated = await transactionsApi.receiptScan(tx.id, action)
+    if (action === 'ACCEPT') {
+      form.amount = updated.amount
+      form.dueDate = updated.dueDate
+    }
+    ui.editTransaction(updated)
+    ui.dataChanged()
+    notifySuccess(action === 'ACCEPT' ? 'Valor e data do comprovante aplicados' : action === 'RETRY' ? 'Comprovante enviado de novo para leitura' : 'Aviso removido')
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    scanBusy.value = false
   }
 }
 const saving = ref(false)
@@ -239,6 +313,10 @@ const title = computed(() => (editing.value
   : form.kind === 'TRANSFER' ? 'Nova transferência' : isInvoice.value ? 'Pagar fatura do cartão' : form.kind === 'INCOME' ? 'Nova receita' : 'Nova despesa'))
 
 watch(() => ui.transactionFormOpen, async (open) => {
+  pollToken++
+  scanning.value = false
+  waitingWorker.value = false
+  deferred.value = false
   if (!open) return
   await catalog.load()
   errors.value = {}
@@ -423,6 +501,13 @@ async function unlink() {
         <span v-else-if="scanning" class="text-xs text-muted-foreground">Pode levar alguns segundos.</span>
         <span v-else class="text-xs text-muted-foreground">Foto do cupom: itens e valor preenchidos sozinhos.</span>
       </div>
+      <p v-if="waitingWorker && scanning" class="-mt-1 text-xs text-muted-foreground">Lendo no seu computador… pode levar um minuto.</p>
+
+      <p v-if="deferred && !isTransfer" class="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+        <Clock class="mt-0.5 size-3.5 shrink-0" />
+        <span>Foto guardada, leitura pendente. Salve o lançamento normalmente: os itens entram sozinhos quando o computador com o leitor estiver ligado, e você é avisado se o valor não bater.</span>
+      </p>
+      <ReceiptScanNotice v-else-if="editing?.receiptScanStatus && editing.receiptFile === form.receiptFile && !isTransfer" :transaction="editing" :busy="scanBusy" @action="onScanAction" />
 
       <div v-if="recurringMatch && !isTransfer" class="space-y-2 rounded-lg bg-primary/5 px-3 py-2 text-xs">
         <p class="flex items-start gap-2">

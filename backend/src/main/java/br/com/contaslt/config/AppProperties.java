@@ -6,7 +6,8 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama, OpenAi openai, Storage storage, Spa spa) {
+public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama, OpenAi openai, Storage storage, Spa spa,
+        Worker worker) {
 
     public record Jwt(String secret, Duration expiration) {
     }
@@ -14,9 +15,12 @@ public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama
     public record Cors(List<String> allowedOrigins) {
     }
 
-    /** Quem lê os comprovantes: Ollama local, uma API compatível com OpenAI, ou ninguém (recurso desligado). */
+    /**
+     * Quem lê os comprovantes: Ollama local, uma API compatível com OpenAI, o worker do computador do usuário
+     * (fila: a foto espera até ele estar ligado), ou ninguém (recurso desligado).
+     */
     public record Receipts(Provider provider) {
-        public enum Provider { OLLAMA, OPENAI, NONE }
+        public enum Provider { OLLAMA, OPENAI, WORKER, NONE }
 
         public Provider providerOrDefault() {
             return provider == null ? Provider.OLLAMA : provider;
@@ -43,5 +47,9 @@ public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama
 
     /** Pasta com o build do frontend (dist). Vazia = o backend não serve o frontend. */
     public record Spa(String dir) {
+    }
+
+    /** Segredo que o worker apresenta em {@code X-Worker-Token} nas rotas {@code /api/worker/**}. Vazio = rotas fechadas. */
+    public record Worker(String token) {
     }
 }

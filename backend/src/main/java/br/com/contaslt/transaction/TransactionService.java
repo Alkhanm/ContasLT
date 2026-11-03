@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,6 +26,8 @@ import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
+import br.com.contaslt.receipt.ReceiptJobService;
+import br.com.contaslt.receipt.ReceiptScanAction;
 import br.com.contaslt.recurring.RecurringBillService;
 import br.com.contaslt.transaction.TransactionDtos.DayBalance;
 import br.com.contaslt.transaction.TransactionDtos.EditScope;
@@ -65,16 +68,19 @@ public class TransactionService {
     private final RecurringBillService recurring;
     private final TransferRepository transfers;
     private final CardInvoiceService cardInvoices;
+    private final ReceiptJobService receiptJobs;
 
     public TransactionService(TransactionRepository transactions, AccountService accounts,
             CategoryService categories, RecurringBillService recurring, TransferRepository transfers,
-            CardInvoiceService cardInvoices) {
+            CardInvoiceService cardInvoices,
+            ReceiptJobService receiptJobs) {
         this.transactions = transactions;
         this.accounts = accounts;
         this.categories = categories;
         this.recurring = recurring;
         this.transfers = transfers;
         this.cardInvoices = cardInvoices;
+        this.receiptJobs = receiptJobs;
     }
 
     @Transactional
@@ -154,18 +160,33 @@ public class TransactionService {
     public TransactionDto create(User user, TransactionRequest req) {
         Transaction t = new Transaction();
         t.setUser(user);
-        apply(user.getId(), t, req);
-        return toDto(transactions.save(t));
+        boolean receiptChanged = apply(user.getId(), t, req);
+        Transaction saved = transactions.save(t);
+        if (receiptChanged) {
+            receiptJobs.attach(user.getId(), saved);
+        }
+        return toDto(saved);
     }
 
     @Transactional
     public TransactionDto update(User user, Long id, TransactionRequest req, EditScope scope) {
         Transaction t = require(user.getId(), id);
         LocalDate previousScheduled = t.getScheduledDate() != null ? t.getScheduledDate() : t.getDueDate();
-        apply(user.getId(), t, req);
+        boolean receiptChanged = apply(user.getId(), t, req);
         if (scope == EditScope.FOLLOWING && t.getRecurringBill() != null) {
             recurring.applyToFollowing(user, t, previousScheduled);
         }
+        if (receiptChanged) {
+            receiptJobs.attach(user.getId(), t);
+        }
+        return toDto(t);
+    }
+
+    /** Responde ao aviso de leitura adiada do comprovante (usar o lido, manter o lançado ou ler de novo). */
+    @Transactional
+    public TransactionDto resolveReceiptScan(User user, Long id, ReceiptScanAction action) {
+        Transaction t = require(user.getId(), id);
+        receiptJobs.resolve(user, t, action);
         return toDto(t);
     }
 
@@ -241,7 +262,8 @@ public class TransactionService {
             pendingExpense, projected, count);
     }
 
-    private void apply(Long userId, Transaction t, TransactionRequest req) {
+    /** Devolve se o comprovante (foto) mudou: o chamador liga o lançamento à leitura pendente dessa foto. */
+    private boolean apply(Long userId, Transaction t, TransactionRequest req) {
         Account account = accounts.require(userId, req.accountId());
         Category category = categories.requireOrNull(userId, req.categoryId());
         if (t.isTransfer() && req.type() != t.getType()) {
@@ -265,6 +287,10 @@ public class TransactionService {
         if (receiptFile != null && !receiptFile.startsWith("u" + userId + "-")) {
             throw new BusinessException("Comprovante inválido");
         }
+        boolean receiptChanged = !Objects.equals(t.getReceiptFile(), receiptFile);
+        if (receiptChanged) {
+            t.clearReceiptScan();
+        }
         t.setReceiptFile(receiptFile);
         List<TransactionItem> items = new ArrayList<>();
         if (req.items() != null) {
@@ -278,6 +304,7 @@ public class TransactionService {
             }
         }
         t.replaceItems(items);
+        return receiptChanged && receiptFile != null;
     }
 
     /**

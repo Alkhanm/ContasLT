@@ -1,8 +1,31 @@
 import { api, apiObjectUrl } from './client'
 import type {
-  Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryReport, CategoryRule, Dashboard,
-  ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, ItemReport, ReceiptScan, RecurringBill, RecurringBillInput,
-  Transaction, TransactionEditScope, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
+  Account,
+  AccountInput,
+  AuthResponse,
+  Category,
+  CategoryInput,
+  CategoryReport,
+  CategoryRule,
+  Dashboard,
+  ImportBatch,
+  ImportConfirmRequest,
+  ImportPreview,
+  ImportResult,
+  ItemReport,
+  ReceiptScan,
+  ReceiptScanAction,
+  RecurringBill,
+  RecurringBillInput,
+  Transaction,
+  TransactionEditScope,
+  TransactionFilter,
+  TransactionInput,
+  TransactionPage,
+  Transfer,
+  TransferInput,
+  TransferSuggestion,
+  User,
 } from './types'
 
 export const authApi = {
@@ -48,6 +71,9 @@ export const transactionsApi = {
   setPaid: (id: number, paid: boolean) =>
     api<Transaction>(`/api/transactions/${id}/paid`, { method: 'PATCH', body: { paid } }),
   remove: (id: number) => api<void>(`/api/transactions/${id}`, { method: 'DELETE' }),
+  /** Responde ao aviso de leitura adiada do comprovante. */
+  receiptScan: (id: number, action: ReceiptScanAction) =>
+    api<Transaction>(`/api/transactions/${id}/receipt-scan`, { method: 'POST', body: { action } }),
 }
 
 export const recurringApi = {
@@ -85,6 +111,9 @@ export const receiptsApi = {
     if (ignoreTransactionId != null) form.append('ignoreTransactionId', String(ignoreTransactionId))
     return api<ReceiptScan>('/api/receipts/scan', { method: 'POST', body: form })
   },
+  /** Estado de uma leitura na fila do worker; pronta, traz o mesmo que o scan direto. */
+  job: (jobId: number, ignoreTransactionId?: number | null) =>
+    api<ReceiptScan>(`/api/receipts/jobs/${jobId}`, { query: { ignoreTransactionId } }),
   imageUrl: (file: string) => apiObjectUrl(`/api/receipts/${encodeURIComponent(file)}`),
 }
 

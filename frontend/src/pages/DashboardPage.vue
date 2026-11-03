@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeftRight, CalendarCheck, ChevronRight, Wallet } from 'lucide-vue-next'
 import { dashboardApi, transactionsApi } from '@/api'
-import type { CategoryTotal, Dashboard, Transaction } from '@/api/types'
+import type { CategoryTotal, Dashboard, ReceiptScanAction, Transaction } from '@/api/types'
 import CategoryBars from '@/components/app/CategoryBars.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
 import HistoryChart from '@/components/app/HistoryChart.vue'
@@ -52,6 +52,19 @@ const bills = computed(() => {
 const MAX_BILLS = 8
 const visibleBills = computed(() => bills.value.slice(0, MAX_BILLS))
 const hiddenBills = computed(() => Math.max(0, bills.value.length - MAX_BILLS))
+
+async function receiptScan(tx: Transaction, action: ReceiptScanAction) {
+  busyIds.value.add(tx.id)
+  try {
+    await transactionsApi.receiptScan(tx.id, action)
+    notifySuccess(action === 'ACCEPT' ? 'Valor e data do comprovante aplicados' : action === 'RETRY' ? 'Comprovante enviado de novo para leitura' : 'Aviso removido')
+    await Promise.all([load(), catalog.reloadAccounts()])
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    busyIds.value.delete(tx.id)
+  }
+}
 
 async function togglePaid(tx: Transaction) {
   busyIds.value.add(tx.id)
@@ -124,7 +137,7 @@ function openCategory(item: CategoryTotal) {
         <div v-if="bills.length" class="divide-y rounded-2xl border bg-card px-4">
           <TransactionRow
             v-for="t in visibleBills" :key="t.id" :transaction="t" show-date :show-account="false"
-            :busy="busyIds.has(t.id)" @open="ui.editTransaction" @toggle-paid="togglePaid"
+            :busy="busyIds.has(t.id)" @open="ui.editTransaction" @toggle-paid="togglePaid" @receipt-scan="receiptScan"
           />
           <RouterLink v-if="hiddenBills" :to="{ name: 'transactions', query: { status: 'pendente' } }" class="block py-3 text-center text-sm font-semibold text-primary">
             Mais {{ hiddenBills }} {{ hiddenBills === 1 ? 'pendente' : 'pendentes' }}

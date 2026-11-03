@@ -109,6 +109,18 @@ public class Transaction {
     @Column(name = "linked_import", nullable = false)
     private boolean linkedImport;
 
+    /** Leitura adiada do comprovante (worker): nulo quando não há nada a avisar. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "receipt_scan_status")
+    private ReceiptScanStatus receiptScanStatus;
+
+    /** Total e data lidos do cupom quando divergem do lançado (só com status DIVERGENT). */
+    @Column(name = "receipt_scan_total")
+    private BigDecimal receiptScanTotal;
+
+    @Column(name = "receipt_scan_date")
+    private LocalDate receiptScanDate;
+
     /**
      * Pagamento de fatura de cartão: esta despesa (na conta que pagou) agrega as compras do cartão {@code cardAccount}
      * da fatura que vence em {@code cardInvoiceMonth}. As compras em si não entram em listas nem totais.
@@ -181,6 +193,20 @@ public class Transaction {
     public void setReceiptFile(String receiptFile) { this.receiptFile = receiptFile; }
     public String getReceiptAccessKey() { return receiptAccessKey; }
     public void setReceiptAccessKey(String receiptAccessKey) { this.receiptAccessKey = receiptAccessKey; }
+    public ReceiptScanStatus getReceiptScanStatus() { return receiptScanStatus; }
+    public void setReceiptScanStatus(ReceiptScanStatus receiptScanStatus) { this.receiptScanStatus = receiptScanStatus; }
+    public BigDecimal getReceiptScanTotal() { return receiptScanTotal; }
+    public void setReceiptScanTotal(BigDecimal receiptScanTotal) { this.receiptScanTotal = receiptScanTotal; }
+    public LocalDate getReceiptScanDate() { return receiptScanDate; }
+    public void setReceiptScanDate(LocalDate receiptScanDate) { this.receiptScanDate = receiptScanDate; }
+
+    /** Tira qualquer aviso de leitura adiada (comprovante trocado, resolvido pelo usuário...). */
+    public void clearReceiptScan() {
+        receiptScanStatus = null;
+        receiptScanTotal = null;
+        receiptScanDate = null;
+    }
+
     public boolean isLinkedImport() { return linkedImport; }
     public void setLinkedImport(boolean linkedImport) { this.linkedImport = linkedImport; }
     public List<TransactionItem> getItems() { return items; }

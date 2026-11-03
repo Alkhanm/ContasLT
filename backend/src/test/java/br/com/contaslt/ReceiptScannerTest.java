@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 class ReceiptScannerTest {
 
     private final ReceiptScanner scanner = new ReceiptScanner(new AppProperties(null, null, null,
-        new AppProperties.Ollama("http://localhost:1", "test", Duration.ofSeconds(1)), null, new AppProperties.Storage("/tmp", null), null),
+        new AppProperties.Ollama("http://localhost:1", "test", Duration.ofSeconds(1)), null, new AppProperties.Storage("/tmp", null), null, null),
         new ObjectMapper());
 
     @Test

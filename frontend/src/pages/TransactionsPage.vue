@@ -4,7 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import { ArrowLeftRight, CreditCard, ListChecks, Search } from 'lucide-vue-next'
 import { transactionsApi, transfersApi } from '@/api'
-import type { Transaction, TransactionPage, TransactionType } from '@/api/types'
+import type { ReceiptScanAction, Transaction, TransactionPage, TransactionType } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
@@ -162,6 +162,20 @@ const groups = computed(() => {
   }
   return [...map.entries()].map(([date, items]) => ({ date, items }))
 })
+
+/** Resposta ao aviso de leitura adiada do comprovante (usar o lido, manter o lançado ou ler de novo). */
+async function receiptScan(tx: Transaction, action: ReceiptScanAction) {
+  busyIds.value.add(tx.id)
+  try {
+    await transactionsApi.receiptScan(tx.id, action)
+    notifySuccess(action === 'ACCEPT' ? 'Valor e data do comprovante aplicados' : action === 'RETRY' ? 'Comprovante enviado de novo para leitura' : 'Aviso removido')
+    await Promise.all([load(), catalog.reloadAccounts()])
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    busyIds.value.delete(tx.id)
+  }
+}
 
 async function togglePaid(tx: Transaction) {
   busyIds.value.add(tx.id)
@@ -343,7 +357,7 @@ async function togglePaid(tx: Transaction) {
         <div class="divide-y rounded-2xl border bg-card px-4">
           <TransactionRow
             v-for="t in g.items" :key="t.id" :transaction="t"
-            :busy="busyIds.has(t.id)" @open="ui.editTransaction" @toggle-paid="togglePaid"
+            :busy="busyIds.has(t.id)" @open="ui.editTransaction" @toggle-paid="togglePaid" @receipt-scan="receiptScan"
           />
         </div>
       </section>

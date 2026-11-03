@@ -8,6 +8,7 @@ import java.time.YearMonth;
 import java.util.List;
 
 import br.com.contaslt.common.TransactionType;
+import br.com.contaslt.receipt.ReceiptScanAction;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -68,15 +69,21 @@ public final class TransactionDtos {
             Long transferId, Long transferPeerTransactionId, Long transferPeerAccountId, String transferPeerAccountName,
             String merchant, String receiptFile, String receiptAccessKey, Long importBatchId, List<ItemDto> items,
             /** Pagamento de fatura: cartão e mês da fatura cujas compras esta despesa agrega; {@code invoice} traz o resumo. */
-            Long invoiceCardId, String invoiceCardName, YearMonth invoiceMonth, CardInvoiceDto invoice) {
+            Long invoiceCardId, String invoiceCardName, YearMonth invoiceMonth, CardInvoiceDto invoice,
+            /** Leitura adiada do comprovante: PENDING, DIVERGENT (com total/data lidos) ou FAILED; nulo = nada a avisar. */
+            ReceiptScanStatus receiptScanStatus, BigDecimal receiptScanTotal, LocalDate receiptScanDate) {
 
         public TransactionDto withInvoice(CardInvoiceDto inv) {
             return new TransactionDto(id, description, amount, type, dueDate, paid, notes, accountId, accountName,
                 categoryId, categoryName, categoryColor, categoryIcon, recurringBillId, installmentNumber, installmentTotal,
                 scheduledDate, expectedAmount, externalId, transferId, transferPeerTransactionId, transferPeerAccountId,
                 transferPeerAccountName, merchant, receiptFile, receiptAccessKey, importBatchId, items,
-                invoiceCardId, invoiceCardName, invoiceMonth, inv);
+                invoiceCardId, invoiceCardName, invoiceMonth, inv, receiptScanStatus, receiptScanTotal, receiptScanDate);
         }
+    }
+
+    /** Resposta ao aviso de leitura adiada de comprovante. */
+    public record ReceiptScanRequest(@NotNull ReceiptScanAction action) {
     }
 
     /**

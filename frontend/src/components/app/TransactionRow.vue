@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowLeftRight, Check, CreditCard, Receipt, Repeat } from 'lucide-vue-next'
-import type { Transaction } from '@/api/types'
+import type { ReceiptScanAction, Transaction } from '@/api/types'
 import CategoryIcon from './CategoryIcon.vue'
+import ReceiptScanNotice from './ReceiptScanNotice.vue'
 import Money from './Money.vue'
 import { dateShort, dueLabel, dueStatus, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -15,7 +16,7 @@ const props = withDefaults(defineProps<{
   busy?: boolean
 }>(), { showDate: false, showAccount: true, busy: false })
 
-const emit = defineEmits<{ open: [tx: Transaction]; togglePaid: [tx: Transaction] }>()
+const emit = defineEmits<{ open: [tx: Transaction]; togglePaid: [tx: Transaction]; receiptScan: [tx: Transaction, action: ReceiptScanAction] }>()
 
 const catalog = useCatalogStore()
 
@@ -53,7 +54,8 @@ const toggleTitle = computed(() => props.transaction.paid
 </script>
 
 <template>
-  <div class="group flex items-center gap-3 py-2.5">
+  <div class="py-2.5">
+  <div class="group flex items-center gap-3">
     <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none rounded-md focus-visible:ring-3 focus-visible:ring-ring/50" @click="emit('open', transaction)">
       <span v-if="isTransfer" class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-label="Transferência entre contas">
         <ArrowLeftRight class="size-[18px]" />
@@ -88,5 +90,7 @@ const toggleTitle = computed(() => props.transaction.paid
     >
       <Check class="size-4" :stroke-width="3" />
     </button>
+  </div>
+  <ReceiptScanNotice v-if="transaction.receiptScanStatus" :transaction="transaction" :busy="busy" class="mt-2" @action="emit('receiptScan', transaction, $event)" />
   </div>
 </template>

@@ -99,7 +99,7 @@ class ReceiptProvidersTest {
         return new AppProperties(null, null, new AppProperties.Receipts(provider),
             new AppProperties.Ollama("http://127.0.0.1:1", "x", Duration.ofSeconds(1)),
             new AppProperties.OpenAi(base + "/v1/", "sk-test", "vision-test", Duration.ofSeconds(5)),
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "service-key", "receipts")), null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "service-key", "receipts")), null, null);
     }
 
     @Test

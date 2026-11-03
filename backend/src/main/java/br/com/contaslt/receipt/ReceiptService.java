@@ -13,11 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import br.com.contaslt.category.Category;
-import br.com.contaslt.category.CategoryRepository;
 import br.com.contaslt.common.BusinessException;
+import br.com.contaslt.common.NotFoundException;
+import br.com.contaslt.config.AppProperties;
 import br.com.contaslt.common.TransactionType;
-import br.com.contaslt.imports.CategoryRuleRepository;
-import br.com.contaslt.imports.CategorySuggester;
 import br.com.contaslt.receipt.ReceiptDtos.ReceiptScan;
 import br.com.contaslt.receipt.ReceiptDtos.ReceiptScanResponse;
 import br.com.contaslt.receipt.ReceiptDtos.ScannedItem;
@@ -33,23 +32,26 @@ public class ReceiptService {
 
     private final ReceiptScanner scanner;
     private final ReceiptStorage storage;
-    private final CategoryRepository categories;
-    private final CategoryRuleRepository rules;
+    private final ReceiptJobService jobs;
+    private final WorkerPresence presence;
     private final TransactionRepository transactions;
     private final RecurringBillService recurring;
 
-    public ReceiptService(ReceiptScanner scanner, ReceiptStorage storage, CategoryRepository categories,
-            RecurringBillService recurring,
-            CategoryRuleRepository rules, TransactionRepository transactions) {
+    public ReceiptService(ReceiptScanner scanner, ReceiptStorage storage, ReceiptJobService jobs, WorkerPresence presence,
+            RecurringBillService recurring, TransactionRepository transactions) {
         this.scanner = scanner;
         this.storage = storage;
-        this.categories = categories;
-        this.rules = rules;
+        this.jobs = jobs;
+        this.presence = presence;
         this.transactions = transactions;
         this.recurring = recurring;
     }
 
-    /** Guarda a imagem, lê com o modelo e devolve os dados prontos para o formulário de lançamento. */
+    /**
+     * Guarda a imagem e lê com o modelo, devolvendo os dados prontos para o formulário. Com o provedor {@code worker}
+     * a leitura fica numa fila para o computador do usuário: a resposta vem só com o arquivo e {@code status=PENDING},
+     * e o formulário consulta {@link #job} até o resultado chegar (ou salva o lançamento e recebe os itens depois).
+     */
     @Transactional
     public ReceiptScanResponse scan(User user, MultipartFile file, Long ignoreTransactionId) {
         byte[] original;
@@ -60,9 +62,35 @@ public class ReceiptService {
         }
         BufferedImage image = ReceiptStorage.decode(original);
         ReceiptStorage.Stored stored = storage.store(user.getId(), image);
-        ReceiptScan scan = scanner.scan(stored.bytes());
         // O QR code é a fonte confiável da chave; o modelo de visão costuma pular ou inventar os 44 dígitos.
-        String accessKey = AccessKey.decodeQr(image).orElse(scan.accessKey());
+        String qrKey = AccessKey.decodeQr(image).orElse(null);
+        if (scanner.provider() == AppProperties.Receipts.Provider.WORKER) {
+            ReceiptJob job = jobs.enqueue(user, stored.name(), qrKey, null);
+            return ReceiptScanResponse.pending(job.getId(), stored.name(), presence.online());
+        }
+        ReceiptScan scan = scanner.scan(stored.bytes());
+        return complete(user, stored.name(), scan, qrKey, ignoreTransactionId, null);
+    }
+
+    /** Estado de uma tarefa da fila; quando pronta, a mesma resposta que a leitura direta daria. */
+    @Transactional
+    public ReceiptScanResponse job(User user, Long jobId, Long ignoreTransactionId) {
+        ReceiptJob job = jobs.find(user.getId(), jobId).orElseThrow(() -> new NotFoundException("Leitura não encontrada"));
+        return switch (job.getStatus()) {
+            case PENDING, RUNNING -> ReceiptScanResponse.pending(job.getId(), job.getReceiptFile(), presence.online());
+            case FAILED -> ReceiptScanResponse.failed(job.getId(), job.getReceiptFile(), presence.online(), job.getError());
+            case DONE -> {
+                ReceiptScan scan = scanner.parse(job.getResult());
+                jobs.markDelivered(job);
+                yield complete(user, job.getReceiptFile(), scan, job.getQrAccessKey(), ignoreTransactionId, job.getId());
+            }
+        };
+    }
+
+    /** Monta a resposta do formulário a partir do que o modelo leu: data, total, categoria, duplicata e recorrente. */
+    private ReceiptScanResponse complete(User user, String receiptFile, ReceiptScan scan, String qrKey,
+            Long ignoreTransactionId, Long jobId) {
+        String accessKey = qrKey != null ? qrKey : scan.accessKey();
         // Data do lançamento: vencimento quando a fatura tem um; senão a emissão/compra; senão o dia da leitura.
         LocalDate date = scan.dueDate() != null ? scan.dueDate()
             : scan.issueDate() != null ? AccessKey.fixYear(scan.issueDate(), accessKey) : LocalDate.now();
@@ -71,15 +99,7 @@ public class ReceiptService {
         BigDecimal total = scan.total() != null && scan.total().signum() > 0 ? scan.total()
             : itemsTotal.signum() > 0 ? itemsTotal : null;
 
-        CategorySuggester suggester = new CategorySuggester(
-            categories.findByUserIdOrderByTypeAscNameAsc(user.getId()),
-            rules.findByUserIdOrderByKeywordAsc(user.getId()));
-        Optional<Category> category = suggester.suggest(scan.merchant(), TransactionType.EXPENSE, null);
-        if (category.isEmpty() && !scan.items().isEmpty()) {
-            String itemsText = scan.items().stream().map(ScannedItem::description).limit(10)
-                .reduce("", (a, b) -> a + " " + b);
-            category = suggester.suggest(itemsText, TransactionType.EXPENSE, null);
-        }
+        Optional<Category> category = jobs.suggestCategory(user.getId(), scan);
 
         Optional<Transaction> duplicate = accessKey == null ? Optional.empty()
             : transactions.findFirstByUserIdAndReceiptAccessKey(user.getId(), accessKey);
@@ -105,7 +125,7 @@ public class ReceiptService {
             occurrence = found.isEmpty() ? null : found.get(cand).occurrence();
         }
 
-        return new ReceiptScanResponse(stored.name(), scan.merchant(), date, scan.paid(), total, itemsTotal,
+        return new ReceiptScanResponse(receiptFile, scan.merchant(), date, scan.paid(), total, itemsTotal,
             scan.paymentMethod(), accessKey, scan.items(),
             category.map(Category::getId).orElse(null), category.map(Category::getName).orElse(null),
             duplicate.map(Transaction::getId).orElse(null), duplicate.map(Transaction::getDescription).orElse(null),
@@ -113,7 +133,8 @@ public class ReceiptService {
             occurrence == null ? null : occurrence.getId(), occurrence == null ? null : occurrence.getDescription(),
             occurrence == null ? null : occurrence.getDueDate(), occurrence == null ? null : occurrence.getAmount(),
             occurrence == null || occurrence.getCategory() == null ? null : occurrence.getCategory().getId(),
-            occurrence == null ? null : occurrence.getAccount().getId());
+            occurrence == null ? null : occurrence.getAccount().getId(),
+            jobId, "DONE", presence.online(), null);
     }
 
     /** Quanto um lançamento se parece com o comprovante lido: mesmo estabelecimento pesa 2, mesmos itens pesa 1. */
