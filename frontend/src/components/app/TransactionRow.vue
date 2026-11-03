@@ -61,8 +61,8 @@ const toggleTitle = computed(() => props.transaction.paid
       <CategoryIcon v-else :icon="transaction.categoryIcon" :color="transaction.categoryColor" />
       <span class="min-w-0 flex-1">
         <span class="flex items-start gap-1.5">
-          <span :class="cn('min-w-0 font-semibold break-words [overflow-wrap:anywhere]', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
           <Repeat v-if="transaction.recurringBillId" class="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="Recorrente" />
+          <span :class="cn('min-w-0 font-semibold break-words [overflow-wrap:anywhere]', transaction.paid && 'text-muted-foreground')">{{ transaction.description }}</span>
           <CreditCard v-if="transaction.invoiceCardId" class="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="Fatura de cartão" />
           <Receipt v-if="transaction.receiptFile" class="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-label="Com comprovante" />
         </span>
