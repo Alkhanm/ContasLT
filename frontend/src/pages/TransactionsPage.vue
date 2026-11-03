@@ -284,28 +284,43 @@ async function togglePaid(tx: Transaction) {
           <Money v-else :value="typeFilter === 'INCOME' ? page.summary.income : page.summary.expense" :type="typeFilter" signed class="font-semibold" />
         </span>
       </div>
-      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-5" :title="(accountId ? 'Como o extrato da conta' : 'Todas as contas ativas, menos cartões') + ': saldo anterior + transferência + receitas − despesas = saldo atual; só o que está pago'">
+      <dl v-if="typeFilter === 'ALL'" class="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2 md:grid-cols-5" :title="(accountId ? 'Como o extrato da conta' : 'Todas as contas ativas, menos cartões') + ': saldo anterior + transferência + receitas − despesas = saldo atual; só o que está pago. O previsto soma o que ainda está pendente no período'">
         <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Saldo anterior</dt>
           <dd><Money :value="page.summary.previousBalance" class="font-semibold" /></dd>
         </div>
         <div class="text-right md:text-left">
           <dt class="text-[11px] font-semibold text-muted-foreground">Transferência</dt>
-          <dd><Money :value="page.summary.transfer" :signed="page.summary.transfer !== 0" :muted="page.summary.transfer === 0" class="font-semibold" /></dd>
+          <dd>
+            <Money :value="page.summary.transfer" :signed="page.summary.transfer !== 0" :muted="page.summary.transfer === 0" class="font-semibold" />
+            <span v-if="page.summary.pendingTransfer !== 0" class="block text-[11px] text-muted-foreground" title="Transferência líquida paga mais a que ainda está pendente no período">
+              previsto <Money :value="page.summary.transfer + page.summary.pendingTransfer" signed class="font-semibold" />
+            </span>
+          </dd>
         </div>
         <div>
           <dt class="text-[11px] font-semibold text-muted-foreground">Receitas</dt>
-          <dd><Money :value="page.summary.income" type="INCOME" signed class="font-semibold" /></dd>
+          <dd>
+            <Money :value="page.summary.income" type="INCOME" signed class="font-semibold" />
+            <span v-if="page.summary.pendingIncome !== 0" class="block text-[11px] text-muted-foreground" title="Receitas recebidas mais as que ainda estão pendentes no período">
+              previsto <Money :value="page.summary.income + page.summary.pendingIncome" type="INCOME" signed class="font-semibold" />
+            </span>
+          </dd>
         </div>
         <div class="text-right md:text-left">
           <dt class="text-[11px] font-semibold text-muted-foreground">Despesas</dt>
-          <dd><Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" /></dd>
+          <dd>
+            <Money :value="page.summary.expense" type="EXPENSE" signed class="font-semibold" />
+            <span v-if="page.summary.pendingExpense !== 0" class="block text-[11px] text-muted-foreground" title="Despesas pagas mais as que ainda estão pendentes no período">
+              previsto <Money :value="page.summary.expense + page.summary.pendingExpense" type="EXPENSE" signed class="font-semibold" />
+            </span>
+          </dd>
         </div>
         <div class="col-span-2 flex items-baseline justify-between border-t pt-1.5 md:col-span-1 md:block md:border-0 md:pt-0 md:text-right">
           <dt class="text-[11px] font-semibold text-muted-foreground">Saldo atual</dt>
           <dd class="text-right">
             <Money :value="page.summary.balance" class="font-bold" />
-            <span v-if="page.summary.projectedBalance !== page.summary.balance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais o que ainda está pendente no período">
+            <span v-if="page.summary.projectedBalance !== page.summary.balance" class="block text-[11px] text-muted-foreground" title="Saldo atual mais a transferência, as receitas e as despesas ainda pendentes no período">
               previsto <Money :value="page.summary.projectedBalance" class="font-semibold" />
             </span>
           </dd>
