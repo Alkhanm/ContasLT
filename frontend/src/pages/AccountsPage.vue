@@ -69,7 +69,7 @@ async function remove() {
     </div>
 
     <ul class="grid gap-2 sm:grid-cols-2">
-      <li v-for="a in catalog.accounts" :key="a.id" :class="cn('flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5', a.archived && 'opacity-60')">
+      <li v-for="a in catalog.accounts" :key="a.id" :class="cn('flex min-w-0 items-center gap-3 rounded-xl border bg-card px-3 py-2.5', a.archived && 'opacity-60')">
         <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none rounded-md focus-visible:ring-3 focus-visible:ring-ring/50" @click="openEdit(a)">
           <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full" :style="{ backgroundColor: a.color + '22', color: a.color }">
             <component :is="a.type === 'CREDIT_CARD' ? CreditCard : Wallet" class="size-[18px]" />

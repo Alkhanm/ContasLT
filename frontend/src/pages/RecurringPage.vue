@@ -72,8 +72,8 @@ function describe(b: RecurringBill) {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-start justify-between gap-4">
-      <div v-if="active.length" class="flex gap-6 text-sm">
+    <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+      <div v-if="active.length" class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
         <div>
           <p class="text-xs font-semibold text-muted-foreground">Fixas por mês</p>
           <Money :value="monthlyExpense" type="EXPENSE" class="text-lg font-bold" />
@@ -84,7 +84,7 @@ function describe(b: RecurringBill) {
         </div>
       </div>
       <div v-else />
-      <Button class="shrink-0 rounded-full" @click="openNew">
+      <Button class="ml-auto shrink-0 rounded-full" @click="openNew">
         <Plus :stroke-width="2.5" /> Nova recorrência
       </Button>
     </div>

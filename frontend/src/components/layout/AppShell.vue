@@ -103,7 +103,7 @@ onMounted(() => {
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="sticky top-0 z-30 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div class="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
-          <h1 class="text-lg font-bold tracking-tight md:text-xl">{{ route.meta.title }}</h1>
+          <h1 class="min-w-0 truncate text-lg font-bold tracking-tight md:text-xl">{{ route.meta.title }}</h1>
           <div class="ml-auto flex items-center gap-2">
             <MonthNavigator v-if="route.meta.monthNav" />
             <button
@@ -118,7 +118,7 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="mx-auto w-full max-w-5xl flex-1 px-4 pt-4 pb-28 md:pb-10">
+      <main class="mx-auto w-full max-w-5xl flex-1 px-4 pt-4 pb-36 md:pb-10">
         <RouterView />
       </main>
     </div>

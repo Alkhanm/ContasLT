@@ -60,9 +60,9 @@ function categoryQuery(id: number | null) {
             {{ data.count }} {{ data.count === 1 ? 'lançamento' : 'lançamentos' }} em {{ data.items.length }} {{ data.items.length === 1 ? 'categoria' : 'categorias' }}, pagos e pendentes
           </p>
         </div>
-        <div class="text-right text-xs text-muted-foreground">
+        <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground sm:justify-end sm:text-right">
           <p>Mês anterior <Money :value="data.previousTotal" class="font-semibold text-foreground" /></p>
-          <p v-if="totalChange !== null" :class="cn('mt-0.5 inline-flex items-center gap-1 font-semibold', totalChange > 0 ? 'text-expense' : totalChange < 0 ? 'text-income' : '')">
+          <p v-if="totalChange !== null" :class="cn('inline-flex items-center gap-1 font-semibold', totalChange > 0 ? 'text-expense' : totalChange < 0 ? 'text-income' : '')">
             <component :is="totalChange > 0 ? TrendingUp : TrendingDown" v-if="totalChange !== 0" class="size-3.5" />
             {{ totalChange > 0 ? '+' : '' }}{{ totalChange.toFixed(0) }}%
           </p>
