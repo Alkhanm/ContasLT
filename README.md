@@ -86,7 +86,7 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `SUPABASE_BUCKET` | `receipts` | Nome do bucket (criado na primeira gravação, se não existir) |
 | `SPRING_PROFILES_ACTIVE` | vazio | `prod` em produção: exige `JWT_SECRET` e `CORS_ORIGINS`, desliga o Ollama por padrão e esconde mensagens internas de erro |
 
-No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem). O build de produção lê `frontend/.env.production`.
+No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem). O build de produção lê `frontend/.env.production` (URL do Railway, usada pelo Firebase); `prod.sh`/`install.sh` sobrescrevem com `VITE_API_URL=` para o build local falar com o próprio backend.
 
 ## Deploy (Railway + Supabase + Firebase Hosting)
 

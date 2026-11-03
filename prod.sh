@@ -51,7 +51,9 @@ if (( BUILD )); then
     (cd "$ROOT/frontend" && npm install)
   fi
   info "Build do frontend (vue-tsc + vite build)..."
-  (cd "$ROOT/frontend" && npm run build)
+  # VITE_API_URL vazia = API na mesma origem (o backend serve o build). Sem isso o build de produção lê
+  # frontend/.env.production, que aponta para o Railway, e o acesso pela rede local/Tailscale cai em CORS.
+  (cd "$ROOT/frontend" && VITE_API_URL= npm run build)
   info "Build do backend (mvnw package, sem testes)..."
   (cd "$ROOT/backend" && ./mvnw -q -DskipTests package)
   BUILT_JAR="$(ls -t "$ROOT"/backend/target/*.jar | grep -v '\.original$' | head -1)"
