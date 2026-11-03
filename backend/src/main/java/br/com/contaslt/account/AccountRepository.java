@@ -19,4 +19,11 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
         from Transaction t where t.account.id = :accountId and t.paid = true
         """)
     BigDecimal sumPaidMovements(@Param("accountId") Long accountId);
+
+    /** Movimentos pagos de todas as contas do usuário, agrupados por conta (uma consulta para a lista toda). */
+    @Query("""
+        select t.account.id, coalesce(sum(case when t.type = br.com.contaslt.common.TransactionType.INCOME then t.amount else -t.amount end), 0)
+        from Transaction t where t.account.user.id = :userId and t.paid = true group by t.account.id
+        """)
+    List<Object[]> sumPaidMovementsByAccount(@Param("userId") Long userId);
 }

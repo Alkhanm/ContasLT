@@ -40,6 +40,6 @@ public class AuthController {
 
     @GetMapping("/me")
     public UserDto me() {
-        return AuthService.toDto(currentUser.get());
+        return AuthService.toDto(currentUser.load());
     }
 }

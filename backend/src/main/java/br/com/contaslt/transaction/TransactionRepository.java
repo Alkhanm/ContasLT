@@ -84,6 +84,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("update Transaction t set t.recurringBill = null where t.recurringBill.id = :billId")
     void detachFromRecurringBill(@Param("billId") Long billId);
 
+    /** Pares (id da regra, data prevista) de todas as ocorrências do usuário no período: uma consulta para todas as regras. */
+    @Query("select t.recurringBill.id, t.scheduledDate from Transaction t where t.user.id = :userId and t.recurringBill is not null"
+        + " and t.scheduledDate between :from and :to")
+    List<Object[]> findScheduledOccurrences(@Param("userId") Long userId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     @Query("select t.scheduledDate from Transaction t where t.recurringBill.id = :billId and t.scheduledDate between :from and :to")
     Set<LocalDate> findScheduledDatesByRecurringBill(@Param("billId") Long billId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);

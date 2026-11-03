@@ -52,7 +52,12 @@ public class DashboardService {
         // Também materializa o mês atual, para que vencimentos próximos apareçam mesmo ao ver meses passados.
         recurring.ensureOccurrences(user, YearMonth.from(today));
 
-        List<Transaction> items = transactions.findByUserAndPeriod(user.getId(), month.atDay(1), month.atEndOfMonth());
+        // Uma consulta cobre o histórico inteiro; o mês pedido é o recorte final dela.
+        List<Transaction> historyItems = transactions.findByUserAndPeriod(user.getId(), historyStart.atDay(1),
+            month.atEndOfMonth());
+        List<Transaction> items = historyItems.stream()
+            .filter(t -> !t.getDueDate().isBefore(month.atDay(1)) && !t.getDueDate().isAfter(month.atEndOfMonth()))
+            .toList();
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
         BigDecimal paidIncome = BigDecimal.ZERO;
@@ -110,8 +115,6 @@ public class DashboardService {
             .map(AccountDto::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<MonthTotal> history = new ArrayList<>();
-        List<Transaction> historyItems = transactions.findByUserAndPeriod(user.getId(), historyStart.atDay(1),
-            month.atEndOfMonth());
         for (YearMonth ym = historyStart; !ym.isAfter(month); ym = ym.plusMonths(1)) {
             BigDecimal inc = BigDecimal.ZERO;
             BigDecimal exp = BigDecimal.ZERO;

@@ -36,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.receipt.ReceiptStorage;
+import br.com.contaslt.recurring.RecurringBillService;
 import br.com.contaslt.user.User;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -67,12 +68,15 @@ public class BackupService {
     private final TransactionTemplate tx;
     private final ReceiptStorage storage;
     private final ObjectMapper json;
+    private final RecurringBillService recurring;
 
-    public BackupService(JdbcTemplate jdbc, TransactionTemplate tx, ReceiptStorage storage, ObjectMapper json) {
+    public BackupService(JdbcTemplate jdbc, TransactionTemplate tx, ReceiptStorage storage, ObjectMapper json,
+            RecurringBillService recurring) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.storage = storage;
         this.json = json;
+        this.recurring = recurring;
     }
 
     // ---------- Exportação ----------
@@ -256,6 +260,7 @@ public class BackupService {
             throw new BusinessException("Arquivo de uma versão mais nova do app. Atualize antes de importar.");
         }
         Merge merge = tx.execute(status -> merge(user, root));
+        recurring.invalidateEnsured(user.getId());
 
         // Fotos: só as dos lançamentos que entraram, renomeadas para o usuário atual.
         int receipts = 0;

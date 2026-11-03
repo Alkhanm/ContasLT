@@ -80,6 +80,8 @@ public class AuthService {
             .subject(String.valueOf(user.getId()))
             .claim("email", user.getEmail())
             .claim("name", user.getName())
+            // Com isto o backend monta o usuário da requisição sem consultar o banco (ver CurrentUser).
+            .claim("premium", user.isPremium())
             .issuedAt(now)
             .expiresAt(now.plus(props.jwt().expiration()))
             .build();

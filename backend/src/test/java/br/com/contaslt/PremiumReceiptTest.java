@@ -60,9 +60,14 @@ class PremiumReceiptTest {
         User user = users.findByEmailIgnoreCase(email).orElseThrow();
         user.setPremium(true);
         users.save(user);
+        // /me lê o banco e já mostra a marca; o token antigo continua sem ela (premium viaja nas claims): é preciso logar de novo.
         assertThat(json.readTree(mvc.get().uri("/api/auth/me").headers(auth(token)).exchange().getResponse().getContentAsByteArray())
             .get("premium").asBoolean()).isTrue();
-        assertThat(mvc.post().uri("/api/receipts/scan").headers(auth(token)).multipart().file(photo).exchange()).hasStatusOk();
+        assertThat(mvc.post().uri("/api/receipts/scan").headers(auth(token)).multipart().file(photo).exchange()).hasStatus(403);
+        String fresh = json.readTree(mvc.post().uri("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", "segredo123"))).exchange()
+            .getResponse().getContentAsByteArray()).get("token").asString();
+        assertThat(mvc.post().uri("/api/receipts/scan").headers(auth(fresh)).multipart().file(photo).exchange()).hasStatusOk();
     }
 
     private static HttpHeaders auth(String token) {

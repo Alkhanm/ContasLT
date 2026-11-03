@@ -11,9 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import br.com.contaslt.account.Account;
 import br.com.contaslt.account.AccountService;
@@ -36,6 +39,13 @@ public class RecurringBillService {
     private final AccountService accounts;
     private final CategoryService categories;
 
+    /**
+     * Meses cujos vencimentos já foram garantidos, por usuário. Toda listagem e todo painel chamam
+     * {@link #ensureOccurrences}; sem isso cada chamada custaria uma consulta por regra. Esvaziado quando uma
+     * regra muda ou uma ocorrência é apagada. Memória do processo: vale para uma instância do servidor.
+     */
+    private final ConcurrentHashMap<Long, Set<YearMonth>> ensured = new ConcurrentHashMap<>();
+
     public RecurringBillService(RecurringBillRepository bills, TransactionRepository transactions,
             AccountService accounts, CategoryService categories) {
         this.bills = bills;
@@ -51,6 +61,7 @@ public class RecurringBillService {
 
     @Transactional
     public RecurringBillDto create(User user, RecurringBillRequest req) {
+        invalidateEnsured(user.getId());
         validate(req);
         RecurringBill bill = new RecurringBill();
         bill.setUser(user);
@@ -92,6 +103,7 @@ public class RecurringBillService {
      */
     @Transactional
     public void applyToFollowing(User user, Transaction t, LocalDate previousScheduled) {
+        invalidateEnsured(user.getId());
         RecurringBill bill = t.getRecurringBill();
         if (t.getType() != bill.getType()) {
             throw new BusinessException("Para mudar o tipo, edite a conta recorrente");
@@ -124,6 +136,7 @@ public class RecurringBillService {
 
     @Transactional
     public RecurringBillDto update(User user, Long id, RecurringBillRequest req) {
+        invalidateEnsured(user.getId());
         validate(req);
         RecurringBill bill = require(user.getId(), id);
         boolean scheduleChanged = !Objects.equals(bill.getFrequency(), req.frequency())
@@ -149,6 +162,7 @@ public class RecurringBillService {
 
     @Transactional
     public void delete(Long userId, Long id) {
+        invalidateEnsured(userId);
         RecurringBill bill = require(userId, id);
         transactions.deleteByRecurringBillIdAndPaidFalse(bill.getId());
         transactions.detachFromRecurringBill(bill.getId());
@@ -161,14 +175,25 @@ public class RecurringBillService {
      */
     @Transactional
     public void ensureOccurrences(User user, YearMonth month) {
+        Set<YearMonth> done = ensured.computeIfAbsent(user.getId(), k -> ConcurrentHashMap.newKeySet());
+        if (done.contains(month)) {
+            return;
+        }
         LocalDate from = month.atDay(1);
         LocalDate to = month.atEndOfMonth();
-        for (RecurringBill bill : bills.findByUserIdAndActiveTrue(user.getId())) {
+        List<RecurringBill> active = bills.findByUserIdAndActiveTrue(user.getId());
+        Map<Long, Set<LocalDate>> existingByBill = new HashMap<>();
+        if (!active.isEmpty()) {
+            for (Object[] row : transactions.findScheduledOccurrences(user.getId(), from, to)) {
+                existingByBill.computeIfAbsent((Long) row[0], k -> new HashSet<>()).add((LocalDate) row[1]);
+            }
+        }
+        for (RecurringBill bill : active) {
             List<Occurrence> occurrences = RecurrenceCalculator.between(bill, from, to);
             if (occurrences.isEmpty()) {
                 continue;
             }
-            Set<LocalDate> existing = transactions.findScheduledDatesByRecurringBill(bill.getId(), from, to);
+            Set<LocalDate> existing = existingByBill.getOrDefault(bill.getId(), Set.of());
             for (Occurrence occ : occurrences) {
                 if (existing.contains(occ.date())) {
                     continue;
@@ -183,6 +208,22 @@ public class RecurringBillService {
                 transactions.save(t);
             }
         }
+        // Só marca depois do commit: se a transação cair, o mês volta a ser conferido.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    done.add(month);
+                }
+            });
+        } else {
+            done.add(month);
+        }
+    }
+
+    /** Esquece os meses garantidos do usuário (regra criada/alterada/apagada, ocorrência apagada, importação). */
+    public void invalidateEnsured(Long userId) {
+        ensured.remove(userId);
     }
 
     /**

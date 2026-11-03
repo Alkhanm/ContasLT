@@ -94,8 +94,12 @@ public class TransactionService {
         List<Transaction> items = transactions.findAll(spec(user.getId(), filter, range),
             Sort.by(Sort.Order.desc("dueDate"), Sort.Order.desc("id")));
         List<AccountDto> scope = accountScope(user.getId(), filter);
+        // Saldo anterior ao período: usado pelo resumo e pelos saldos por dia (uma consulta só).
+        BigDecimal previous = scope.isEmpty() ? BigDecimal.ZERO
+            : scope.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(transactions.sumPaidMovementsBefore(scope.stream().map(AccountDto::id).toList(), range.from()));
         return new TransactionPage(items.stream().map(this::toDto).toList(),
-            summarize(items.size(), scope, range), dayBalances(scope, range), invoice);
+            summarize(items.size(), scope, range, previous), dayBalances(scope, range, previous), invoice);
     }
 
     /** DTO com o resumo da fatura agregada, quando o lançamento é um pagamento de fatura. */
@@ -108,10 +112,13 @@ public class TransactionService {
     }
 
     /** Contas do recorte de caixa: a filtrada, ou todas as ativas de dinheiro (cartão de crédito não é caixa). */
+    /** Contas do recorte, sem calcular saldo (resumo e saldos por dia só usam id e saldo inicial): uma consulta. */
     private List<AccountDto> accountScope(Long userId, Filter f) {
-        return accounts.list(userId, true).stream()
-            .filter(a -> f.accountId() != null ? a.id().equals(f.accountId())
-                : !a.archived() && a.type() != AccountType.CREDIT_CARD)
+        return accounts.listEntities(userId).stream()
+            .filter(a -> f.accountId() != null ? a.getId().equals(f.accountId())
+                : !a.isArchived() && a.getType() != AccountType.CREDIT_CARD)
+            .map(a -> new AccountDto(a.getId(), a.getName(), a.getType(), a.getInitialBalance(), a.getColor(),
+                a.isArchived(), BigDecimal.ZERO, a.getClosingDay(), a.getDueDay()))
             .toList();
     }
 
@@ -130,15 +137,14 @@ public class TransactionService {
      * Saldo ao fim de cada dia do mês: saldo inicial das contas + movimentos pagos até o dia. Usa todas as contas
      * ativas, ou só a filtrada; ignora os outros filtros, porque o saldo da conta não depende do que está na lista.
      */
-    private List<DayBalance> dayBalances(List<AccountDto> selected, Range range) {
+    private List<DayBalance> dayBalances(List<AccountDto> selected, Range range, BigDecimal previous) {
         if (selected.isEmpty()) {
             return List.of();
         }
         List<Long> ids = selected.stream().map(AccountDto::id).toList();
         LocalDate from = range.from();
         LocalDate to = range.to();
-        BigDecimal running = selected.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
-            .add(transactions.sumPaidMovementsBefore(ids, from));
+        BigDecimal running = previous;
         Map<LocalDate, BigDecimal> byDay = new HashMap<>();
         for (Object[] row : transactions.sumPaidMovementsByDay(ids, from, to)) {
             byDay.put((LocalDate) row[0], (BigDecimal) row[1]);
@@ -207,6 +213,10 @@ public class TransactionService {
             tr.getToTransaction().setTransfer(null);
             transfers.delete(tr);
         }
+        if (t.getRecurringBill() != null) {
+            // Vencimento apagado: o gerador volta a conferir o mês na próxima consulta.
+            recurring.invalidateEnsured(user.getId());
+        }
         transactions.delete(t);
     }
 
@@ -219,8 +229,7 @@ public class TransactionService {
      * Resumo como o extrato: saldo anterior das contas do recorte, transferência líquida, receitas e despesas pagas
      * no período e o saldo atual; o pendente fica à parte e entra só no saldo previsto.
      */
-    private Summary summarize(int count, List<AccountDto> scope, Range range) {
-        BigDecimal previous = BigDecimal.ZERO;
+    private Summary summarize(int count, List<AccountDto> scope, Range range, BigDecimal previous) {
         BigDecimal transfer = BigDecimal.ZERO;
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
@@ -229,8 +238,6 @@ public class TransactionService {
         BigDecimal pendingExpense = BigDecimal.ZERO;
         if (!scope.isEmpty()) {
             List<Long> ids = scope.stream().map(AccountDto::id).toList();
-            previous = scope.stream().map(AccountDto::initialBalance).reduce(BigDecimal.ZERO, BigDecimal::add)
-                .add(transactions.sumPaidMovementsBefore(ids, range.from()));
             for (Object[] row : transactions.sumMovementsByTypePaidAndTransfer(ids, range.from(), range.to())) {
                 boolean in = row[0] == TransactionType.INCOME;
                 boolean paid = Boolean.TRUE.equals(row[1]);

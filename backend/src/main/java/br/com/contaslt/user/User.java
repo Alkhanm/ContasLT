@@ -36,6 +36,19 @@ public class User {
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    /**
+     * Usuário desanexado montado a partir das claims do JWT: id, nome, e-mail e premium sem ir ao banco.
+     * Serve como referência em {@code setUser(...)} (o Hibernate grava só o id) e para checagens de premium.
+     */
+    public static User fromClaims(Long id, String name, String email, boolean premium) {
+        User u = new User();
+        u.id = id;
+        u.name = name;
+        u.email = email;
+        u.premium = premium;
+        return u;
+    }
     public String getEmail() { return email; }
     public boolean isPremium() { return premium; }
     public void setPremium(boolean premium) { this.premium = premium; }
