@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import CategoryIcon from './CategoryIcon.vue'
 import FormField from './FormField.vue'
 import TypeToggle from './TypeToggle.vue'
-import { colorPalette, iconFor, iconNames } from '@/lib/icons'
+import { colorPalette, iconFor, iconGroups } from '@/lib/icons'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useCatalogStore } from '@/stores/catalog'
@@ -128,19 +128,24 @@ async function save() {
           </div>
         </FormField>
         <FormField label="Ícone">
-          <div class="grid grid-cols-8 gap-1.5">
-            <button
-              v-for="name in iconNames"
-              :key="name"
-              type="button"
-              :aria-label="name"
-              :aria-pressed="form.icon === name"
-              :class="cn('flex aspect-square items-center justify-center rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                form.icon === name ? 'border-primary bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent')"
-              @click="form.icon = name"
-            >
-              <component :is="iconFor(name)" class="size-4" />
-            </button>
+          <div class="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2">
+            <div v-for="g in iconGroups" :key="g.label">
+              <p class="mb-1 text-[11px] font-semibold text-muted-foreground">{{ g.label }}</p>
+              <div class="grid grid-cols-8 gap-1.5">
+                <button
+                  v-for="name in g.names"
+                  :key="name"
+                  type="button"
+                  :aria-label="name"
+                  :aria-pressed="form.icon === name"
+                  :class="cn('flex aspect-square items-center justify-center rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    form.icon === name ? 'border-primary bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent')"
+                  @click="form.icon = name"
+                >
+                  <component :is="iconFor(name)" class="size-4" />
+                </button>
+              </div>
+            </div>
           </div>
         </FormField>
         <DialogFooter>
