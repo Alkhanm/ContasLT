@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.com.contaslt.transfer.TransferDtos.LinkRequest;
+import br.com.contaslt.transfer.TransferDtos.RejectResult;
 import br.com.contaslt.transfer.TransferDtos.SuggestionList;
+import br.com.contaslt.user.User;
 import br.com.contaslt.transfer.TransferDtos.TransferDto;
 import br.com.contaslt.transfer.TransferDtos.TransferRequest;
 import br.com.contaslt.user.CurrentUser;
@@ -43,7 +45,21 @@ public class TransferController {
 
     @GetMapping("/suggestions")
     public SuggestionList suggestions() {
-        return new SuggestionList(transfers.suggestions(currentUser.get()));
+        User user = currentUser.get();
+        return new SuggestionList(transfers.suggestions(user), transfers.rejectionCount(user));
+    }
+
+    /** "Não é transferência": tira o par das sugestões; entre duas contas recorrentes, para sempre. */
+    @PostMapping("/reject")
+    public RejectResult reject(@Valid @RequestBody LinkRequest req) {
+        return new RejectResult(transfers.reject(currentUser.get(), req));
+    }
+
+    /** Esquece todas as recusas. */
+    @DeleteMapping("/rejections")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void forgetRejections() {
+        transfers.forgetRejections(currentUser.get());
     }
 
     @DeleteMapping("/{id}")

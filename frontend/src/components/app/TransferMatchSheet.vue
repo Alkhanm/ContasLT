@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ArrowDown, ArrowLeftRight, Link2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeftRight, Link2, X } from 'lucide-vue-next'
 import { transfersApi } from '@/api'
-import { useTransferSuggestions } from '@/composables/queries'
+import { keys, useTransferSuggestions } from '@/composables/queries'
+import { queryClient } from '@/lib/queryClient'
 import type { TransferSuggestion } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,9 +21,39 @@ const busy = ref(new Set<number>())
 const linkingAll = ref(false)
 
 const { data, isPending: loading, error } = useTransferSuggestions(() => props.open)
-// Cópia local: cada par vinculado some da lista na hora, antes do cache ser refeito.
-watch(data, (d) => { if (d) items.value = d.items }, { immediate: true })
+const rejected = ref(0)
+// Cópia local: cada par vinculado ou recusado some da lista na hora, antes do cache ser refeito.
+watch(data, (d) => { if (d) { items.value = d.items; rejected.value = d.rejected } }, { immediate: true })
 watch(error, (err) => { if (err) notifyError(err) })
+
+/** "Não é transferência": some daqui e, entre duas contas recorrentes, de todos os meses. */
+async function reject(s: TransferSuggestion) {
+  busy.value.add(key(s))
+  try {
+    const r = await transfersApi.reject(s.from.id, s.to.id)
+    items.value = items.value.filter((x) => key(x) !== key(s))
+    rejected.value++
+    void queryClient.invalidateQueries({ queryKey: keys.suggestions })
+    notifySuccess(r.recurring
+      ? 'Recusado. Essas duas contas recorrentes não serão mais sugeridas como transferência.'
+      : 'Recusado. Esse par não será mais sugerido.')
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    busy.value.delete(key(s))
+  }
+}
+
+async function forgetRejections() {
+  try {
+    await transfersApi.forgetRejections()
+    rejected.value = 0
+    await queryClient.invalidateQueries({ queryKey: keys.suggestions })
+    notifySuccess('Pares recusados voltam a ser sugeridos')
+  } catch (err) {
+    notifyError(err)
+  }
+}
 
 const key = (s: TransferSuggestion) => s.from.id
 
@@ -95,9 +126,14 @@ const total = computed(() => items.value.reduce((acc, s) => acc + s.from.amount,
             <template v-if="s.daysApart"> · {{ s.daysApart }} {{ s.daysApart === 1 ? 'dia de diferença' : 'dias de diferença' }}</template>
             <template v-else> · mesmo dia</template>
           </span>
-          <Button size="sm" variant="outline" :disabled="busy.has(key(s)) || linkingAll" @click="link(s)">
-            <Link2 /> Vincular
-          </Button>
+          <span class="flex items-center gap-1.5">
+            <Button size="sm" variant="ghost" class="text-muted-foreground" :disabled="busy.has(key(s)) || linkingAll" title="Não é transferência" @click="reject(s)">
+              <X /> Não é
+            </Button>
+            <Button size="sm" variant="outline" :disabled="busy.has(key(s)) || linkingAll" @click="link(s)">
+              <Link2 /> Vincular
+            </Button>
+          </span>
         </div>
       </li>
     </ul>
@@ -105,6 +141,11 @@ const total = computed(() => items.value.reduce((acc, s) => acc + s.from.amount,
     <div v-else class="rounded-2xl border border-dashed">
       <EmptyState :icon="ArrowLeftRight" title="Nenhum par encontrado" description="Quando uma saída e uma entrada de mesmo valor aparecerem em contas diferentes, elas serão sugeridas aqui. Você também pode criar uma transferência pelo botão +." />
     </div>
+
+    <p v-if="!loading && rejected" class="mt-3 text-center text-xs text-muted-foreground">
+      {{ rejected }} {{ rejected === 1 ? 'par recusado não aparece' : 'pares recusados não aparecem' }} aqui.
+      <button type="button" class="font-semibold text-primary underline-offset-2 hover:underline" @click="forgetRejections">Voltar a sugerir</button>
+    </p>
 
     <template v-if="items.length" #footer>
       <Button class="h-11 w-full text-base font-semibold" :disabled="linkingAll" @click="linkAll">

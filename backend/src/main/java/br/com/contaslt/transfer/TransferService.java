@@ -46,16 +46,49 @@ public class TransferService {
         "transf", "pix", "ted", "doc ", "aplicacao", "resgate", "envio", "enviad", "recebid", "entre contas");
 
     private final TransferRepository transfers;
+    private final TransferRejectionRepository rejections;
     private final TransactionRepository transactions;
     private final TransactionService transactionService;
     private final AccountService accounts;
 
-    public TransferService(TransferRepository transfers, TransactionRepository transactions,
+    public TransferService(TransferRepository transfers, TransferRejectionRepository rejections, TransactionRepository transactions,
             TransactionService transactionService, AccountService accounts) {
         this.transfers = transfers;
+        this.rejections = rejections;
         this.transactions = transactions;
         this.transactionService = transactionService;
         this.accounts = accounts;
+    }
+
+    /**
+     * "Não é transferência": o par some das sugestões. Se os dois lançamentos são ocorrências de contas
+     * recorrentes, a recusa vale para aquelas duas regras em todos os meses (por isso basta dizer uma vez).
+     * Devolve se a recusa cobre as regras recorrentes.
+     */
+    @Transactional
+    public boolean reject(User user, LinkRequest req) {
+        Transaction a = transactionService.require(user.getId(), req.transactionId());
+        Transaction b = transactionService.require(user.getId(), req.otherTransactionId());
+        if (a.getId().equals(b.getId())) {
+            throw new BusinessException("Escolha dois lançamentos diferentes");
+        }
+        TransferRejection r = new TransferRejection();
+        r.setUser(user);
+        r.setPair(TransferRejection.keyOf(a), TransferRejection.keyOf(b));
+        if (rejections.findByUserIdAndKeyAAndKeyB(user.getId(), r.getKeyA(), r.getKeyB()).isEmpty()) {
+            rejections.save(r);
+        }
+        return r.coversRecurring();
+    }
+
+    /** Esquece todas as recusas: os pares voltam a ser sugeridos. */
+    @Transactional
+    public void forgetRejections(User user) {
+        rejections.deleteByUserId(user.getId());
+    }
+
+    public long rejectionCount(User user) {
+        return rejections.countByUserId(user.getId());
     }
 
     @Transactional
@@ -117,6 +150,10 @@ public class TransferService {
         List<Transaction> outs = pool.stream().filter(t -> t.getType() == TransactionType.EXPENSE).toList();
         List<Transaction> ins = pool.stream().filter(t -> t.getType() == TransactionType.INCOME).toList();
         String userName = TextNormalizer.normalize(user.getName());
+        Set<String> rejected = new HashSet<>();
+        for (TransferRejection r : rejections.findByUserId(user.getId())) {
+            rejected.add(r.pairKey());
+        }
 
         record Candidate(Transaction out, Transaction in, int days, int score) {
         }
@@ -128,7 +165,7 @@ public class TransferService {
                     continue;
                 }
                 int days = (int) Math.abs(ChronoUnit.DAYS.between(out.getDueDate(), in.getDueDate()));
-                if (days > MAX_DAYS_APART) {
+                if (days > MAX_DAYS_APART || rejected.contains(TransferRejection.pairKey(out, in))) {
                     continue;
                 }
                 int score = 100 - days * 15

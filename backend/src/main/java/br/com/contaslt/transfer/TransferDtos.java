@@ -30,6 +30,10 @@ public final class TransferDtos {
         @NotNull Long otherTransactionId) {
     }
 
+    /** Resposta da recusa: se cobriu duas contas recorrentes (vale para todos os meses). */
+    public record RejectResult(boolean recurring) {
+    }
+
     public record TransferDto(Long id, TransactionDto from, TransactionDto to) {
     }
 
@@ -37,6 +41,7 @@ public final class TransferDtos {
     public record Suggestion(TransactionDto from, TransactionDto to, int daysApart, int score) {
     }
 
-    public record SuggestionList(List<Suggestion> items) {
+    /** {@code rejected}: quantos pares o usuário já recusou (podem ser esquecidos em DELETE /api/transfers/rejections). */
+    public record SuggestionList(List<Suggestion> items, long rejected) {
     }
 }

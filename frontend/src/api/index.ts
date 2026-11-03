@@ -25,7 +25,7 @@ import type {
   TransactionPage,
   Transfer,
   TransferInput,
-  TransferSuggestion,
+  TransferSuggestionList,
   User,
 } from './types'
 
@@ -100,7 +100,11 @@ export const transfersApi = {
   create: (input: TransferInput) => api<Transfer>('/api/transfers', { method: 'POST', body: input }),
   link: (transactionId: number, otherTransactionId: number) =>
     api<Transfer>('/api/transfers/link', { method: 'POST', body: { transactionId, otherTransactionId } }),
-  suggestions: () => api<{ items: TransferSuggestion[] }>('/api/transfers/suggestions'),
+  suggestions: () => api<TransferSuggestionList>('/api/transfers/suggestions'),
+  /** "Não é transferência". Entre duas contas recorrentes a recusa vale para todos os meses (recurring: true). */
+  reject: (transactionId: number, otherTransactionId: number) =>
+    api<{ recurring: boolean }>('/api/transfers/reject', { method: 'POST', body: { transactionId, otherTransactionId } }),
+  forgetRejections: () => api<void>('/api/transfers/rejections', { method: 'DELETE' }),
   unlink: (id: number) => api<void>(`/api/transfers/${id}`, { method: 'DELETE' }),
 }
 

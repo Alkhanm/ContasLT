@@ -282,6 +282,12 @@ export interface TransferSuggestion {
   score: number
 }
 
+/** rejected: pares já recusados ("não é transferência"); podem ser esquecidos. */
+export interface TransferSuggestionList {
+  items: TransferSuggestion[]
+  rejected: number
+}
+
 export interface RecurringBill {
   id: number
   description: string
