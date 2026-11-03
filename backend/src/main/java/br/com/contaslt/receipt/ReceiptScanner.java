@@ -27,8 +27,9 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Lê um comprovante (foto de cupom fiscal, NFC-e, recibo) com um modelo de visão servido pelo Ollama,
- * pedindo a resposta em JSON com esquema fixo (structured outputs).
+ * Lê um comprovante (foto de cupom fiscal, NFC-e, recibo) com um modelo de visão, pedindo a resposta em JSON com
+ * esquema fixo (structured outputs). O modelo vem do Ollama local ({@code app.receipts.provider=ollama}) ou de uma
+ * API compatível com OpenAI ({@code openai}: OpenAI, Gemini, Groq, OpenRouter...); {@code none} desliga a leitura.
  */
 @Component
 public class ReceiptScanner {
@@ -66,8 +67,22 @@ public class ReceiptScanner {
     }
 
     public ReceiptScan scan(byte[] image) {
+        return switch (provider()) {
+            case NONE -> throw new BusinessException("A leitura de comprovantes não está disponível neste servidor.");
+            case OLLAMA -> parse(askOllama(image));
+            case OPENAI -> parse(askOpenAi(image));
+        };
+    }
+
+    private AppProperties.Receipts.Provider provider() {
+        return props.receipts() == null ? AppProperties.Receipts.Provider.OLLAMA : props.receipts().providerOrDefault();
+    }
+
+    /** Ollama nativo ({@code /api/chat}): aceita imagens em base64 e o esquema JSON direto em {@code format}. */
+    private String askOllama(byte[] image) {
+        AppProperties.Ollama cfg = props.ollama();
         ObjectNode body = json.createObjectNode();
-        body.put("model", props.ollama().model());
+        body.put("model", cfg.model());
         body.put("stream", false);
         body.put("think", false);
         body.set("format", schema());
@@ -77,28 +92,73 @@ public class ReceiptScanner {
         message.put("content", PROMPT);
         message.putArray("images").add(Base64.getEncoder().encodeToString(image));
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(props.ollama().url() + "/api/chat"))
-            .timeout(props.ollama().timeout())
+        HttpRequest request = HttpRequest.newBuilder(URI.create(cfg.url() + "/api/chat"))
+            .timeout(cfg.timeout())
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
             .build();
-        HttpResponse<String> response;
+        HttpResponse<String> response = send(request, "Ollama", cfg.url());
+        if (response.statusCode() >= 300) {
+            log.warn("Ollama respondeu {}: {}", response.statusCode(), response.body());
+            throw new BusinessException("O leitor de comprovantes falhou (" + response.statusCode()
+                + "). Confira se o modelo " + cfg.model() + " está instalado.");
+        }
+        return json.readTree(response.body()).path("message").path("content").asString();
+    }
+
+    /** Chat Completions compatível com OpenAI: imagem como data URL e esquema em {@code response_format}. */
+    private String askOpenAi(byte[] image) {
+        AppProperties.OpenAi cfg = props.openai();
+        if (cfg == null || cfg.apiKey() == null || cfg.apiKey().isBlank()) {
+            throw new BusinessException("O leitor de comprovantes não está configurado neste servidor (falta a chave da API).");
+        }
+        ObjectNode body = json.createObjectNode();
+        body.put("model", cfg.model());
+        body.put("temperature", 0.1);
+        ObjectNode format = body.putObject("response_format");
+        format.put("type", "json_schema");
+        ObjectNode jsonSchema = format.putObject("json_schema");
+        jsonSchema.put("name", "receipt");
+        jsonSchema.set("schema", schema());
+        ObjectNode message = body.putArray("messages").addObject();
+        message.put("role", "user");
+        ArrayNode content = message.putArray("content");
+        content.addObject().put("type", "text").put("text", PROMPT);
+        content.addObject().put("type", "image_url").putObject("image_url")
+            .put("url", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(image));
+
+        String base = cfg.url().replaceAll("/+$", "");
+        HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/chat/completions"))
+            .timeout(cfg.timeout())
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + cfg.apiKey())
+            .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
+            .build();
+        HttpResponse<String> response = send(request, "API de visão", base);
+        if (response.statusCode() >= 300) {
+            log.warn("API de visão ({}) respondeu {}: {}", base, response.statusCode(), response.body());
+            throw new BusinessException("O leitor de comprovantes falhou (" + response.statusCode() + "). Tente de novo em instantes.");
+        }
+        JsonNode choice = json.readTree(response.body()).path("choices").path(0).path("message").path("content");
+        // Alguns provedores devolvem o conteúdo como lista de partes em vez de string.
+        if (choice.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            choice.forEach(part -> sb.append(part.path("text").asString("")));
+            return sb.toString();
+        }
+        return choice.asString();
+    }
+
+    private HttpResponse<String> send(HttpRequest request, String who, String url) {
         try {
-            response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            return http.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {
-            log.warn("Ollama indisponível em {}: {}", props.ollama().url(), e.toString());
-            throw new BusinessException("O leitor de comprovantes (Ollama) não respondeu. Verifique se ele está rodando.");
+            log.warn("{} indisponível em {}: {}", who, url, e.toString());
+            throw new BusinessException("O leitor de comprovantes (" + who + ") não respondeu. Tente de novo em instantes.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Leitura do comprovante interrompida");
         }
-        if (response.statusCode() >= 300) {
-            log.warn("Ollama respondeu {}: {}", response.statusCode(), response.body());
-            throw new BusinessException("O leitor de comprovantes falhou (" + response.statusCode()
-                + "). Confira se o modelo " + props.ollama().model() + " está instalado.");
-        }
-        JsonNode content = json.readTree(response.body()).path("message").path("content");
-        return parse(content.asString());
     }
 
     /** Converte a resposta JSON do modelo no registro tipado, tolerando campos ausentes ou mal formatados. */

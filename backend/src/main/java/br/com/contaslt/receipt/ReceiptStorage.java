@@ -7,7 +7,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,22 +17,34 @@ import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.MemoryCacheImageOutputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.config.AppProperties;
 
-/** Guarda as imagens dos comprovantes em disco, já reduzidas a um tamanho bom para leitura e exibição. */
+/**
+ * Guarda as imagens dos comprovantes já reduzidas a um tamanho bom para leitura e exibição.
+ * Em disco local por padrão; no Supabase Storage quando {@code app.storage.supabase.url} está definida
+ * (o sistema de arquivos do Railway não sobrevive a um deploy).
+ */
 @Component
 public class ReceiptStorage {
+
+    private static final Logger log = LoggerFactory.getLogger(ReceiptStorage.class);
 
     /** Lado maior máximo da imagem guardada; suficiente para o modelo ler o cupom e leve para o celular. */
     static final int MAX_SIDE = 1600;
 
-    private final Path dir;
+    private final ReceiptBlobStore store;
 
     public ReceiptStorage(AppProperties props) {
-        this.dir = Path.of(props.storage().dir(), "receipts");
+        AppProperties.Storage cfg = props.storage();
+        this.store = cfg.usesSupabase()
+            ? new SupabaseBlobStore(cfg.supabase().url(), cfg.supabase().key(), cfg.supabase().bucket())
+            : new LocalBlobStore(Path.of(cfg.dir(), "receipts"));
+        log.info("Comprovantes guardados em: {}", store);
     }
 
     /** Normaliza (JPEG, no máximo {@link #MAX_SIDE}px) e grava. Retorna o nome do arquivo, prefixado pelo usuário. */
@@ -41,9 +52,9 @@ public class ReceiptStorage {
         byte[] jpeg = toJpeg(image);
         String name = "u" + userId + "-" + UUID.randomUUID() + ".jpg";
         try {
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(name), jpeg);
+            store.put(name, jpeg);
         } catch (IOException e) {
+            log.warn("Falha ao guardar o comprovante {}: {}", name, e.toString());
             throw new BusinessException("Não foi possível guardar a imagem do comprovante");
         }
         return new Stored(name, jpeg);
@@ -53,10 +64,10 @@ public class ReceiptStorage {
         if (!ownedBy(userId, name)) {
             return Optional.empty();
         }
-        Path file = dir.resolve(name);
         try {
-            return Files.exists(file) ? Optional.of(Files.readAllBytes(file)) : Optional.empty();
+            return store.get(name);
         } catch (IOException e) {
+            log.warn("Falha ao ler o comprovante {}: {}", name, e.toString());
             return Optional.empty();
         }
     }

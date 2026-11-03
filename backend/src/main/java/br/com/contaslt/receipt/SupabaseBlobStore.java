@@ -1,0 +1,110 @@
+package br.com.contaslt.receipt;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Comprovantes num bucket privado do Supabase Storage, pela API REST ({@code /storage/v1}) com a chave
+ * {@code service_role}: o backend é o único cliente, então não há política RLS a configurar.
+ * O bucket é criado na primeira gravação, se ainda não existir.
+ */
+final class SupabaseBlobStore implements ReceiptBlobStore {
+
+    private static final Logger log = LoggerFactory.getLogger(SupabaseBlobStore.class);
+
+    private final String base;
+    private final String key;
+    private final String bucket;
+    private final HttpClient http;
+
+    SupabaseBlobStore(String projectUrl, String key, String bucket) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException("SUPABASE_SERVICE_KEY é obrigatória quando SUPABASE_URL está definida");
+        }
+        String url = projectUrl.replaceAll("/+$", "");
+        this.base = url.endsWith("/storage/v1") ? url : url + "/storage/v1";
+        this.key = key;
+        this.bucket = bucket == null || bucket.isBlank() ? "receipts" : bucket;
+        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    }
+
+    @Override
+    public void put(String name, byte[] bytes) throws IOException {
+        HttpResponse<String> r = send(upload(name, bytes));
+        if (r.statusCode() == 404 && r.body().contains("Bucket not found")) {
+            createBucket();
+            r = send(upload(name, bytes));
+        }
+        if (r.statusCode() >= 300) {
+            throw new IOException("Supabase Storage respondeu " + r.statusCode() + " ao gravar " + name + ": " + r.body());
+        }
+    }
+
+    @Override
+    public Optional<byte[]> get(String name) throws IOException {
+        HttpRequest req = request("/object/authenticated/" + bucket + "/" + name).GET().build();
+        HttpResponse<byte[]> r;
+        try {
+            r = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Leitura interrompida", e);
+        }
+        if (r.statusCode() == 200) {
+            return Optional.of(r.body());
+        }
+        if (r.statusCode() == 404 || r.statusCode() == 400) {
+            return Optional.empty();
+        }
+        throw new IOException("Supabase Storage respondeu " + r.statusCode() + " ao ler " + name);
+    }
+
+    private HttpRequest upload(String name, byte[] bytes) {
+        return request("/object/" + bucket + "/" + name)
+            .header("Content-Type", "image/jpeg")
+            .header("x-upsert", "false")
+            .POST(HttpRequest.BodyPublishers.ofByteArray(bytes))
+            .build();
+    }
+
+    private void createBucket() throws IOException {
+        String body = "{\"id\":\"" + bucket + "\",\"name\":\"" + bucket + "\",\"public\":false}";
+        HttpResponse<String> r = send(request("/bucket")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build());
+        if (r.statusCode() >= 300 && r.statusCode() != 409) {
+            throw new IOException("Não foi possível criar o bucket " + bucket + " (" + r.statusCode() + "): " + r.body());
+        }
+        log.info("Bucket {} criado no Supabase Storage", bucket);
+    }
+
+    private HttpRequest.Builder request(String path) {
+        return HttpRequest.newBuilder(URI.create(base + path))
+            .timeout(Duration.ofSeconds(30))
+            .header("Authorization", "Bearer " + key)
+            .header("apikey", key);
+    }
+
+    private HttpResponse<String> send(HttpRequest req) throws IOException {
+        try {
+            return http.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Gravação interrompida", e);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "Supabase Storage " + base + " (bucket " + bucket + ")";
+    }
+}

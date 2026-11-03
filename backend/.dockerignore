@@ -1,0 +1,12 @@
+target/
+.vite/
+.idea/
+.vscode/
+*.iml
+*.log
+.git/
+.gitignore
+.gitattributes
+mvnw
+mvnw.cmd
+.mvn/

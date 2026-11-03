@@ -62,17 +62,85 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 |---|---|---|
 | `DB_URL` | `jdbc:postgresql://localhost:5432/contaslt` | JDBC do PostgreSQL |
 | `DB_USER` / `DB_PASSWORD` | `contaslt` / `contaslt` | Credenciais do banco |
-| `JWT_SECRET` | chave de desenvolvimento | **Troque em produção** (mínimo 32 bytes) |
+| `DB_POOL_MAX` / `DB_POOL_MIN` | `4` / `1` | Tamanho do pool de conexões (pequeno de propósito: pooler do Supabase) |
+| `JWT_SECRET` | chave de desenvolvimento | **Obrigatória no profile `prod`** (mínimo 32 bytes) |
 | `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
-| `CORS_ORIGINS` | `http://localhost:[*]`, redes locais (`192.168.*`, `10.*`, `172.*`) e Tailscale (`100.*`), qualquer porta | Origens permitidas (padrões com `*` no host e `[*]` na porta) |
-| `PORT` | `8080` | Porta HTTP |
+| `CORS_ORIGINS` | `http://localhost:[*]`, redes locais (`192.168.*`, `10.*`, `172.*`) e Tailscale (`100.*`), qualquer porta | Origens permitidas (padrões com `*` no host e `[*]` na porta). **Obrigatória no profile `prod`** |
+| `PORT` | `8080` | Porta HTTP (o Railway injeta a dele) |
+| `TOMCAT_THREADS` | `16` | Threads de requisição |
 | `SPA_DIR` | vazio | Pasta com o build do frontend (`frontend/dist`); quando informada, o backend serve o frontend e devolve `index.html` para as rotas da aplicação |
+| `RECEIPT_PROVIDER` | `ollama` (`none` no profile `prod`) | Quem lê os comprovantes: `ollama` (local), `openai` (API compatível com OpenAI) ou `none` (recurso desligado; o botão "Ler comprovante" responde com um aviso) |
 | `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
 | `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
 | `OLLAMA_TIMEOUT` | `PT3M` | Tempo máximo de uma leitura |
-| `STORAGE_DIR` | `./data` | Pasta das imagens de comprovantes (`receipts/`) |
+| `OPENAI_URL` | `https://api.openai.com/v1` | Base da API compatível com OpenAI. Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`; Groq: `https://api.groq.com/openai/v1`; OpenRouter: `https://openrouter.ai/api/v1` |
+| `OPENAI_API_KEY` | vazio | Chave da API (obrigatória com `RECEIPT_PROVIDER=openai`) |
+| `OPENAI_MODEL` | `gpt-4.1-mini` | Modelo com visão e *structured outputs* (ex.: `gemini-2.5-flash` no Gemini) |
+| `OPENAI_TIMEOUT` | `PT2M` | Tempo máximo de uma leitura |
+| `STORAGE_DIR` | `./data` | Pasta das imagens de comprovantes (`receipts/`), quando não há Supabase |
+| `SUPABASE_URL` | vazio | URL do projeto Supabase (`https://<ref>.supabase.co`). Definida, os comprovantes vão para um bucket privado do Supabase Storage em vez do disco |
+| `SUPABASE_SERVICE_KEY` | vazio | Chave `service_role` do projeto (o backend é o único cliente do bucket) |
+| `SUPABASE_BUCKET` | `receipts` | Nome do bucket (criado na primeira gravação, se não existir) |
+| `SPRING_PROFILES_ACTIVE` | vazio | `prod` em produção: exige `JWT_SECRET` e `CORS_ORIGINS`, desliga o Ollama por padrão e esconde mensagens internas de erro |
 
-No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem).
+No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem). O build de produção lê `frontend/.env.production`.
+
+## Deploy (Railway + Supabase + Firebase Hosting)
+
+Mesmo arranjo do Fimagion: o backend roda num container no **Railway** (plano pequeno: 0,5 vCPU e 1 GB), o banco e as imagens de comprovantes ficam no **Supabase** (Postgres + Storage) e o frontend é servido pelo **Firebase Hosting**. O browser fala com o backend direto, de outra origem, com o token JWT no header (não há cookie, então não há configuração de SameSite).
+
+### 1. Supabase
+
+1. Crie o projeto (região `South America (São Paulo)`), anote a senha do banco.
+2. **Banco:** em *Connect* copie os dados do **Session pooler** (porta `5432`, host `aws-0-sa-east-1.pooler.supabase.com`, usuário `postgres.<ref>`). Use o pooler, e não a conexão direta: a direta só tem IPv6 no plano gratuito e o Railway sai por IPv4. O modo *session* é necessário porque o driver JDBC usa *prepared statements* (o modo *transaction*, porta `6543`, quebra isso). O Flyway cria as tabelas no schema `public` na primeira subida.
+3. **Storage:** nada a fazer; o backend cria o bucket privado `receipts` na primeira foto. A chave `service_role` está em *Project Settings › API*.
+
+### 2. Railway (backend)
+
+1. *New Project › Deploy from GitHub repo*, escolha este repositório e, no serviço, defina **Settings › Source › Root Directory = `backend`**. O Railway encontra o `Dockerfile` e o `railway.json` (healthcheck em `/actuator/health`) nessa pasta e só refaz o deploy quando algo em `backend/` muda.
+2. *Settings › Networking › Generate Domain* para ter a URL pública (ex.: `https://contaslt-production.up.railway.app`).
+3. *Variables*:
+
+```
+SPRING_PROFILES_ACTIVE=prod
+DB_URL=jdbc:postgresql://aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+DB_USER=postgres.<ref>
+DB_PASSWORD=<senha do banco>
+JWT_SECRET=<openssl rand -base64 48>
+CORS_ORIGINS=https://contaslt.web.app,https://contaslt.firebaseapp.com
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_SERVICE_KEY=<service_role>
+# Leitura de comprovantes (opcional; sem isso o recurso fica desligado):
+RECEIPT_PROVIDER=openai
+OPENAI_API_KEY=<chave>
+# OPENAI_URL=https://generativelanguage.googleapis.com/v1beta/openai   (Gemini, tem cota gratuita)
+# OPENAI_MODEL=gemini-2.5-flash
+```
+
+A imagem já vem com a JVM ajustada para 1 GB (`JAVA_TOOL_OPTIONS` no `Dockerfile`: heap em 60% da memória, SerialGC, só o compilador C1, arquivo CDS gerado no build). Para mudar, sobrescreva `JAVA_TOOL_OPTIONS` nas variáveis. A subida leva cerca de um minuto nesse tamanho de máquina; o healthcheck espera até 5.
+
+Para testar a imagem localmente, simulando a máquina do Railway:
+
+```bash
+cd backend && docker build -t contaslt-backend .
+docker run --rm --network host --memory 1g --cpus 0.5 -e PORT=8590 -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=$(openssl rand -base64 48) -e CORS_ORIGINS='http://localhost:[*]' contaslt-backend
+```
+
+### 3. Firebase Hosting (frontend)
+
+1. Crie o projeto `contaslt` no [console do Firebase](https://console.firebase.google.com) (ou `firebase projects:create contaslt`); se o id já estiver tomado, troque em `frontend/.firebaserc` e no workflow.
+2. Coloque a URL do Railway em `frontend/.env.production` (`VITE_API_URL`, sem barra no fim) e os domínios do Hosting em `CORS_ORIGINS` no Railway.
+3. Primeiro deploy à mão: `cd frontend && firebase login && firebase deploy --only hosting` (o `predeploy` do `firebase.json` roda o build).
+4. Deploy automático: `firebase init hosting:github` cria a service account e grava o secret no repositório; o workflow `.github/workflows/firebase-hosting.yml` já espera o nome `FIREBASE_SERVICE_ACCOUNT_CONTASLT` e publica a cada push na `main` que mexa em `frontend/`. Pode descartar os workflows que o `init` gerar.
+
+O `firebase.json` devolve `index.html` para as rotas do Vue Router e põe cache longo nos assets com hash e `no-cache` em `index.html`, `sw.js` e no manifesto, para a PWA atualizar sozinha.
+
+### O que muda em relação ao uso local
+
+- Comprovantes: no Railway o disco não sobrevive ao deploy, por isso o Supabase Storage. Sem `SUPABASE_URL` o backend continua gravando em `STORAGE_DIR` (uso local ou um *volume* do Railway montado nessa pasta).
+- Leitura de comprovantes: não há Ollama no servidor. `RECEIPT_PROVIDER=openai` usa qualquer API de chat compatível com OpenAI que aceite imagem e `response_format` com JSON Schema; `none` deixa só o botão respondendo "não disponível".
+- CI: `.github/workflows/ci.yml` roda `mvnw test` (H2) e `npm run build` em cada push/PR.
 
 ## Como funciona
 

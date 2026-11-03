@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'contaslt.token'
-const BASE = import.meta.env.VITE_API_URL ?? ''
+// Sem barra no fim: os caminhos já começam com /api.
+const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
 
 export class ApiError extends Error {
   status: number
