@@ -94,12 +94,20 @@ function safeJson(text: string): Record<string, unknown> | null {
   }
 }
 
-/** Baixa um recurso binário autenticado (ex.: imagem de comprovante) e devolve uma URL de objeto. */
-export async function apiObjectUrl(path: string): Promise<string> {
+/** Baixa um recurso binário autenticado (imagem, zip). */
+export async function apiBlob(path: string, what = 'o arquivo'): Promise<Blob> {
   const headers: Record<string, string> = {}
   const token = tokenStorage.get()
   if (token) headers.Authorization = `Bearer ${token}`
   const response = await fetch(BASE + path, { headers })
-  if (!response.ok) throw new ApiError(response.status, 'Não foi possível carregar a imagem')
-  return URL.createObjectURL(await response.blob())
+  if (!response.ok) {
+    const data = safeJson(await response.text().catch(() => ''))
+    throw new ApiError(response.status, (data?.detail as string) || `Não foi possível carregar ${what}`)
+  }
+  return response.blob()
+}
+
+/** Baixa um recurso binário autenticado (ex.: imagem de comprovante) e devolve uma URL de objeto. */
+export async function apiObjectUrl(path: string): Promise<string> {
+  return URL.createObjectURL(await apiBlob(path, 'a imagem'))
 }

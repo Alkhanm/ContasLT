@@ -17,8 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.category.CategoryRepository;
 import br.com.contaslt.common.BusinessException;
-import br.com.contaslt.common.ForbiddenException;
-import br.com.contaslt.config.AppProperties;
+import br.com.contaslt.user.PremiumGuard;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.imports.CategoryRuleRepository;
@@ -53,26 +52,21 @@ public class ReceiptJobService {
     private final ReceiptScanner scanner;
     private final CategoryRepository categories;
     private final CategoryRuleRepository rules;
-    private final boolean requirePremium;
+    private final PremiumGuard premium;
 
     public ReceiptJobService(ReceiptJobRepository jobs, ReceiptStorage storage, ReceiptScanner scanner,
-            CategoryRepository categories, CategoryRuleRepository rules, AppProperties props) {
+            CategoryRepository categories, CategoryRuleRepository rules, PremiumGuard premium) {
         this.jobs = jobs;
         this.storage = storage;
         this.scanner = scanner;
         this.categories = categories;
         this.rules = rules;
-        this.requirePremium = props.receipts() == null || props.receipts().requirePremiumOrDefault();
+        this.premium = premium;
     }
 
-    /**
-     * A leitura de comprovantes gasta a GPU do dono do app: só usuários marcados como premium no banco podem
-     * enfileirar fotos (403 para os demais). Vale para o envio e para o "tentar de novo".
-     */
+    /** A leitura gasta a GPU do dono do app: só premium enfileira fotos (envio e "tentar de novo"). */
     public void requirePremium(User user) {
-        if (requirePremium && !user.isPremium()) {
-            throw new ForbiddenException("A leitura de comprovantes não está liberada para a sua conta.");
-        }
+        premium.require(user, "A leitura de comprovantes não está liberada para a sua conta.");
     }
 
     @Transactional

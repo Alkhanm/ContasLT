@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama, OpenAi openai, Storage storage, Spa spa,
-        Worker worker) {
+        Worker worker, Premium premium) {
 
     public record Jwt(String secret, Duration expiration) {
     }
@@ -19,16 +19,18 @@ public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama
      * Quem lê os comprovantes: Ollama local, uma API compatível com OpenAI, o worker do computador do usuário
      * (fila: a foto espera até ele estar ligado), ou ninguém (recurso desligado).
      */
-    public record Receipts(Provider provider, Boolean requirePremium) {
+    public record Receipts(Provider provider) {
         public enum Provider { OLLAMA, OPENAI, WORKER, NONE }
 
         public Provider providerOrDefault() {
             return provider == null ? Provider.OLLAMA : provider;
         }
+    }
 
-        /** Só usuários premium (coluna no banco) podem mandar comprovantes. Padrão: exigir. */
-        public boolean requirePremiumOrDefault() {
-            return requirePremium == null || requirePremium;
+    /** Recursos premium (leitura de comprovantes, backup) só para {@code users.premium}. Padrão: exigir. */
+    public record Premium(Boolean enforce) {
+        public boolean enforceOrDefault() {
+            return enforce == null || enforce;
         }
     }
 

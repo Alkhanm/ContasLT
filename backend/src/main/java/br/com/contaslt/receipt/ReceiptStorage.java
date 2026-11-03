@@ -60,6 +60,14 @@ public class ReceiptStorage {
         return new Stored(name, jpeg);
     }
 
+    /** Grava bytes já prontos (restauração de backup); o nome precisa ter o prefixo do usuário. */
+    public void storeRaw(Long userId, String name, byte[] jpeg) throws IOException {
+        if (!ownedBy(userId, name)) {
+            throw new IllegalArgumentException("Nome de comprovante fora do padrão: " + name);
+        }
+        store.put(name, jpeg);
+    }
+
     public Optional<byte[]> load(Long userId, String name) {
         if (!ownedBy(userId, name)) {
             return Optional.empty();

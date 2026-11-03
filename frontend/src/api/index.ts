@@ -1,8 +1,9 @@
-import { api, apiObjectUrl } from './client'
+import { api, apiBlob, apiObjectUrl } from './client'
 import type {
   Account,
   AccountInput,
   AuthResponse,
+  BackupRestored,
   Category,
   CategoryInput,
   CategoryReport,
@@ -115,6 +116,17 @@ export const receiptsApi = {
   job: (jobId: number, ignoreTransactionId?: number | null) =>
     api<ReceiptScan>(`/api/receipts/jobs/${jobId}`, { query: { ignoreTransactionId } }),
   imageUrl: (file: string) => apiObjectUrl(`/api/receipts/${encodeURIComponent(file)}`),
+}
+
+/** Backup completo (zip com JSON + fotos). Só para contas premium. */
+export const backupApi = {
+  export: () => apiBlob('/api/backup/export', 'o backup'),
+  /** Substitui TODOS os dados do usuário pelos do arquivo. */
+  import: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api<BackupRestored>('/api/backup/import', { method: 'POST', body: form })
+  },
 }
 
 export const rulesApi = {

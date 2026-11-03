@@ -125,6 +125,16 @@ export interface Transaction {
   receiptScanDate: string | null
 }
 
+/** Resultado da restauração de um backup: quantos registros entraram. */
+export interface BackupRestored {
+  accounts: number
+  categories: number
+  recurringBills: number
+  transactions: number
+  transfers: number
+  receipts: number
+}
+
 export type ReceiptScanStatus = 'PENDING' | 'DIVERGENT' | 'FAILED'
 /** ACCEPT usa total e data do cupom; DISMISS mantém o lançado; RETRY manda a foto de novo para a fila. */
 export type ReceiptScanAction = 'ACCEPT' | 'DISMISS' | 'RETRY'

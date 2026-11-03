@@ -27,7 +27,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Só usuários premium (coluna no banco) mandam comprovantes para leitura; os demais recebem 403. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = { "app.receipts.provider=worker", "app.receipts.require-premium=true" })
+@TestPropertySource(properties = { "app.receipts.provider=worker", "app.premium.enforce=true" })
 class PremiumReceiptTest {
 
     @Autowired

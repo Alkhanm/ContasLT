@@ -43,8 +43,8 @@ public final class ReceiptWorker {
         this.ollamaUrl = ollamaUrl.replaceAll("/+$", "");
         this.pollSeconds = pollSeconds;
         AppProperties props = new AppProperties(null, null,
-            new AppProperties.Receipts(AppProperties.Receipts.Provider.OLLAMA, null),
-            new AppProperties.Ollama(this.ollamaUrl, model, timeout), null, null, null, null);
+            new AppProperties.Receipts(AppProperties.Receipts.Provider.OLLAMA),
+            new AppProperties.Ollama(this.ollamaUrl, model, timeout), null, null, null, null, null);
         this.scanner = new ReceiptScanner(props, json);
     }
 

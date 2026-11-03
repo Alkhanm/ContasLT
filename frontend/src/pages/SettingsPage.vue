@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { ChartPie, ChevronRight, LogOut, Monitor, Moon, Plus, ShoppingBasket, Sun, Tag, Trash2, Wallet } from 'lucide-vue-next'
-import { rulesApi } from '@/api'
+import { ChartPie, ChevronRight, Download, LogOut, Monitor, Moon, Plus, ShoppingBasket, Sun, Tag, Trash2, Upload, Wallet } from 'lucide-vue-next'
+import { backupApi, rulesApi } from '@/api'
 import { useRules } from '@/composables/queries'
 import type { CategoryRule } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
+import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import SectionTitle from '@/components/app/SectionTitle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,11 +15,14 @@ import { notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogStore } from '@/stores/catalog'
+import { useUiStore } from '@/stores/ui'
+import { queryClient } from '@/lib/queryClient'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
 
 const auth = useAuthStore()
 const catalog = useCatalogStore()
 const theme = useThemeStore()
+const ui = useUiStore()
 const router = useRouter()
 
 const { data: rulesData, error: rulesError, refetch: loadRules } = useRules()
@@ -36,6 +40,56 @@ const themes: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
 ]
 
 onMounted(() => catalog.load())
+
+// ---------- Backup (premium) ----------
+const backupBusy = ref<'export' | 'import' | null>(null)
+const backupInput = ref<HTMLInputElement | null>(null)
+const backupFile = ref<File | null>(null)
+const confirmRestore = ref(false)
+
+async function exportBackup() {
+  backupBusy.value = 'export'
+  try {
+    const blob = await backupApi.export()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `contaslt-backup-${new Date().toISOString().slice(0, 10)}.zip`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    notifySuccess('Backup gerado')
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    backupBusy.value = null
+  }
+}
+
+function pickBackup(e: Event) {
+  const input = e.target as HTMLInputElement
+  backupFile.value = input.files?.[0] ?? null
+  input.value = ''
+  if (backupFile.value) confirmRestore.value = true
+}
+
+async function restoreBackup() {
+  const file = backupFile.value
+  if (!file) return
+  backupBusy.value = 'import'
+  try {
+    const r = await backupApi.import(file)
+    // Tudo o que estava em cache morreu com a restauração.
+    await queryClient.invalidateQueries()
+    await catalog.load(true)
+    ui.dataChanged()
+    notifySuccess(`Backup restaurado: ${r.transactions} lançamentos, ${r.accounts} contas, ${r.categories} categorias, ${r.receipts} comprovantes`)
+  } catch (err) {
+    notifyError(err)
+  } finally {
+    backupBusy.value = null
+    backupFile.value = null
+  }
+}
 
 async function addRule() {
   if (!keyword.value.trim() || !ruleCategoryId.value) return
@@ -126,6 +180,25 @@ function logout() {
           </RouterLink>
         </li>
       </ul>
+    </section>
+
+    <section v-if="auth.user?.premium">
+      <SectionTitle title="Backup" hint="Um arquivo .zip com tudo: contas, categorias, lançamentos, itens, recorrentes, importações e as fotos dos comprovantes." />
+      <div class="flex flex-wrap gap-2 rounded-2xl border bg-card p-3">
+        <Button variant="outline" :disabled="backupBusy !== null" @click="exportBackup">
+          <Download /> {{ backupBusy === 'export' ? 'Gerando…' : 'Baixar backup' }}
+        </Button>
+        <input ref="backupInput" type="file" accept=".zip,application/zip" class="hidden" @change="pickBackup">
+        <Button variant="outline" :disabled="backupBusy !== null" @click="backupInput?.click()">
+          <Upload /> {{ backupBusy === 'import' ? 'Restaurando…' : 'Restaurar backup' }}
+        </Button>
+        <p class="basis-full text-xs text-muted-foreground">Restaurar substitui todos os dados desta conta pelos do arquivo.</p>
+      </div>
+      <ConfirmDialog
+        v-model:open="confirmRestore" title="Restaurar este backup?"
+        :description="`Tudo o que está nesta conta hoje será apagado e trocado pelo conteúdo de ${backupFile?.name ?? 'arquivo'}. Isso não tem desfazer.`"
+        confirm-label="Substituir tudo" destructive @confirm="restoreBackup"
+      />
     </section>
 
     <section>
