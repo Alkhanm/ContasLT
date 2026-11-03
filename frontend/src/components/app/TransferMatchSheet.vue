@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ArrowDown, ArrowLeftRight, Link2 } from 'lucide-vue-next'
 import { transfersApi } from '@/api'
+import { useTransferSuggestions } from '@/composables/queries'
 import type { TransferSuggestion } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,22 +16,13 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; linked: [] }>()
 
 const items = ref<TransferSuggestion[]>([])
-const loading = ref(false)
 const busy = ref(new Set<number>())
 const linkingAll = ref(false)
 
-async function load() {
-  loading.value = true
-  try {
-    items.value = (await transfersApi.suggestions()).items
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
-
-watch(() => props.open, (open) => { if (open) load() }, { immediate: true })
+const { data, isPending: loading, error } = useTransferSuggestions(() => props.open)
+// Cópia local: cada par vinculado some da lista na hora, antes do cache ser refeito.
+watch(data, (d) => { if (d) items.value = d.items }, { immediate: true })
+watch(error, (err) => { if (err) notifyError(err) })
 
 const key = (s: TransferSuggestion) => s.from.id
 

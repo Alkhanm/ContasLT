@@ -2,8 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeftRight, CalendarCheck, ChevronRight, Wallet } from 'lucide-vue-next'
-import { dashboardApi, transactionsApi } from '@/api'
-import type { CategoryTotal, Dashboard, ReceiptScanAction, Transaction } from '@/api/types'
+import { transactionsApi } from '@/api'
+import { defaultTransactionFilter, prefetchTransactions, useDashboard } from '@/composables/queries'
+import type { CategoryTotal, ReceiptScanAction, Transaction } from '@/api/types'
 import CategoryBars from '@/components/app/CategoryBars.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
 import HistoryChart from '@/components/app/HistoryChart.vue'
@@ -13,31 +14,18 @@ import TransactionRow from '@/components/app/TransactionRow.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { accountTypeLabels } from '@/lib/format'
 import { notifyError, notifySuccess } from '@/lib/notify'
-import { useCatalogStore } from '@/stores/catalog'
 import { usePeriodStore } from '@/stores/period'
 import { useUiStore } from '@/stores/ui'
 
 const period = usePeriodStore()
 const ui = useUiStore()
-const catalog = useCatalogStore()
 const router = useRouter()
 
-const data = ref<Dashboard | null>(null)
-const loading = ref(true)
+const { data, isPending: loading, error, refetch: load } = useDashboard(() => period.month)
 const busyIds = ref(new Set<number>())
-
-async function load() {
-  loading.value = data.value === null || data.value.month !== period.month
-  try {
-    data.value = await dashboardApi.get(period.month)
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
-
-watch([() => period.month, () => ui.dataVersion], load, { immediate: true })
+watch(error, (err) => { if (err) notifyError(err) })
+// A lista do mês é o próximo toque mais comum: já fica no cache enquanto o painel está na tela.
+watch(() => period.month, (month) => prefetchTransactions(defaultTransactionFilter(month)), { immediate: true })
 
 const paidShare = computed(() => {
   if (!data.value || data.value.expense <= 0) return 0
@@ -58,7 +46,8 @@ async function receiptScan(tx: Transaction, action: ReceiptScanAction) {
   try {
     await transactionsApi.receiptScan(tx.id, action)
     notifySuccess(action === 'ACCEPT' ? 'Valor e data do comprovante aplicados' : action === 'RETRY' ? 'Comprovante enviado de novo para leitura' : 'Aviso removido')
-    await Promise.all([load(), catalog.reloadAccounts()])
+    ui.dataChanged()
+    await load()
   } catch (err) {
     notifyError(err)
   } finally {
@@ -71,7 +60,8 @@ async function togglePaid(tx: Transaction) {
   try {
     await transactionsApi.setPaid(tx.id, !tx.paid)
     notifySuccess(tx.paid ? 'Marcado como pendente' : tx.type === 'INCOME' ? 'Marcado como recebido' : 'Marcado como pago')
-    await Promise.all([load(), catalog.reloadAccounts()])
+    ui.dataChanged()
+    await load()
   } catch (err) {
     notifyError(err)
   } finally {

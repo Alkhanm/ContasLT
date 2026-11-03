@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowLeftRight, CheckCircle2, CreditCard, FileSpreadsheet, FileText, Link2, Receipt, Repeat, Trash2, Upload } from 'lucide-vue-next'
 import { importsApi, transfersApi } from '@/api'
+import { useImportHistory } from '@/composables/queries'
 import type { ImportBatch, ImportPreview, ImportResult, PreviewRow } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
@@ -39,23 +40,15 @@ const busy = ref(false)
 const preview = ref<ImportPreview | null>(null)
 const rows = ref<ReviewRow[]>([])
 const result = ref<ImportResult | null>(null)
-const history = ref<ImportBatch[]>([])
+const { data: historyData, refetch: loadHistory } = useImportHistory()
+const history = computed(() => historyData.value ?? [])
 const transferHints = ref(0)
 const toDelete = ref<ImportBatch | null>(null)
 
 onMounted(async () => {
   await catalog.load()
   accountId.value = catalog.activeAccounts[0]?.id ?? null
-  loadHistory()
 })
-
-async function loadHistory() {
-  try {
-    history.value = await importsApi.history()
-  } catch {
-    // histórico é informativo; falha silenciosa
-  }
-}
 
 function pick(e: Event) {
   const input = e.target as HTMLInputElement
@@ -125,8 +118,7 @@ async function confirm() {
         ? `${result.value.imported} importados, ${result.value.invoicePayments} ${result.value.invoicePayments === 1 ? 'pagamento de fatura' : 'pagamentos de fatura'}`
         : `${result.value.imported} lançamentos importados`)
     ui.dataChanged()
-    catalog.reloadAccounts()
-    loadHistory()
+    void loadHistory()
     transfersApi.suggestions().then((r) => { transferHints.value = r.items.length }).catch(() => { transferHints.value = 0 })
   } catch (err) {
     notifyError(err)
@@ -142,8 +134,7 @@ async function removeBatch() {
     const { removed } = await importsApi.remove(target.id)
     notifySuccess(`Importação excluída, ${removed} ${removed === 1 ? 'lançamento removido' : 'lançamentos removidos'}`)
     ui.dataChanged()
-    catalog.reloadAccounts()
-    loadHistory()
+    void loadHistory()
   } catch (err) {
     notifyError(err)
   } finally {

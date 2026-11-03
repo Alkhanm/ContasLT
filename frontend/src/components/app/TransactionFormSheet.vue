@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowLeftRight, Camera, ChevronDown, Clock, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
+import { fetchTransactions } from '@/composables/queries'
 import type { Account, ReceiptScan, ReceiptScanAction, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -294,7 +295,7 @@ watch([() => form.invoiceCardId, () => form.invoiceMonth, () => ui.transactionFo
   invoicePreview.value = null
   if (!open || !id || !month) return
   try {
-    invoicePreview.value = await transactionsApi.list({ month, accountId: id, invoice: true })
+    invoicePreview.value = await fetchTransactions({ month, accountId: id, invoice: true })
   } catch {
     invoicePreview.value = null
   }
@@ -435,7 +436,6 @@ async function save() {
     }
     ui.closeTransactionForm()
     ui.dataChanged()
-    catalog.reloadAccounts()
   } catch (err) {
     errors.value = fieldErrors(err)
     notifyError(err)
@@ -453,7 +453,6 @@ async function remove() {
     confirmDelete.value = false
     ui.closeTransactionForm()
     ui.dataChanged()
-    catalog.reloadAccounts()
   } catch (err) {
     notifyError(err)
   }

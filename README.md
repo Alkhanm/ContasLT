@@ -161,6 +161,7 @@ O `firebase.json` devolve `index.html` para as rotas do Vue Router e põe cache 
 
 - Comprovantes: no Railway o disco não sobrevive ao deploy, por isso o Supabase Storage. Sem `SUPABASE_URL` o backend continua gravando em `STORAGE_DIR` (uso local ou um *volume* do Railway montado nessa pasta).
 - Leitura de comprovantes: não há Ollama no servidor. O padrão em produção é a fila com o worker do seu computador (acima). `RECEIPT_PROVIDER=openai` usa qualquer API de chat compatível com OpenAI que aceite imagem e `response_format` com JSON Schema; `none` deixa só o botão respondendo "não disponível".
+- Cache no frontend (mesmo esquema do Fimagion): toda leitura da API passa pelo TanStack Query com cache persistido no IndexedDB (`frontend/src/lib/queryClient.ts`, `composables/queries.ts`). A tela abre na hora com o que já foi visto, mesmo depois de recarregar ou reabrir a PWA, e o servidor só é consultado em segundo plano quando o dado tem mais de 1 minuto, ao voltar para o app, ou depois de uma gravação (`ui.dataChanged()` invalida tudo o que deriva de lançamentos e recarrega as contas). O logout apaga o cache. Ficam fora do cache as ações (salvar, excluir, importar) e a leitura de comprovante, que precisa mesmo esperar o worker. O service worker não guarda mais respostas da API: com o servidor lento, o NetworkFirst devolvia dado velho como se fosse novo.
 - CI: `.github/workflows/ci.yml` roda `mvnw test` (H2) e `npm run build` em cada push/PR.
 
 ## Como funciona

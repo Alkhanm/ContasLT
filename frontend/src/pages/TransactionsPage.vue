@@ -3,8 +3,9 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import { ArrowLeftRight, CreditCard, ListChecks, Search } from 'lucide-vue-next'
-import { transactionsApi, transfersApi } from '@/api'
-import type { ReceiptScanAction, Transaction, TransactionPage, TransactionType } from '@/api/types'
+import { transactionsApi } from '@/api'
+import { useTransactions, useTransferSuggestions } from '@/composables/queries'
+import type { ReceiptScanAction, Transaction, TransactionFilter, TransactionType } from '@/api/types'
 import AccountSelect from '@/components/app/AccountSelect.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
@@ -46,10 +47,7 @@ const card = computed(() => {
 const byInvoice = ref(route.query.fatura !== '0')
 const invoiceMode = computed(() => !!card.value && byInvoice.value)
 
-const page = ref<TransactionPage | null>(null)
-const loading = ref(true)
 const busyIds = ref(new Set<number>())
-const suggestionCount = ref(0)
 const matchOpen = ref(route.query.cruzar === '1')
 
 const typeOptions: { value: TypeFilter; label: string }[] = [
@@ -59,41 +57,25 @@ const typeOptions: { value: TypeFilter; label: string }[] = [
   { value: 'TRANSFER', label: 'Transfer.' },
 ]
 
-async function load() {
-  loading.value = page.value === null
-  try {
-    page.value = await transactionsApi.list({
-      month: period.month,
-      type: typeFilter.value === 'ALL' || typeFilter.value === 'TRANSFER' ? null : typeFilter.value,
-      transfers: typeFilter.value === 'TRANSFER' ? true : null,
-      paid: status.value === 'all' ? null : status.value === 'pago',
-      accountId: accountId.value,
-      categoryId: categoryId.value,
-      uncategorized: uncategorized.value,
-      search: debouncedSearch.value,
-      invoice: invoiceMode.value,
-    })
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
+const filter = computed<TransactionFilter>(() => ({
+  month: period.month,
+  type: typeFilter.value === 'ALL' || typeFilter.value === 'TRANSFER' ? null : typeFilter.value,
+  transfers: typeFilter.value === 'TRANSFER' ? true : null,
+  paid: status.value === 'all' ? null : status.value === 'pago',
+  accountId: accountId.value,
+  categoryId: categoryId.value,
+  uncategorized: uncategorized.value,
+  search: debouncedSearch.value,
+  invoice: invoiceMode.value,
+}))
+const { data: page, isPending: loading, error, refetch: load } = useTransactions(filter)
+watch(error, (err) => { if (err) notifyError(err) })
 
-watch([() => period.month, () => ui.dataVersion, typeFilter, status, accountId, categoryId, uncategorized, debouncedSearch, invoiceMode], load, { immediate: true })
-
-async function loadSuggestionCount() {
-  try {
-    suggestionCount.value = (await transfersApi.suggestions()).items.length
-  } catch {
-    suggestionCount.value = 0
-  }
-}
-watch(() => ui.dataVersion, loadSuggestionCount, { immediate: true })
+const { data: suggestions } = useTransferSuggestions()
+const suggestionCount = computed(() => suggestions.value?.items.length ?? 0)
 
 function onLinked() {
   ui.dataChanged()
-  catalog.reloadAccounts()
 }
 
 watch(matchOpen, (open) => {
@@ -169,7 +151,8 @@ async function receiptScan(tx: Transaction, action: ReceiptScanAction) {
   try {
     await transactionsApi.receiptScan(tx.id, action)
     notifySuccess(action === 'ACCEPT' ? 'Valor e data do comprovante aplicados' : action === 'RETRY' ? 'Comprovante enviado de novo para leitura' : 'Aviso removido')
-    await Promise.all([load(), catalog.reloadAccounts()])
+    ui.dataChanged()
+    await load()
   } catch (err) {
     notifyError(err)
   } finally {
@@ -182,7 +165,8 @@ async function togglePaid(tx: Transaction) {
   try {
     await transactionsApi.setPaid(tx.id, !tx.paid)
     notifySuccess(tx.paid ? 'Marcado como pendente' : tx.type === 'INCOME' ? 'Marcado como recebido' : 'Marcado como pago')
-    await Promise.all([load(), catalog.reloadAccounts()])
+    ui.dataChanged()
+    await load()
   } catch (err) {
     notifyError(err)
   } finally {

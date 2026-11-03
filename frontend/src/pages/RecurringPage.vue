@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { Plus, Repeat } from 'lucide-vue-next'
 import { recurringApi } from '@/api'
+import { useRecurringBills } from '@/composables/queries'
 import type { RecurringBill } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
@@ -16,21 +17,12 @@ import { notifyError, notifySuccess } from '@/lib/notify'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
-const bills = ref<RecurringBill[]>([])
-const loading = ref(true)
 const formOpen = ref(false)
 const editing = ref<RecurringBill | null>(null)
 
-async function load() {
-  try {
-    bills.value = await recurringApi.list()
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
-watch(() => ui.dataVersion, load, { immediate: true })
+const { data: billsData, isPending: loading, error, refetch: load } = useRecurringBills()
+const bills = computed(() => billsData.value ?? [])
+watch(error, (err) => { if (err) notifyError(err) })
 
 const active = computed(() => bills.value.filter((b) => b.active))
 const inactive = computed(() => bills.value.filter((b) => !b.active))

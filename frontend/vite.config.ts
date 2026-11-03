@@ -28,13 +28,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: /\/api\/(categories|accounts|dashboard|transactions|recurring-bills)/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'contaslt-api', networkTimeoutSeconds: 5, expiration: { maxAgeSeconds: 60 * 60 * 24 } },
-          },
-        ],
+        // Sem cache de API no service worker: o cache de consultas (TanStack Query + IndexedDB) cuida disso, e o
+        // NetworkFirst com timeout devolvia resposta velha como se fosse nova quando o servidor demorava.
+        runtimeCaching: [],
       },
     }),
   ],

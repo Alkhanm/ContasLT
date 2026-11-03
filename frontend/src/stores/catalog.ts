@@ -1,11 +1,15 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { accountsApi, categoriesApi } from '@/api'
 import type { Account, Category } from '@/api/types'
+import { fetchAccounts, fetchCategories } from '@/composables/queries'
 
 const byName = (a: Category, b: Category) => a.name.localeCompare(b.name, 'pt-BR')
 
-/** Contas e categorias do usuário, carregadas uma vez e reutilizadas em formulários e filtros. */
+/**
+ * Contas e categorias do usuário, reutilizadas em formulários e filtros. Espelho reativo do cache de consultas:
+ * a primeira abertura vem do IndexedDB na hora, e o servidor só é consultado quando o dado está velho ou após
+ * uma gravação ({@code reloadAccounts}/{@code reloadCategories}).
+ */
 export const useCatalogStore = defineStore('catalog', () => {
   const accounts = ref<Account[]>([])
   const categories = ref<Category[]>([])
@@ -24,7 +28,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     if (loading.value) return
     loading.value = true
     try {
-      const [a, c] = await Promise.all([accountsApi.list(true), categoriesApi.list(true)])
+      const [a, c] = await Promise.all([fetchAccounts(force), fetchCategories(force)])
       accounts.value = a
       categories.value = c
       loaded.value = true
@@ -34,11 +38,11 @@ export const useCatalogStore = defineStore('catalog', () => {
   }
 
   async function reloadAccounts() {
-    accounts.value = await accountsApi.list(true)
+    accounts.value = await fetchAccounts(true)
   }
 
   async function reloadCategories() {
-    categories.value = await categoriesApi.list(true)
+    categories.value = await fetchCategories(true)
   }
 
   function account(id: number | null | undefined) {

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { authApi } from '@/api'
 import { tokenStorage } from '@/api/client'
 import type { AuthResponse, User } from '@/api/types'
+import { clearPersistedCache, queryClient } from '@/lib/queryClient'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(tokenStorage.get())
@@ -26,7 +27,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function loadUser() {
     if (!token.value || user.value) return
     try {
-      user.value = await authApi.me()
+      // Pelo cache: abrir a PWA não precisa esperar o servidor só para saber o nome do usuário. Um token
+      // inválido é descoberto na primeira chamada real (401 dispara o evento contaslt:unauthorized).
+      user.value = await queryClient.fetchQuery({ queryKey: ['me'], queryFn: () => authApi.me(), staleTime: 10 * 60_000 })
     } catch {
       // 401 já é tratado pelo cliente (evento contaslt:unauthorized)
     }
@@ -36,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     tokenStorage.set(null)
+    void clearPersistedCache()
   }
 
   return { token, user, isAuthenticated, login, register, loadUser, logout }

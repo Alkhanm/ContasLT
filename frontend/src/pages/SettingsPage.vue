@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { ChartPie, ChevronRight, LogOut, Monitor, Moon, Plus, ShoppingBasket, Sun, Tag, Trash2, Wallet } from 'lucide-vue-next'
 import { rulesApi } from '@/api'
+import { useRules } from '@/composables/queries'
 import type { CategoryRule } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
@@ -20,7 +21,9 @@ const catalog = useCatalogStore()
 const theme = useThemeStore()
 const router = useRouter()
 
-const rules = ref<CategoryRule[]>([])
+const { data: rulesData, error: rulesError, refetch: loadRules } = useRules()
+const rules = computed(() => rulesData.value ?? [])
+watch(rulesError, (err) => { if (err) notifyError(err) })
 const keyword = ref('')
 const ruleCategoryId = ref<number | null>(null)
 const ruleType = ref<'EXPENSE' | 'INCOME'>('EXPENSE')
@@ -32,18 +35,7 @@ const themes: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Sistema', icon: Monitor },
 ]
 
-onMounted(async () => {
-  await catalog.load()
-  loadRules()
-})
-
-async function loadRules() {
-  try {
-    rules.value = await rulesApi.list()
-  } catch (err) {
-    notifyError(err)
-  }
-}
+onMounted(() => catalog.load())
 
 async function addRule() {
   if (!keyword.value.trim() || !ruleCategoryId.value) return
@@ -63,7 +55,7 @@ async function addRule() {
 async function removeRule(r: CategoryRule) {
   try {
     await rulesApi.remove(r.id)
-    rules.value = rules.value.filter((x) => x.id !== r.id)
+    void loadRules()
   } catch (err) {
     notifyError(err)
   }

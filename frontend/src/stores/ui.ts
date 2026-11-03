@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { Transaction, TransactionType } from '@/api/types'
+import { invalidateData } from '@/composables/queries'
+import { useCatalogStore } from './catalog'
 
 export interface TransactionFormDefaults {
   type?: TransactionType
@@ -66,8 +68,12 @@ export const useUiStore = defineStore('ui', () => {
     recurringFromTransaction.value = null
   }
 
+  /** Depois de qualquer gravação: invalida o cache de consultas (as telas abertas refazem em segundo plano) e
+   *  recarrega as contas, cujos saldos mudam com quase tudo. */
   function dataChanged() {
     dataVersion.value++
+    invalidateData()
+    void useCatalogStore().reloadAccounts()
   }
 
   return {

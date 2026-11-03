@@ -2,8 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChartPie, ChevronDown, ChevronRight, TrendingDown, TrendingUp } from 'lucide-vue-next'
-import { reportsApi } from '@/api'
-import type { CategoryReport, CategorySpending } from '@/api/types'
+import { useCategoryReport } from '@/composables/queries'
+import type { CategorySpending } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
 import Money from '@/components/app/Money.vue'
@@ -12,27 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { notifyError } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { usePeriodStore } from '@/stores/period'
-import { useUiStore } from '@/stores/ui'
 
 const period = usePeriodStore()
-const ui = useUiStore()
 
-const data = ref<CategoryReport | null>(null)
-const loading = ref(true)
+const { data, isPending: loading, error } = useCategoryReport(() => period.month)
 const expanded = ref(new Set<string>())
-
-async function load() {
-  loading.value = data.value === null || data.value.month !== period.month
-  try {
-    data.value = await reportsApi.categories(period.month)
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
-
-watch([() => period.month, () => ui.dataVersion], load, { immediate: true })
+watch(error, (err) => { if (err) notifyError(err) })
 
 function keyOf(item: CategorySpending) {
   return String(item.categoryId ?? 'none')

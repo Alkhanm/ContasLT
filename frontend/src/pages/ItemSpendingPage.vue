@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ChevronDown, Minus, Search, ShoppingBasket, TrendingDown, TrendingUp } from 'lucide-vue-next'
-import { reportsApi } from '@/api'
-import type { ItemReport, ItemSpending } from '@/api/types'
+import { useItemReport } from '@/composables/queries'
+import type { ItemSpending } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
 import CategorySelect from '@/components/app/CategorySelect.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
@@ -15,9 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { currentMonth, dateShort, money, moneyPlain, shiftMonth } from '@/lib/format'
 import { notifyError } from '@/lib/notify'
 import { cn } from '@/lib/utils'
-import { useUiStore } from '@/stores/ui'
 
-const ui = useUiStore()
 
 type RangeKey = '3' | '6' | '12' | '24' | 'all'
 type SortKey = 'total' | 'count' | 'up' | 'down' | 'name'
@@ -27,8 +25,6 @@ const categoryId = ref<number | null>(null)
 const search = ref('')
 const sort = ref<SortKey>('total')
 
-const data = ref<ItemReport | null>(null)
-const loading = ref(true)
 const expanded = ref(new Set<string>())
 
 const rangeOptions: { value: RangeKey; label: string }[] = [
@@ -46,20 +42,13 @@ const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'name', label: 'Nome' },
 ]
 
-async function load() {
-  loading.value = true
+const params = computed(() => {
   const to = currentMonth()
   const from = range.value === 'all' ? '2000-01' : shiftMonth(to, -(Number(range.value) - 1))
-  try {
-    data.value = await reportsApi.items({ from, to, categoryId: categoryId.value })
-  } catch (err) {
-    notifyError(err)
-  } finally {
-    loading.value = false
-  }
-}
-
-watch([range, categoryId, () => ui.dataVersion], load, { immediate: true })
+  return { from, to, categoryId: categoryId.value }
+})
+const { data, isPending: loading, error } = useItemReport(params)
+watch(error, (err) => { if (err) notifyError(err) })
 
 /** Variação do preço unitário entre a primeira e a última compra, em %, ou null sem base. */
 function priceChange(item: ItemSpending) {
