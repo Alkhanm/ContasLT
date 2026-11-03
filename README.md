@@ -155,11 +155,11 @@ UPDATE users SET premium = TRUE WHERE email = 'voce@exemplo.com';
 
 Quem não tem a marca recebe 403 em `POST /api/receipts/scan` e no "tentar de novo", e o botão "Ler comprovante" nem aparece (o app lê `premium` em `/api/auth/me`; esse dado fica em cache por 10 minutos, então saia e entre de novo depois de mudar no banco). No uso local, `PREMIUM_ENFORCE=false` no `.env` libera para todos.
 
-### Backup completo (premium)
+### Exportar e importar os dados (premium)
 
-Em **Mais › Backup**: "Baixar backup" gera um `.zip` com `contaslt.json` (todas as tabelas do usuário com os ids originais: contas, categorias, regras, recorrentes, importações, lançamentos com itens e transferências) e a pasta `receipts/` com as fotos dos comprovantes. "Restaurar backup" **substitui tudo** o que a conta tem pelo conteúdo do arquivo, remapeando ids e renomeando as fotos para o usuário atual, então o mesmo arquivo serve para migrar entre contas ou entre o uso local e o Railway. A restauração entra em lotes de 500 linhas por ida ao banco. As fotos antigas que ficaram sem lançamento não são apagadas do storage. Rotas: `GET /api/backup/export` e `POST /api/backup/import` (multipart `file`, até 300 MB).
+Em **Mais › Exportar e importar**: "Exportar dados" gera um `.zip` com `contaslt.json` e a pasta `receipts/` (fotos dos comprovantes). Só vai o que é do usuário logado: contas, categorias, regras, recorrentes e lançamentos com itens e transferências. Não é um dump do banco: o arquivo não tem ids; conta e categoria aparecem pelo nome ("Pai › Filha"), e o par de uma transferência e a regra recorrente de uma ocorrência são posições dentro do próprio arquivo.
 
-O worker é o mesmo jar do backend rodando com `--worker` (sem Spring, sem banco, ~150 MB de RAM). Variáveis: `CONTASLT_URL`, `WORKER_TOKEN`, `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` e `WORKER_POLL` (segundos entre consultas, padrão 10). Ele não pega tarefas enquanto o Ollama não responde, e uma tarefa reservada que não voltar em 5 minutos volta para a fila. `./install.sh --worker --uninstall` remove o serviço.
+"Importar dados" **soma** ao que a conta já tem: contas e categorias são casadas pelo nome (e criadas se faltarem), regras pela palavra-chave, recorrentes por descrição + tipo + frequência + data inicial + valor, e um lançamento é pulado se já existir um igual (mesma conta, data, tipo, valor e descrição, ou o mesmo identificador de extrato na conta, ou a mesma ocorrência da recorrente). Importar o mesmo arquivo duas vezes não duplica nada; importar depois de apagar algo por engano repõe só o que faltava. Transferências só são religadas quando as duas pernas entram juntas. Fotos entram renomeadas para o usuário atual. Rotas: `GET /api/backup/export` e `POST /api/backup/import` (multipart `file`, até 300 MB), em lotes de 500 linhas por ida ao banco.
 
 ### 3. Firebase Hosting (frontend)
 
@@ -226,7 +226,7 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | POST | `/api/receipts/scan` (multipart `file`) | Lê a foto do comprovante com o modelo de visão e devolve itens, total, data e sugestões; com o provedor `worker`, devolve `status=PENDING` e `jobId` |
 | GET | `/api/receipts/jobs/{id}` | Estado da leitura na fila; pronta, a mesma resposta do `scan` |
 | POST | `/api/transactions/{id}/receipt-scan` | `{action: ACCEPT\|DISMISS\|RETRY}` para o aviso de leitura adiada (usar o lido, manter o lançado, ler de novo) |
-| GET / POST | `/api/backup/export`, `/api/backup/import` (multipart `file`) | Backup completo em zip e restauração (substitui todos os dados). Premium |
+| GET / POST | `/api/backup/export`, `/api/backup/import` (multipart `file`) | Exportar os dados da conta em zip e importar somando (sem duplicar). Premium |
 | POST/GET | `/api/worker/ping`, `/api/worker/jobs/claim`, `/api/worker/jobs/{id}/image`, `/api/worker/jobs/{id}/result`, `/api/worker/jobs/{id}/fail` | Rotas do worker (header `X-Worker-Token`, sem JWT) |
 | GET | `/api/receipts/{file}` | Imagem do comprovante (só do próprio usuário) |
 | GET/POST/DELETE | `/api/category-rules` | Regras de categorização |

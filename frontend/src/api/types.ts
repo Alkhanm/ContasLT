@@ -125,12 +125,14 @@ export interface Transaction {
   receiptScanDate: string | null
 }
 
-/** Resultado da restauração de um backup: quantos registros entraram. */
+/** Resultado da importação de dados: quantos entraram e quantos lançamentos já existiam. */
 export interface BackupRestored {
   accounts: number
   categories: number
+  categoryRules: number
   recurringBills: number
   transactions: number
+  skippedTransactions: number
   transfers: number
   receipts: number
 }

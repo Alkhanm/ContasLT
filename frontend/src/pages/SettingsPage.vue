@@ -54,10 +54,10 @@ async function exportBackup() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `contaslt-backup-${new Date().toISOString().slice(0, 10)}.zip`
+    a.download = `contaslt-dados-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    notifySuccess('Backup gerado')
+    notifySuccess('Arquivo gerado')
   } catch (err) {
     notifyError(err)
   } finally {
@@ -78,11 +78,15 @@ async function restoreBackup() {
   backupBusy.value = 'import'
   try {
     const r = await backupApi.import(file)
-    // Tudo o que estava em cache morreu com a restauração.
     await queryClient.invalidateQueries()
     await catalog.load(true)
     ui.dataChanged()
-    notifySuccess(`Backup restaurado: ${r.transactions} lançamentos, ${r.accounts} contas, ${r.categories} categorias, ${r.receipts} comprovantes`)
+    const parts = [`${r.transactions} ${r.transactions === 1 ? 'lançamento' : 'lançamentos'}`]
+    if (r.accounts) parts.push(`${r.accounts} ${r.accounts === 1 ? 'conta' : 'contas'}`)
+    if (r.categories) parts.push(`${r.categories} ${r.categories === 1 ? 'categoria' : 'categorias'}`)
+    if (r.recurringBills) parts.push(`${r.recurringBills} ${r.recurringBills === 1 ? 'recorrente' : 'recorrentes'}`)
+    if (r.receipts) parts.push(`${r.receipts} ${r.receipts === 1 ? 'comprovante' : 'comprovantes'}`)
+    notifySuccess(`Importados: ${parts.join(', ')}` + (r.skippedTransactions ? ` (${r.skippedTransactions} já existiam)` : ''))
   } catch (err) {
     notifyError(err)
   } finally {
@@ -183,21 +187,21 @@ function logout() {
     </section>
 
     <section v-if="auth.user?.premium">
-      <SectionTitle title="Backup" hint="Um arquivo .zip com tudo: contas, categorias, lançamentos, itens, recorrentes, importações e as fotos dos comprovantes." />
+      <SectionTitle title="Exportar e importar" hint="Um .zip com os seus dados: contas, categorias, regras, recorrentes, lançamentos com itens e as fotos dos comprovantes." />
       <div class="flex flex-wrap gap-2 rounded-2xl border bg-card p-3">
         <Button variant="outline" :disabled="backupBusy !== null" @click="exportBackup">
-          <Download /> {{ backupBusy === 'export' ? 'Gerando…' : 'Baixar backup' }}
+          <Download /> {{ backupBusy === 'export' ? 'Gerando…' : 'Exportar dados' }}
         </Button>
         <input ref="backupInput" type="file" accept=".zip,application/zip" class="hidden" @change="pickBackup">
         <Button variant="outline" :disabled="backupBusy !== null" @click="backupInput?.click()">
-          <Upload /> {{ backupBusy === 'import' ? 'Restaurando…' : 'Restaurar backup' }}
+          <Upload /> {{ backupBusy === 'import' ? 'Importando…' : 'Importar dados' }}
         </Button>
-        <p class="basis-full text-xs text-muted-foreground">Restaurar substitui todos os dados desta conta pelos do arquivo.</p>
+        <p class="basis-full text-xs text-muted-foreground">Importar soma ao que já existe: contas e categorias são casadas pelo nome, e lançamentos iguais são ignorados.</p>
       </div>
       <ConfirmDialog
-        v-model:open="confirmRestore" title="Restaurar este backup?"
-        :description="`Tudo o que está nesta conta hoje será apagado e trocado pelo conteúdo de ${backupFile?.name ?? 'arquivo'}. Isso não tem desfazer.`"
-        confirm-label="Substituir tudo" destructive @confirm="restoreBackup"
+        v-model:open="confirmRestore" title="Importar este arquivo?"
+        :description="`Os dados de ${backupFile?.name ?? 'arquivo'} serão somados aos desta conta. Nada do que já existe é apagado; lançamentos iguais não entram de novo.`"
+        confirm-label="Importar" @confirm="restoreBackup"
       />
     </section>
 

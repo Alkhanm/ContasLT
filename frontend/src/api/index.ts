@@ -118,10 +118,10 @@ export const receiptsApi = {
   imageUrl: (file: string) => apiObjectUrl(`/api/receipts/${encodeURIComponent(file)}`),
 }
 
-/** Backup completo (zip com JSON + fotos). Só para contas premium. */
+/** Exportar/importar os dados da conta (zip com JSON + fotos). Só para contas premium. */
 export const backupApi = {
-  export: () => apiBlob('/api/backup/export', 'o backup'),
-  /** Substitui TODOS os dados do usuário pelos do arquivo. */
+  export: () => apiBlob('/api/backup/export', 'a exportação'),
+  /** Soma os dados do arquivo aos da conta; o que já existe é pulado. */
   import: (file: File) => {
     const form = new FormData()
     form.append('file', file)

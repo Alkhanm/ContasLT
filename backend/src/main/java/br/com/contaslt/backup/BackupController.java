@@ -11,14 +11,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import br.com.contaslt.backup.BackupService.Restored;
+import br.com.contaslt.backup.BackupService.Imported;
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.user.CurrentUser;
 import br.com.contaslt.user.PremiumGuard;
 import br.com.contaslt.user.User;
 import jakarta.servlet.http.HttpServletResponse;
 
-/** Backup completo (zip) do usuário: baixar e restaurar. Só para contas premium. */
+/** Exportar e importar os dados da conta (zip com JSON + fotos). Só para contas premium. */
 @RestController
 @RequestMapping("/api/backup")
 public class BackupController {
@@ -38,18 +38,18 @@ public class BackupController {
         User user = currentUser.get();
         premium.require(user, "O backup não está liberado para a sua conta.");
         response.setContentType("application/zip");
-        response.setHeader("Content-Disposition", "attachment; filename=\"contaslt-backup-" + LocalDate.now() + ".zip\"");
+        response.setHeader("Content-Disposition", "attachment; filename=\"contaslt-dados-" + LocalDate.now() + ".zip\"");
         backups.export(user, response.getOutputStream());
         response.flushBuffer();
     }
 
-    /** Substitui TODOS os dados do usuário pelos do arquivo. */
+    /** Soma os dados do arquivo aos da conta; o que já existe é pulado. */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Restored restore(@RequestParam("file") MultipartFile file) throws IOException {
+    public Imported restore(@RequestParam("file") MultipartFile file) throws IOException {
         User user = currentUser.get();
         premium.require(user, "O backup não está liberado para a sua conta.");
         if (file.isEmpty()) {
-            throw new BusinessException("Envie o arquivo .zip do backup");
+            throw new BusinessException("Envie o arquivo .zip exportado pelo ContasLT");
         }
         return backups.restore(user, file.getInputStream());
     }
