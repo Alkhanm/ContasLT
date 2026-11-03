@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { CalendarDays, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, Tag, Wallet } from 'lucide-vue-next'
+import { CalendarDays, ChartPie, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, ShoppingBasket, Tag, Wallet } from 'lucide-vue-next'
 import MonthNavigator from './MonthNavigator.vue'
 import RecurringFormSheet from '@/components/app/RecurringFormSheet.vue'
 import TransactionFormSheet from '@/components/app/TransactionFormSheet.vue'
@@ -23,11 +23,13 @@ const mainNav = [
   { name: 'import', label: 'Importar', icon: FileUp },
 ]
 const secondaryNav = [
+  { name: 'category-spending', label: 'Gastos por categoria', icon: ChartPie },
+  { name: 'item-spending', label: 'Gasto por itens', icon: ShoppingBasket },
   { name: 'categories', label: 'Categorias', icon: Tag },
   { name: 'accounts', label: 'Contas', icon: Wallet },
   { name: 'settings', label: 'Mais', icon: Ellipsis },
 ]
-const mobileNav = [...mainNav.slice(0, 2), { name: 'recurring', label: 'Recorrentes', icon: CalendarDays }, mainNav[3]!, secondaryNav[2]!]
+const mobileNav = [...mainNav.slice(0, 2), { name: 'recurring', label: 'Recorrentes', icon: CalendarDays }, mainNav[3]!, secondaryNav[secondaryNav.length - 1]!]
 
 function isActive(name: string) {
   return route.name === name

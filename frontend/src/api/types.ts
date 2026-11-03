@@ -419,3 +419,72 @@ export interface Dashboard {
   upcoming: Transaction[]
   history: MonthTotal[]
 }
+
+/** Total de um mês, em relatórios. */
+export interface MonthValue {
+  month: string
+  total: number
+}
+
+/**
+ * Gasto de uma categoria no mês. Em categorias de primeiro nível, `children` traz as subcategorias com gasto
+ * ("Geral" é o que foi lançado direto na categoria) e `history` os últimos 6 meses; `previousTotal` é o mês anterior.
+ */
+export interface CategorySpending {
+  categoryId: number | null
+  name: string
+  color: string
+  icon: string
+  total: number
+  percent: number
+  count: number
+  previousTotal: number | null
+  children: CategorySpending[]
+  history: MonthValue[]
+}
+
+export interface CategoryReport {
+  month: string
+  total: number
+  previousTotal: number
+  count: number
+  items: CategorySpending[]
+}
+
+/** Uma compra de um item: a linha do comprovante e o lançamento a que pertence. */
+export interface ItemPurchase {
+  transactionId: number
+  date: string
+  merchant: string | null
+  description: string
+  quantity: number | null
+  unitPrice: number | null
+  total: number
+}
+
+/** Um item de comprovante agregado pelas compras do período, com categoria da compra mais recente e evolução do preço unitário. */
+export interface ItemSpending {
+  key: string
+  description: string
+  categoryId: number | null
+  categoryName: string | null
+  color: string
+  icon: string
+  count: number
+  quantity: number
+  total: number
+  firstUnitPrice: number | null
+  lastUnitPrice: number | null
+  minUnitPrice: number | null
+  maxUnitPrice: number | null
+  months: MonthValue[]
+  purchases: ItemPurchase[]
+}
+
+export interface ItemReport {
+  from: string
+  to: string
+  total: number
+  count: number
+  items: ItemSpending[]
+}

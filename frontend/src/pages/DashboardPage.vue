@@ -145,7 +145,11 @@ function openCategory(item: CategoryTotal) {
 
     <div class="space-y-6 md:col-span-2">
       <section>
-        <SectionTitle title="Despesas por categoria" />
+        <SectionTitle title="Despesas por categoria">
+          <RouterLink :to="{ name: 'category-spending' }" class="flex items-center text-xs font-semibold text-primary">
+            Ver detalhes <ChevronRight class="size-3.5" />
+          </RouterLink>
+        </SectionTitle>
         <div v-if="data.byCategory.length" class="rounded-2xl border bg-card px-4">
           <CategoryBars :items="data.byCategory" @select="openCategory" />
         </div>

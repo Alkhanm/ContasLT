@@ -18,6 +18,8 @@ const router = createRouter({
       children: [
         { path: '', name: 'home', component: () => import('@/pages/DashboardPage.vue'), meta: { title: 'Início', monthNav: true } },
         { path: 'lancamentos', name: 'transactions', component: () => import('@/pages/TransactionsPage.vue'), meta: { title: 'Lançamentos', monthNav: true } },
+        { path: 'gastos/categorias', name: 'category-spending', component: () => import('@/pages/CategorySpendingPage.vue'), meta: { title: 'Gastos por categoria', monthNav: true } },
+        { path: 'gastos/itens', name: 'item-spending', component: () => import('@/pages/ItemSpendingPage.vue'), meta: { title: 'Gasto por itens' } },
         { path: 'recorrentes', name: 'recurring', component: () => import('@/pages/RecurringPage.vue'), meta: { title: 'Contas recorrentes' } },
         { path: 'importar', name: 'import', component: () => import('@/pages/ImportPage.vue'), meta: { title: 'Importar extrato' } },
         { path: 'categorias', name: 'categories', component: () => import('@/pages/CategoriesPage.vue'), meta: { title: 'Categorias' } },

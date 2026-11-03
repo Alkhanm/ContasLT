@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { ChevronRight, LogOut, Monitor, Moon, Plus, Sun, Tag, Trash2, Wallet } from 'lucide-vue-next'
+import { ChartPie, ChevronRight, LogOut, Monitor, Moon, Plus, ShoppingBasket, Sun, Tag, Trash2, Wallet } from 'lucide-vue-next'
 import { rulesApi } from '@/api'
 import type { CategoryRule } from '@/api/types'
 import CategoryIcon from '@/components/app/CategoryIcon.vue'
@@ -102,6 +102,22 @@ function logout() {
           {{ t.label }}
         </button>
       </div>
+    </section>
+
+    <section class="md:hidden">
+      <SectionTitle title="Relatórios" />
+      <ul class="divide-y rounded-2xl border bg-card px-4">
+        <li>
+          <RouterLink :to="{ name: 'category-spending' }" class="flex items-center gap-3 py-3 font-semibold">
+            <ChartPie class="size-[18px] text-muted-foreground" /> <span class="flex-1">Gastos por categoria</span> <ChevronRight class="size-4 text-muted-foreground" />
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink :to="{ name: 'item-spending' }" class="flex items-center gap-3 py-3 font-semibold">
+            <ShoppingBasket class="size-[18px] text-muted-foreground" /> <span class="flex-1">Gasto por itens</span> <ChevronRight class="size-4 text-muted-foreground" />
+          </RouterLink>
+        </li>
+      </ul>
     </section>
 
     <section class="md:hidden">

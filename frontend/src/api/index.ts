@@ -1,7 +1,7 @@
 import { api, apiObjectUrl } from './client'
 import type {
-  Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryRule, Dashboard,
-  ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, ReceiptScan, RecurringBill, RecurringBillInput,
+  Account, AccountInput, AuthResponse, Category, CategoryInput, CategoryReport, CategoryRule, Dashboard,
+  ImportBatch, ImportConfirmRequest, ImportPreview, ImportResult, ItemReport, ReceiptScan, RecurringBill, RecurringBillInput,
   Transaction, TransactionEditScope, TransactionFilter, TransactionInput, TransactionPage, Transfer, TransferInput, TransferSuggestion, User,
 } from './types'
 
@@ -97,4 +97,12 @@ export const rulesApi = {
 
 export const dashboardApi = {
   get: (month: string) => api<Dashboard>('/api/dashboard', { query: { month } }),
+}
+
+export const reportsApi = {
+  /** Despesas do mês por categoria, com subcategorias, mês anterior e 6 meses de histórico. */
+  categories: (month: string) => api<CategoryReport>('/api/reports/categories', { query: { month } }),
+  /** Itens de comprovante entre dois meses (inclusive), agrupados por nome; sem `from`/`to`, os últimos 12 meses. */
+  items: (filter: { from?: string; to?: string; categoryId?: number | null; search?: string }) =>
+    api<ItemReport>('/api/reports/items', { query: { from: filter.from, to: filter.to, categoryId: filter.categoryId, search: filter.search || undefined } }),
 }
