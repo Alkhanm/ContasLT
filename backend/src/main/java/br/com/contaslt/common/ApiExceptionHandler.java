@@ -20,6 +20,11 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail forbidden(ForbiddenException ex) {
+        return problem(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(BusinessException.class)
     ProblemDetail business(BusinessException ex) {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage());

@@ -23,11 +23,15 @@ import TypeToggle, { type FormKind } from './TypeToggle.vue'
 import { dateShort, money, monthLabel, parseLocalDate, shiftMonth, todayIso } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
+import { useAuthStore } from '@/stores/auth'
 import { useCatalogStore } from '@/stores/catalog'
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
 const catalog = useCatalogStore()
+const auth = useAuthStore()
+/** Leitura de comprovante só para contas premium; sem o usuário carregado ainda, mostra (o servidor decide). */
+const canScan = computed(() => auth.user?.premium !== false)
 
 const form = reactive({
   kind: 'EXPENSE' as FormKind,
@@ -489,9 +493,9 @@ async function unlink() {
         <MoneyInput id="tx-amount" v-model="form.amount" :invalid="!!errors.amount" :autofocus="!editing" />
       </FormField>
 
-      <div v-if="!isTransfer && !linked && !isInvoice && form.kind === 'EXPENSE'" class="flex items-center gap-3">
+      <div v-if="!isTransfer && !linked && !isInvoice && form.kind === 'EXPENSE' && (canScan || form.receiptFile)" class="flex items-center gap-3">
         <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onReceiptPicked">
-        <Button type="button" variant="outline" class="h-10" :disabled="scanning" @click="pickReceipt">
+        <Button v-if="canScan" type="button" variant="outline" class="h-10" :disabled="scanning" @click="pickReceipt">
           <Camera /> {{ scanning ? 'Lendo comprovante…' : form.receiptFile ? 'Trocar comprovante' : 'Ler comprovante' }}
         </Button>
         <button v-if="receiptUrl" type="button" class="group relative size-10 shrink-0 overflow-hidden rounded-md border" title="Abrir comprovante" @click="openReceipt">

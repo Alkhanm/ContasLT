@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import br.com.contaslt.category.Category;
 import br.com.contaslt.category.CategoryRepository;
 import br.com.contaslt.common.BusinessException;
+import br.com.contaslt.common.ForbiddenException;
+import br.com.contaslt.config.AppProperties;
 import br.com.contaslt.common.NotFoundException;
 import br.com.contaslt.common.TransactionType;
 import br.com.contaslt.imports.CategoryRuleRepository;
@@ -51,14 +53,26 @@ public class ReceiptJobService {
     private final ReceiptScanner scanner;
     private final CategoryRepository categories;
     private final CategoryRuleRepository rules;
+    private final boolean requirePremium;
 
     public ReceiptJobService(ReceiptJobRepository jobs, ReceiptStorage storage, ReceiptScanner scanner,
-            CategoryRepository categories, CategoryRuleRepository rules) {
+            CategoryRepository categories, CategoryRuleRepository rules, AppProperties props) {
         this.jobs = jobs;
         this.storage = storage;
         this.scanner = scanner;
         this.categories = categories;
         this.rules = rules;
+        this.requirePremium = props.receipts() == null || props.receipts().requirePremiumOrDefault();
+    }
+
+    /**
+     * A leitura de comprovantes gasta a GPU do dono do app: só usuários marcados como premium no banco podem
+     * enfileirar fotos (403 para os demais). Vale para o envio e para o "tentar de novo".
+     */
+    public void requirePremium(User user) {
+        if (requirePremium && !user.isPremium()) {
+            throw new ForbiddenException("A leitura de comprovantes não está liberada para a sua conta.");
+        }
     }
 
     @Transactional
@@ -207,6 +221,7 @@ public class ReceiptJobService {
             }
             case DISMISS -> t.clearReceiptScan();
             case RETRY -> {
+                requirePremium(user);
                 if (t.getReceiptFile() == null) {
                     throw new BusinessException("Este lançamento não tem comprovante para ler");
                 }

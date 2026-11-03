@@ -70,7 +70,7 @@ public class AuthService {
     }
 
     public static UserDto toDto(User user) {
-        return new UserDto(user.getId(), user.getName(), user.getEmail());
+        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.isPremium());
     }
 
     private String issueToken(User user) {

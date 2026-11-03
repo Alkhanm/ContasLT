@@ -54,6 +54,7 @@ public class ReceiptService {
      */
     @Transactional
     public ReceiptScanResponse scan(User user, MultipartFile file, Long ignoreTransactionId) {
+        jobs.requirePremium(user);
         byte[] original;
         try {
             original = file.getBytes();

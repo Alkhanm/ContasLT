@@ -19,11 +19,16 @@ public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama
      * Quem lê os comprovantes: Ollama local, uma API compatível com OpenAI, o worker do computador do usuário
      * (fila: a foto espera até ele estar ligado), ou ninguém (recurso desligado).
      */
-    public record Receipts(Provider provider) {
+    public record Receipts(Provider provider, Boolean requirePremium) {
         public enum Provider { OLLAMA, OPENAI, WORKER, NONE }
 
         public Provider providerOrDefault() {
             return provider == null ? Provider.OLLAMA : provider;
+        }
+
+        /** Só usuários premium (coluna no banco) podem mandar comprovantes. Padrão: exigir. */
+        public boolean requirePremiumOrDefault() {
+            return requirePremium == null || requirePremium;
         }
     }
 

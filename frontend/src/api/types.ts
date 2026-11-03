@@ -7,6 +7,8 @@ export interface User {
   id: number
   name: string
   email: string
+  /** Pode mandar comprovantes para leitura (marcado direto no banco). */
+  premium: boolean
 }
 
 export interface AuthResponse {

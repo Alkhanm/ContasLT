@@ -72,6 +72,7 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `SPA_DIR` | vazio | Pasta com o build do frontend (`frontend/dist`); quando informada, o backend serve o frontend e devolve `index.html` para as rotas da aplicação |
 | `RECEIPT_PROVIDER` | `ollama` (`worker` no profile `prod`) | Quem lê os comprovantes: `ollama` (local), `worker` (fila lida pelo computador do usuário, ver abaixo), `openai` (API compatível com OpenAI) ou `none` (desligado) |
 | `WORKER_TOKEN` | vazio | Segredo do worker (`X-Worker-Token`) para as rotas `/api/worker/**`; vazio = rotas fechadas |
+| `RECEIPT_REQUIRE_PREMIUM` | `true` | Só usuários com `premium = TRUE` na tabela `users` podem mandar comprovantes (403 para os demais, e o botão some do formulário). `false` libera para todos, por exemplo no uso local |
 | `OLLAMA_URL` | `http://localhost:11434` | Servidor Ollama usado para ler comprovantes |
 | `OLLAMA_MODEL` | `qwen3.5:9b-q8_0` | Modelo de visão (precisa da capacidade *vision*) |
 | `OLLAMA_TIMEOUT` | `PT3M` | Tempo máximo de uma leitura |
@@ -145,6 +146,14 @@ printf 'CONTASLT_URL=https://contaslt-production.up.railway.app\nWORKER_TOKEN=<o
 ./install.sh --worker            # serviço de usuário contaslt-worker, sobe no boot
 journalctl --user -u contaslt-worker -f
 ```
+
+**Quem pode usar:** a leitura consome a GPU do seu computador, então ela é só para contas marcadas como premium, e isso se faz direto no banco, sem tela:
+
+```sql
+UPDATE users SET premium = TRUE WHERE email = 'voce@exemplo.com';
+```
+
+Quem não tem a marca recebe 403 em `POST /api/receipts/scan` e no "tentar de novo", e o botão "Ler comprovante" nem aparece (o app lê `premium` em `/api/auth/me`; esse dado fica em cache por 10 minutos, então saia e entre de novo depois de mudar no banco). No uso local, `RECEIPT_REQUIRE_PREMIUM=false` no `.env` libera para todos.
 
 O worker é o mesmo jar do backend rodando com `--worker` (sem Spring, sem banco, ~150 MB de RAM). Variáveis: `CONTASLT_URL`, `WORKER_TOKEN`, `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` e `WORKER_POLL` (segundos entre consultas, padrão 10). Ele não pega tarefas enquanto o Ollama não responde, e uma tarefa reservada que não voltar em 5 minutos volta para a fila. `./install.sh --worker --uninstall` remove o serviço.
 

@@ -20,7 +20,8 @@ public final class AuthDtos {
         @NotBlank(message = "Informe a senha") String password) {
     }
 
-    public record UserDto(Long id, String name, String email) {
+    /** {@code premium}: pode usar a leitura de comprovantes. */
+    public record UserDto(Long id, String name, String email, boolean premium) {
     }
 
     public record AuthResponse(String token, UserDto user) {
