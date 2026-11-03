@@ -84,8 +84,9 @@ async function remove() {
       <Button class="rounded-full" @click="openNew()"><Plus :stroke-width="2.5" /> Nova</Button>
     </div>
 
-    <ul class="grid items-start gap-2 sm:grid-cols-2">
-      <li v-for="{ root, children } in tree" :key="root.id" class="rounded-xl border bg-card">
+    <!-- Colunas (não grid): cada coluna flui sozinha, então um cartão com subcategorias não empurra o vizinho. -->
+    <ul class="gap-2 sm:columns-2">
+      <li v-for="{ root, children } in tree" :key="root.id" class="mb-2 break-inside-avoid rounded-xl border bg-card">
         <div :class="cn('flex items-center gap-3 px-3 py-2.5', root.archived && 'opacity-60')">
           <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none rounded-md focus-visible:ring-3 focus-visible:ring-ring/50" @click="openEdit(root)">
             <CategoryIcon :icon="root.icon" :color="root.color" />
