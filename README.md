@@ -60,8 +60,9 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/contaslt` | JDBC do PostgreSQL |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` | `localhost` / `5432` / `contaslt` | Endereço e nome do banco PostgreSQL |
 | `DB_USER` / `DB_PASSWORD` | `contaslt` / `contaslt` | Credenciais do banco |
+| `DB_SSLMODE` | `disable` | `sslmode` do JDBC; `require` no Supabase |
 | `DB_POOL_MAX` / `DB_POOL_MIN` | `4` / `1` | Tamanho do pool de conexões (pequeno de propósito: pooler do Supabase) |
 | `JWT_SECRET` | chave de desenvolvimento | **Obrigatória no profile `prod`** (mínimo 32 bytes) |
 | `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
@@ -103,9 +104,12 @@ Mesmo arranjo do Fimagion: o backend roda num container no **Railway** (plano pe
 
 ```
 SPRING_PROFILES_ACTIVE=prod
-DB_URL=jdbc:postgresql://aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+DB_HOST=aws-0-sa-east-1.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
 DB_USER=postgres.<ref>
 DB_PASSWORD=<senha do banco>
+DB_SSLMODE=require
 JWT_SECRET=<openssl rand -base64 48>
 CORS_ORIGINS=https://contaslt.web.app,https://contaslt.firebaseapp.com
 SUPABASE_URL=https://<ref>.supabase.co
