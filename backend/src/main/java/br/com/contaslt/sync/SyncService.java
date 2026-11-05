@@ -72,17 +72,17 @@ public class SyncService {
                 byId.put(c.id(), c);
             }
         }
-        Map<UUID, long[]> existing = existing(userId, new ArrayList<>(byId.keySet()));
+        Map<UUID, Long> existing = existing(userId, new ArrayList<>(byId.keySet()));
 
         List<Object[]> inserts = new ArrayList<>();
         List<Object[]> updates = new ArrayList<>();
         List<UUID> rejected = new ArrayList<>();
         for (Change c : byId.values()) {
             String data = c.deleted() ? null : writeData(c);
-            long[] cur = existing.get(c.id());
+            Long cur = existing.get(c.id());
             if (cur == null) {
                 inserts.add(new Object[] {userId, c.id(), c.entity(), data, c.deleted(), c.updatedAt()});
-            } else if (c.updatedAt() >= cur[0]) {
+            } else if (c.updatedAt() >= cur) {
                 updates.add(new Object[] {c.entity(), data, c.deleted(), c.updatedAt(), userId, c.id()});
             } else {
                 rejected.add(c.id());
@@ -96,22 +96,42 @@ public class SyncService {
             jdbc.batchUpdate("UPDATE sync_records SET entity = ?, data = ?, deleted = ?, "
                 + "version = nextval('sync_version_seq'), updated_at = ? WHERE user_id = ? AND id = ?", updates);
         }
-        return new PushResponse(inserts.size() + updates.size(), rejected);
+        return new PushResponse(inserts.size() + updates.size(), load(userId, rejected));
+    }
+
+    private List<SyncRecordDto> load(long userId, List<UUID> ids) {
+        List<SyncRecordDto> out = new ArrayList<>();
+        for (int from = 0; from < ids.size(); from += 200) {
+            List<UUID> chunk = ids.subList(from, Math.min(ids.size(), from + 200));
+            out.addAll(jdbc.query("SELECT id, entity, data, deleted, version, updated_at FROM sync_records "
+                    + "WHERE user_id = ? AND id IN (" + marks(chunk.size()) + ")",
+                (rs, i) -> new SyncRecordDto(rs.getObject("id", UUID.class), rs.getString("entity"),
+                    readData(rs.getString("data")), rs.getBoolean("deleted"), rs.getLong("version"), rs.getLong("updated_at")),
+                args(userId, chunk)));
+        }
+        return out;
+    }
+
+    private static String marks(int n) {
+        return String.join(",", Collections.nCopies(n, "?"));
+    }
+
+    private static Object[] args(long userId, List<UUID> ids) {
+        List<Object> args = new ArrayList<>();
+        args.add(userId);
+        args.addAll(ids);
+        return args.toArray();
     }
 
     /** updated_at atual de cada id que já existe, em consultas de até 200 ids. */
-    private Map<UUID, long[]> existing(long userId, List<UUID> ids) {
-        Map<UUID, long[]> out = new HashMap<>();
+    private Map<UUID, Long> existing(long userId, List<UUID> ids) {
+        Map<UUID, Long> out = new HashMap<>();
         for (int from = 0; from < ids.size(); from += 200) {
             List<UUID> chunk = ids.subList(from, Math.min(ids.size(), from + 200));
-            String marks = String.join(",", Collections.nCopies(chunk.size(), "?"));
-            List<Object> args = new ArrayList<>();
-            args.add(userId);
-            args.addAll(chunk);
-            jdbc.query("SELECT id, updated_at FROM sync_records WHERE user_id = ? AND id IN (" + marks + ")",
+            jdbc.query("SELECT id, updated_at FROM sync_records WHERE user_id = ? AND id IN (" + marks(chunk.size()) + ")",
                 rs -> {
-                    out.put(rs.getObject("id", UUID.class), new long[] {rs.getLong("updated_at")});
-                }, args.toArray());
+                    out.put(rs.getObject("id", UUID.class), rs.getLong("updated_at"));
+                }, args(userId, chunk));
         }
         return out;
     }

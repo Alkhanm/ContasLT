@@ -1,3 +1,6 @@
+/** Id de registro local (UUID). O usuário continua com id numérico do servidor. */
+export type Id = string
+
 export type TransactionType = 'EXPENSE' | 'INCOME'
 export type AccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD' | 'CASH' | 'INVESTMENT' | 'OTHER'
 export type Frequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'YEARLY'
@@ -17,7 +20,7 @@ export interface AuthResponse {
 }
 
 export interface Account {
-  id: number
+  id: Id
   name: string
   type: AccountType
   initialBalance: number
@@ -43,7 +46,7 @@ export type InvoiceStatus = 'OPEN' | 'CLOSED' | 'PARTIAL' | 'PAID'
 
 /** Fatura de cartão: compras entre dois fechamentos, identificada pelo mês do vencimento. */
 export interface CardInvoice {
-  accountId: number
+  accountId: Id
   accountName: string
   month: string
   start: string
@@ -59,18 +62,18 @@ export interface CardInvoice {
   undetailed: number
   remaining: number
   status: InvoiceStatus
-  paymentTransactionId: number | null
+  paymentTransactionId: Id | null
 }
 
 export interface Category {
-  id: number
+  id: Id
   name: string
   type: TransactionType
   color: string
   icon: string
   archived: boolean
   /** Categoria pai quando esta é uma subcategoria (um nível só). */
-  parentId: number | null
+  parentId: Id | null
 }
 
 export interface CategoryInput {
@@ -79,24 +82,24 @@ export interface CategoryInput {
   color: string
   icon: string
   archived?: boolean
-  parentId?: number | null
+  parentId?: Id | null
 }
 
 export interface Transaction {
-  id: number
+  id: Id
   description: string
   amount: number
   type: TransactionType
   dueDate: string
   paid: boolean
   notes: string | null
-  accountId: number
+  accountId: Id
   accountName: string
-  categoryId: number | null
+  categoryId: Id | null
   categoryName: string | null
   categoryColor: string | null
   categoryIcon: string | null
-  recurringBillId: number | null
+  recurringBillId: Id | null
   installmentNumber: number | null
   installmentTotal: number | null
   /** Só em ocorrências de conta recorrente: data prevista pela regra e valor estimado por ela. */
@@ -104,18 +107,18 @@ export interface Transaction {
   expectedAmount: number | null
   externalId: string | null
   /** Preenchidos quando o lançamento é uma perna de transferência entre contas. */
-  transferId: number | null
-  transferPeerTransactionId: number | null
-  transferPeerAccountId: number | null
+  transferId: Id | null
+  transferPeerTransactionId: Id | null
+  transferPeerAccountId: Id | null
   transferPeerAccountName: string | null
   /** Dados do comprovante (foto de cupom), quando houver. */
   merchant: string | null
   receiptFile: string | null
   receiptAccessKey: string | null
-  importBatchId: number | null
+  importBatchId: Id | null
   items: TransactionItem[]
   /** Pagamento de fatura: cartão e mês cujas compras esta despesa agrega; invoice traz o resumo. */
-  invoiceCardId: number | null
+  invoiceCardId: Id | null
   invoiceCardName: string | null
   invoiceMonth: string | null
   invoice: CardInvoice | null
@@ -142,7 +145,7 @@ export type ReceiptScanStatus = 'PENDING' | 'DIVERGENT' | 'FAILED'
 export type ReceiptScanAction = 'ACCEPT' | 'DISMISS' | 'RETRY'
 
 export interface TransactionItem {
-  id: number | null
+  id: Id | null
   description: string
   quantity: number | null
   unitPrice: number | null
@@ -172,18 +175,18 @@ export interface ReceiptScan {
   paymentMethod: string
   accessKey: string | null
   items: { description: string; quantity: number | null; unitPrice: number | null; total: number }[]
-  suggestedCategoryId: number | null
+  suggestedCategoryId: Id | null
   suggestedCategoryName: string | null
-  duplicateOfTransactionId: number | null
+  duplicateOfTransactionId: Id | null
   duplicateOfDescription: string | null
   duplicateOfDate: string | null
   /** Vencimento pendente de conta recorrente que este comprovante parece pagar. */
-  recurringMatchTransactionId: number | null
+  recurringMatchTransactionId: Id | null
   recurringMatchDescription: string | null
   recurringMatchDate: string | null
   recurringMatchAmount: number | null
-  recurringMatchCategoryId: number | null
-  recurringMatchAccountId: number | null
+  recurringMatchCategoryId: Id | null
+  recurringMatchAccountId: Id | null
   /**
    * Fila do worker: DONE (dados acima válidos), PENDING (só receiptFile; consultar receiptsApi.job até terminar)
    * ou FAILED (error). workerOnline diz se o computador com o leitor está respondendo agora.
@@ -201,14 +204,14 @@ export interface TransactionInput {
   dueDate: string
   paid: boolean
   notes: string | null
-  accountId: number
-  categoryId: number | null
+  accountId: Id
+  categoryId: Id | null
   merchant?: string | null
   receiptFile?: string | null
   receiptAccessKey?: string | null
   items?: TransactionItemInput[]
   /** Pagamento de fatura de cartão: as compras do cartão na fatura do mês ficam agregadas nesta despesa. */
-  invoiceCardId?: number | null
+  invoiceCardId?: Id | null
   invoiceMonth?: string | null
 }
 
@@ -247,8 +250,8 @@ export interface TransactionPage {
 
 export interface TransactionFilter {
   month: string
-  accountId?: number | null
-  categoryId?: number | null
+  accountId?: Id | null
+  categoryId?: Id | null
   /** true = só lançamentos sem categoria (ignora categoryId). */
   uncategorized?: boolean | null
   type?: TransactionType | null
@@ -261,8 +264,8 @@ export interface TransactionFilter {
 }
 
 export interface TransferInput {
-  fromAccountId: number
-  toAccountId: number
+  fromAccountId: Id
+  toAccountId: Id
   amount: number
   date: string
   description: string | null
@@ -270,7 +273,7 @@ export interface TransferInput {
 }
 
 export interface Transfer {
-  id: number
+  id: Id
   from: Transaction
   to: Transaction
 }
@@ -289,7 +292,7 @@ export interface TransferSuggestionList {
 }
 
 export interface RecurringBill {
-  id: number
+  id: Id
   description: string
   amount: number
   type: TransactionType
@@ -297,9 +300,9 @@ export interface RecurringBill {
   startDate: string
   endDate: string | null
   occurrences: number | null
-  accountId: number | null
+  accountId: Id | null
   accountName: string | null
-  categoryId: number | null
+  categoryId: Id | null
   categoryName: string | null
   categoryColor: string | null
   categoryIcon: string | null
@@ -318,13 +321,13 @@ export interface RecurringBillInput {
   startDate: string
   endDate: string | null
   occurrences: number | null
-  accountId: number
-  categoryId: number | null
+  accountId: Id
+  categoryId: Id | null
   notes: string | null
   active?: boolean
   matchStrictness?: number
   /** Só na criação: lançamento existente que vira a primeira ocorrência da regra. */
-  fromTransactionId?: number | null
+  fromTransactionId?: Id | null
 }
 
 export interface PreviewRow {
@@ -335,24 +338,24 @@ export interface PreviewRow {
   type: TransactionType
   externalId: string | null
   duplicate: boolean
-  suggestedCategoryId: number | null
+  suggestedCategoryId: Id | null
   suggestedCategoryName: string | null
   suggestedCategoryColor: string | null
   suggestedCategoryIcon: string | null
   /** Lançamento manual (ex.: de comprovante) que parece ser esta mesma compra. */
-  matchTransactionId: number | null
+  matchTransactionId: Id | null
   matchDescription: string | null
   matchDate: string | null
   matchAccountName: string | null
   matchItemCount: number
   matchHasReceipt: boolean
-  matchCategoryId: number | null
+  matchCategoryId: Id | null
   matchCategoryName: string | null
   /** Casamento com um vencimento pendente de conta recorrente; matchAmount é o valor previsto pela regra. */
   matchRecurring: boolean
   matchAmount: number | null
   /** Linha que parece pagamento de fatura de cartão: cartão sugerido, fatura e o que já consta dela. */
-  invoiceCardId: number | null
+  invoiceCardId: Id | null
   invoiceCardName: string | null
   invoiceMonth: string | null
   invoiceDueDate: string | null
@@ -365,7 +368,7 @@ export interface PreviewRow {
 export interface ImportPreview {
   source: ImportSource
   filename: string
-  accountId: number
+  accountId: Id
   total: number
   duplicates: number
   rows: PreviewRow[]
@@ -376,26 +379,26 @@ export interface ConfirmRow {
   description: string
   amount: number
   type: TransactionType
-  categoryId: number | null
+  categoryId: Id | null
   externalId: string | null
   paid: boolean
   learnRule: boolean
   /** Vincula a linha a um lançamento existente em vez de criar um novo. */
-  linkTransactionId?: number | null
+  linkTransactionId?: Id | null
   /** A linha paga a fatura deste cartão: vira transferência conta → cartão. */
-  invoiceCardId?: number | null
+  invoiceCardId?: Id | null
   invoiceMonth?: string | null
 }
 
 export interface ImportConfirmRequest {
-  accountId: number
+  accountId: Id
   source: ImportSource
   filename: string
   rows: ConfirmRow[]
 }
 
 export interface ImportResult {
-  batchId: number
+  batchId: Id
   imported: number
   skipped: number
   linked: number
@@ -403,26 +406,26 @@ export interface ImportResult {
 }
 
 export interface ImportBatch {
-  id: number
+  id: Id
   source: ImportSource
   filename: string | null
-  accountId: number
+  accountId: Id
   accountName: string
   importedCount: number
   createdAt: string
 }
 
 export interface CategoryRule {
-  id: number
+  id: Id
   keyword: string
-  categoryId: number
+  categoryId: Id
   categoryName: string
   categoryColor: string
   categoryIcon: string
 }
 
 export interface CategoryTotal {
-  categoryId: number | null
+  categoryId: Id | null
   name: string
   color: string
   icon: string
@@ -467,7 +470,7 @@ export interface MonthValue {
  * ("Geral" é o que foi lançado direto na categoria) e `history` os últimos 6 meses; `previousTotal` é o mês anterior.
  */
 export interface CategorySpending {
-  categoryId: number | null
+  categoryId: Id | null
   name: string
   color: string
   icon: string
@@ -489,7 +492,7 @@ export interface CategoryReport {
 
 /** Uma compra de um item: a linha do comprovante e o lançamento a que pertence. */
 export interface ItemPurchase {
-  transactionId: number
+  transactionId: Id
   date: string
   merchant: string | null
   description: string
@@ -502,7 +505,7 @@ export interface ItemPurchase {
 export interface ItemSpending {
   key: string
   description: string
-  categoryId: number | null
+  categoryId: Id | null
   categoryName: string | null
   color: string
   icon: string

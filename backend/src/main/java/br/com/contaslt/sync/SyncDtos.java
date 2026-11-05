@@ -35,7 +35,7 @@ public final class SyncDtos {
     public record PushRequest(@NotNull @Size(max = SyncService.MAX_PUSH) List<@Valid Change> changes) {
     }
 
-    /** {@code rejected}: ids que o servidor tinha numa versão mais nova; o cliente recebe essa versão no próximo pull. */
-    public record PushResponse(int accepted, List<UUID> rejected) {
+    /** {@code rejected}: registros que o servidor já tinha numa gravação mais nova, na versão dele (o cliente aplica). */
+    public record PushResponse(int accepted, List<SyncRecordDto> rejected) {
     }
 }

@@ -78,6 +78,7 @@ class SyncTest {
         // Gravação mais velha que a guardada é recusada; mais nova vence.
         JsonNode stale = push(ana, List.of(change(a, "velho", 50)));
         assertThat(stale.get("rejected")).hasSize(1);
+        assertThat(stale.get("rejected").get(0).get("data").get("name").asString()).isEqualTo("Nubank");
         push(ana, List.of(change(a, "Nubank PJ", 200)));
         JsonNode after = pull(ana, cursor);
         assertThat(after.get("records")).hasSize(1);
