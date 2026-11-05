@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Conta em AccountsPage.vue: ícone na cor, nome, tipo/dias do cartão, saldo, arquivar e excluir. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout android:id="@+id/open" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:background="?attr/selectableItemBackground" android:gravity="center_vertical" android:orientation="horizontal">
+        <br.com.contaslt.ui.views.CategoryIconView android:id="@+id/icon" android:layout_width="40dp" android:layout_height="40dp" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:layout_marginEnd="8dp" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/name" style="@style/Text.Semibold" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" />
+            <TextView android:id="@+id/meta" style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" />
+        </LinearLayout>
+        <TextView android:id="@+id/balance" style="@style/Text.Semibold.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/actions" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:orientation="horizontal" />
+</LinearLayout>

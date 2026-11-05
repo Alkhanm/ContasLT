@@ -180,9 +180,31 @@ O `firebase.json` devolve `index.html` para as rotas do Vue Router e põe cache 
 - Dados no aparelho: o app lê e calcula tudo localmente; o servidor só é usado para sincronizar (ao abrir, ao voltar para o app, ao reconectar, logo depois de gravar e a cada 3 minutos), para o login e para comprovantes. A latência Railway↔Supabase deixa de pesar nas telas.
 - CI: `.github/workflows/ci.yml` roda `mvnw test` (H2), `npm test` (Vitest) e `npm run build` em cada push/PR.
 
+## App Android (`android/`)
+
+App nativo em **Java 21** (Views + Material 3, sem Kotlin), com o mesmo visual do PWA (cores, Manrope, ícones Lucide convertidos) e as mesmas regras: o domínio e os serviços de `frontend/src/domain` e `frontend/src/services` foram portados 1:1 para `android/app/src/main/java/br/com/contaslt/{domain,services}`, com os mesmos testes (JUnit). Os dados ficam no aparelho (Room, um banco por usuário) e sincronizam pelo mesmo `/api/sync`, no mesmo formato de registro (`frontend/src/data/schema.ts`), então PWA e Android veem os mesmos dados, e o id de um vencimento recorrente é o mesmo nos dois.
+
+**Abrir e rodar:** Android Studio › *Open* › pasta `android/` (JDK 21, SDK 37). Ou pela linha de comando:
+
+```bash
+cd android
+./gradlew test            # domínio, serviços, sincronização, leitura de notificações (JVM)
+./gradlew assembleDebug   # APK em app/build/outputs/apk/debug/
+```
+
+O servidor padrão é o do Railway (`DEFAULT_SERVER` em `app/build.gradle.kts`). Para o backend local, toque em **Servidor** na tela de login e use `http://10.0.2.2:8080` no emulador (ou o IP da máquina na rede/Tailscale num aparelho).
+
+**Lançamentos pelas notificações dos bancos:** em *Mais › Notificações dos bancos*, libere o "Acesso a notificações" para o ContasLT (`BankNotificationListener`). O app lê só as notificações dos apps marcados (os bancos conhecidos instalados já vêm marcados; outros podem ser adicionados), no aparelho, sem enviar nada para fora. Cada compra, Pix ou pagamento reconhecido (`notify/BankParser`) vira uma sugestão na caixa **A confirmar**, já com conta (pelo final do cartão ou a conta/cartão padrão escolhidos para aquele app), categoria pelas regras de palavra-chave, e o vencimento recorrente pendente que ele parece pagar. Confirmar cria o lançamento (ou paga o vencimento), Editar abre o formulário preenchido, Descartar some com ela; uma notificação própria do ContasLT traz os botões Confirmar e Descartar. Textos que não viram movimento (códigos, fatura fechada, compra recusada, propaganda) são ignorados; os de apps monitorados que não forem reconhecidos ficam em "Não reconhecidas". A mesma tela tem um **Testar** para colar o texto de uma notificação e ver como ele é lido. Para testar no emulador:
+
+```bash
+adb shell cmd notification post -S bigtext -t "Compra aprovada" teste "Compra de R\$ 45,90 APROVADA em PADARIA X para o cartão com final 1234"
+```
+
+(o pacote que posta pelo `adb` é `com.android.shell`: adicione-o em *Adicionar* na lista de apps lidos.) A caixa fica só no aparelho, não sincroniza; o lançamento confirmado sincroniza normalmente.
+
 ## Arquitetura local-first
 
-O app (PWA hoje, Android nativo depois) é dono dos dados e das regras; o servidor é um armazenamento sincronizado.
+Os apps (PWA e Android nativo) são donos dos dados e das regras; o servidor é um armazenamento sincronizado.
 
 - **No aparelho** (`frontend/src/data`): um banco IndexedDB por usuário (Dexie) com todos os registros, espelhado em memória (`LocalStore`). Gravar atualiza a memória na hora e grava registro + `outbox` numa transação. As telas continuam chamando `src/api/index.ts` (mesma superfície de antes), que agora executa os serviços locais (`src/services`, o antigo backend portado) sobre o domínio puro (`src/domain`: datas como o java.time, recorrência, casamento com extrato, fatura, OFX/Excel, UUID v5).
 - **Formato dos registros** (`frontend/src/data/schema.ts`): o contrato entre os clientes. Ids UUID gerados no aparelho, dinheiro em centavos (inteiro), datas `AAAA-MM-DD`. O servidor não lê os campos.
@@ -244,5 +266,7 @@ Contas, categorias, lançamentos, recorrentes, importação, transferências, fa
 backend/   Spring Boot (br.com.contaslt: auth, user, sync, receipt, worker; db.migration.V13 converte os dados antigos)
 frontend/  Vue (src/pages, src/components, src/stores; src/api = superfície das telas; src/services = regras de negócio;
            src/domain = lógica pura; src/data = IndexedDB, memória e sincronização)
+android/   Java (data = Room, memória e sincronização; domain e services = porte do frontend; notify = notificações
+           dos bancos; ui = telas)
 docker-compose.yml  PostgreSQL 17
 ```

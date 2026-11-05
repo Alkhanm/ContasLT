@@ -14,6 +14,10 @@ public class ContasApp extends Application {
         super.onCreate();
         container = new AppContainer(this);
         applyTheme(container.prefs.theme());
+        // Comprovantes: o servidor lê a foto; o app aplica as leituras adiadas depois de cada sincronização.
+        br.com.contaslt.services.ReceiptsService.setApi(container.api);
+        br.com.contaslt.ui.TxActions.retryReceipt = br.com.contaslt.services.ReceiptsService::retryReceipt;
+        container.session.onAfterSync(br.com.contaslt.services.ReceiptsService::processPendingReceipts);
     }
 
     public AppContainer container() {

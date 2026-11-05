@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Linha da revisão da importação (celular): seleção, data e valor, descrição e situação, categoria ou vínculo. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="8dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout android:id="@+id/main" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <com.google.android.material.checkbox.MaterialCheckBox android:id="@+id/selected" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="40dp" android:minHeight="40dp" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:layout_weight="1" android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="bottom" android:orientation="horizontal">
+                <TextView android:id="@+id/date" style="@style/Text.Muted.Xs" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
+                <TextView android:id="@+id/amount" style="@style/Text.Semibold.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <TextView android:id="@+id/description" style="@style/Text.Semibold.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" />
+            <TextView android:id="@+id/status" style="@style/Text.Muted" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="11sp" android:visibility="gone" />
+            <LinearLayout android:id="@+id/tag" android:layout_width="match_parent" android:layout_height="32dp" android:layout_marginTop="8dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="8dp" android:paddingEnd="8dp" android:visibility="gone">
+                <ImageView android:id="@+id/tagIcon" android:layout_width="14dp" android:layout_height="14dp" android:importantForAccessibility="no" app:tint="@color/primary" />
+                <TextView android:id="@+id/tagText" style="@style/Text.Muted.Xs" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" />
+            </LinearLayout>
+            <br.com.contaslt.ui.views.CategorySelectView android:id="@+id/category" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Pagamento de fatura -->
+    <LinearLayout android:id="@+id/invoicePanel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginStart="40dp" android:layout_marginTop="8dp" android:orientation="vertical" android:paddingStart="12dp" android:paddingTop="8dp" android:paddingEnd="12dp" android:paddingBottom="8dp" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <ImageView android:layout_width="14dp" android:layout_height="14dp" android:layout_marginTop="1dp" android:importantForAccessibility="no" android:src="@drawable/ic_credit_card" app:tint="@color/primary" />
+            <TextView android:id="@+id/invoiceText" style="@style/Text.Xs" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_weight="1" />
+        </LinearLayout>
+        <br.com.contaslt.ui.views.SegmentedControl android:id="@+id/invoiceMode" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+        <br.com.contaslt.ui.views.SelectFieldView android:id="@+id/invoiceCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Lançamento parecido / vencimento de recorrente -->
+    <LinearLayout android:id="@+id/matchPanel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginStart="40dp" android:layout_marginTop="8dp" android:orientation="vertical" android:paddingStart="12dp" android:paddingTop="8dp" android:paddingEnd="12dp" android:paddingBottom="8dp" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <ImageView android:id="@+id/matchIcon" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginTop="1dp" android:importantForAccessibility="no" app:tint="@color/primary" />
+            <TextView android:id="@+id/matchText" style="@style/Text.Xs" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_weight="1" />
+        </LinearLayout>
+        <br.com.contaslt.ui.views.SegmentedControl android:id="@+id/matchMode" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+    </LinearLayout>
+</LinearLayout>

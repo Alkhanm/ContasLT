@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:paddingBottom="96dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:id="@+id/accessCard"
+            style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TextView style="@style/Text.Semibold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Lançamentos pelas notificações dos bancos" />
+            <TextView style="@style/Text.Muted.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Libere o acesso às notificações para o ContasLT ler as compras, Pix e pagamentos que os apps dos bancos avisam. Cada um vira uma sugestão aqui, para você confirmar com um toque. Nada sai do aparelho." />
+            <com.google.android.material.button.MaterialButton android:id="@+id/grant" style="@style/Button.Primary" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Liberar acesso" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/list" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+
+        <FrameLayout android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_card_dashed" android:visibility="gone" />
+
+        <include android:id="@+id/unrecognizedTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" />
+        <LinearLayout android:id="@+id/unrecognized" style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingTop="4dp" android:paddingBottom="4dp" />
+
+        <com.google.android.material.button.MaterialButton android:id="@+id/settings" style="@style/Button.Outline" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Notificações dos bancos" app:icon="@drawable/ic_sliders_horizontal" xmlns:app="http://schemas.android.com/apk/res-auto" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

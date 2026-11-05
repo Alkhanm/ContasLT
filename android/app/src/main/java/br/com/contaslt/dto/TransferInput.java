@@ -7,5 +7,5 @@ public class TransferInput {
     public Long amount;
     public String date;
     public String description;
-    public boolean paid;
+    public Boolean paid;
 }

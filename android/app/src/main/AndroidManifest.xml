@@ -28,5 +28,38 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Lê as notificações dos apps de banco (o usuário libera em Configurações › Acesso a notificações). -->
+        <service
+            android:name=".notify.BankNotificationListener"
+            android:exported="true"
+            android:label="ContasLT: lançamentos pelas notificações"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".notify.InboxActionReceiver"
+            android:exported="false" />
+
+        <!-- Foto do comprovante tirada pela câmera (TransactionFormSheet). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
+
+    <!-- Lista os apps instalados que podem enviar notificações de banco (tela "Notificações dos bancos"). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 </manifest>

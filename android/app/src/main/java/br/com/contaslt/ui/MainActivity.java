@@ -78,6 +78,30 @@ public class MainActivity extends AppCompatActivity {
         b.syncGateRetry.setOnClickListener(v -> app.session.scheduleSync(0));
         b.inbox.setOnClickListener(v -> nav.navigate(R.id.inbox));
         app.session.state.observe(this, this::onSyncState);
+        // Contas e categorias dos formulários e filtros acompanham qualquer mudança nos dados.
+        app.session.dataVersion.observe(this, v -> Repo.run(this, () -> {
+            if (app.session.isOpen()) {
+                Catalog.reload();
+            }
+            return true;
+        }, ok -> {
+        }, e -> {
+        }));
+
+        // Caixa "A confirmar" (notificações dos bancos): atalho no cabeçalho com a contagem.
+        br.com.contaslt.notify.InboxStore.pendingCount.observe(this, this::setInboxCount);
+        Repo.run(this, () -> {
+            br.com.contaslt.notify.InboxStore inbox = br.com.contaslt.notify.NotificationProcessor.store(this);
+            if (inbox != null) {
+                inbox.refreshCount();
+            }
+            return true;
+        }, ok -> {
+        }, e -> {
+        });
+        if (getIntent().getBooleanExtra("openInbox", false)) {
+            nav.navigate(R.id.inbox);
+        }
 
         app.api.onUnauthorized = e -> runOnUiThread(() -> {
             app.auth.expire();
@@ -129,7 +153,13 @@ public class MainActivity extends AppCompatActivity {
         }
         Ui.visible(b.back, !top);
         Ui.visible(b.monthNav, MONTH_NAV.contains(id));
+        // Na importação a barra inferior da revisão ("Importar N") ocupa o lugar do "+".
+        fabHiddenHere = id == R.id.importStatement;
+        Session.SyncState st = app.session.state.getValue();
+        Ui.visible(b.fab, !fabHiddenHere && (st == null || st.initialDone));
     }
+
+    private boolean fabHiddenHere;
 
     private void onSyncState(Session.SyncState s) {
         int icon;
@@ -161,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
 
         boolean gate = !s.initialDone;
         Ui.visible(b.syncGate, gate);
-        Ui.visible(b.fab, !gate);
+        Ui.visible(b.fab, !gate && !fabHiddenHere);
         if (gate) {
             boolean failed = s.status == Session.Status.OFFLINE || s.status == Session.Status.ERROR;
             Ui.visible(b.syncGateProgress, !failed);
@@ -170,6 +200,14 @@ public class MainActivity extends AppCompatActivity {
             b.syncGateText.setText(failed
                 ? (s.error != null ? s.error : "Sem conexão. Conecte-se para o primeiro acesso neste aparelho.")
                 : "Baixando seus dados para este aparelho…");
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent.getBooleanExtra("openInbox", false) && nav != null) {
+            nav.navigate(R.id.inbox);
         }
     }
 

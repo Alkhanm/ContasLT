@@ -4,7 +4,7 @@ package br.com.contaslt.dto;
 public class ConfirmRow {
     public String date;
     public String description;
-    public long amount;
+    public Long amount;
     public String type;
     public String categoryId;
     public String externalId;

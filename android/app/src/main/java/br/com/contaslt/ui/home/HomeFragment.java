@@ -73,6 +73,10 @@ public class HomeFragment extends Fragment implements TransactionRowBinder.Liste
         AppState.month.observe(getViewLifecycleOwner(), m -> load());
         ((ContasApp) requireActivity().getApplication()).container().session.dataVersion
             .observe(getViewLifecycleOwner(), v -> load());
+        br.com.contaslt.notify.InboxStore.pendingCount.observe(getViewLifecycleOwner(), c -> {
+            Ui.visible(b.inboxCard, c != null && c > 0);
+            b.inboxTitle.setText(c != null && c == 1 ? "1 lançamento a confirmar" : c + " lançamentos a confirmar");
+        });
     }
 
     private void load() {

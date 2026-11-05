@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Importação anterior: arquivo, conta e data, quantidade e excluir. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <ImageView android:id="@+id/icon" android:layout_width="16dp" android:layout_height="16dp" android:importantForAccessibility="no" app:tint="@color/muted_foreground" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/filename" style="@style/Text.Semibold.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" />
+        <TextView android:id="@+id/meta" style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <TextView android:id="@+id/count" style="@style/Text.Muted.Xs" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <ImageView android:id="@+id/remove" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="4dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Excluir importação" android:padding="10dp" android:src="@drawable/ic_trash_2" app:tint="@color/muted_foreground" />
+</LinearLayout>

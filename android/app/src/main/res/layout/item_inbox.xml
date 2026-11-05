@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uma sugestão lida de notificação de banco. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:orientation="vertical">
+
+    <TextView android:id="@+id/source" style="@style/Text.Label" android:layout_width="match_parent" android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <br.com.contaslt.ui.views.CategoryIconView android:id="@+id/icon" android:layout_width="40dp" android:layout_height="40dp" />
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/description" style="@style/Text.Semibold" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/meta" style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/amount" style="@style/Text.Semibold.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/occurrence"
+        style="@style/Text.Xs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_muted_round"
+        android:drawablePadding="8dp"
+        android:padding="10dp"
+        android:visibility="gone"
+        app:drawableStartCompat="@drawable/ic_repeat"
+        app:drawableTint="@color/primary" />
+
+    <TextView
+        android:id="@+id/duplicate"
+        style="@style/Text.Xs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_warning_round"
+        android:drawablePadding="8dp"
+        android:padding="10dp"
+        android:visibility="gone"
+        app:drawableStartCompat="@drawable/ic_triangle_alert"
+        app:drawableTint="@color/warning" />
+
+    <TextView android:id="@+id/raw" style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:maxLines="3" android:ellipsize="end" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton android:id="@+id/confirm" style="@style/Button.Primary" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:minHeight="40dp" android:text="Confirmar" android:textSize="14sp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/edit" style="@style/Button.Outline" android:layout_width="wrap_content" android:layout_height="40dp" android:layout_marginStart="8dp" android:text="Editar" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/discard" style="@style/Button.Ghost" android:layout_width="wrap_content" android:layout_height="40dp" android:layout_marginStart="4dp" android:text="Descartar" android:textColor="@color/muted_foreground" />
+    </LinearLayout>
+</LinearLayout>

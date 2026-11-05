@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo da sheet (rounded-t-2xl, bg-background). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/background" />
+    <corners android:topLeftRadius="@dimen/radius_xl" android:topRightRadius="@dimen/radius_xl" android:bottomLeftRadius="0dp" android:bottomRightRadius="0dp" />
+</shape>

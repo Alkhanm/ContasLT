@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Regra de categorização: “palavra”, categoria e remover. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <TextView android:id="@+id/keyword" style="@style/Text.Semibold.Sm" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" />
+    <br.com.contaslt.ui.views.CategoryIconView android:id="@+id/icon" android:layout_width="28dp" android:layout_height="28dp" android:layout_marginStart="12dp" />
+    <TextView android:id="@+id/category" style="@style/Text.Muted.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:maxWidth="160dp" android:ellipsize="end" android:maxLines="1" />
+    <ImageView android:id="@+id/remove" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="4dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Remover" android:padding="10dp" android:src="@drawable/ic_trash_2" android:tint="@color/muted_foreground" />
+</LinearLayout>

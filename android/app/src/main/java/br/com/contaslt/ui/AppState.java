@@ -22,6 +22,15 @@ public final class AppState {
         public final String invoiceMonth;
         public final Long invoiceAmount;
         public final String invoiceDescription;
+        /**
+         * Novo lançamento já preenchido (sugestão vinda de uma notificação do banco): descrição, valor, tipo, data,
+         * conta, categoria, merchant e pago. Null nos outros casos.
+         */
+        public br.com.contaslt.dto.TransactionInput prefill;
+        /** Vencimento recorrente que este lançamento paga (salvar atualiza o vencimento em vez de criar outro). */
+        public String settleOccurrenceId;
+        /** Chamado depois de salvar com sucesso (ex.: marcar a sugestão da caixa "A confirmar" como confirmada). */
+        public java.util.function.Consumer<br.com.contaslt.dto.Transaction> onSaved;
 
         public FormRequest(Transaction editing, String type, String dueDate, String accountId, String invoiceCardId,
                 String invoiceMonth, Long invoiceAmount, String invoiceDescription) {
@@ -37,6 +46,15 @@ public final class AppState {
 
         public static FormRequest create() {
             return new FormRequest(null, null, null, null, null, null, null, null);
+        }
+
+        public static FormRequest prefilled(br.com.contaslt.dto.TransactionInput in, String settleOccurrenceId,
+                java.util.function.Consumer<br.com.contaslt.dto.Transaction> onSaved) {
+            FormRequest r = new FormRequest(null, in.type, in.dueDate, in.accountId, null, null, null, null);
+            r.prefill = in;
+            r.settleOccurrenceId = settleOccurrenceId;
+            r.onSaved = onSaved;
+            return r;
         }
 
         public static FormRequest edit(Transaction t) {

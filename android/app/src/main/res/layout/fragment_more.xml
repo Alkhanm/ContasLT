@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SettingsPage.vue no celular ("Mais"). -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:paddingBottom="96dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+
+        <!-- Perfil -->
+        <LinearLayout style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+            <TextView android:id="@+id/avatar" style="@style/Text.Bold" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:textColor="@color/primary_foreground" android:textSize="18sp" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/userName" style="@style/Text.Bold" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" />
+                <TextView android:id="@+id/userEmail" style="@style/Text.Muted.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:ellipsize="end" android:maxLines="1" />
+            </LinearLayout>
+            <com.google.android.material.button.MaterialButton android:id="@+id/logout" style="@style/Button.Outline" android:layout_width="wrap_content" android:layout_height="36dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:text="Sair" app:icon="@drawable/ic_log_out" app:iconSize="16dp" />
+        </LinearLayout>
+
+        <include android:id="@+id/themeTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" />
+        <LinearLayout android:id="@+id/themes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" />
+
+        <include android:id="@+id/reportsTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" />
+        <LinearLayout android:id="@+id/reports" style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingTop="0dp" android:paddingBottom="0dp" />
+
+        <include android:id="@+id/orgTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" />
+        <LinearLayout android:id="@+id/org" style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingTop="0dp" android:paddingBottom="0dp" />
+
+        <!-- Exportar e importar (premium) -->
+        <LinearLayout android:id="@+id/backupSection" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <include android:id="@+id/backupTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/exportBackup" style="@style/Button.Outline" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Exportar dados" app:icon="@drawable/ic_download" app:iconSize="16dp" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/importBackup" style="@style/Button.Outline" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="Importar dados" app:icon="@drawable/ic_upload" app:iconSize="16dp" />
+                </LinearLayout>
+                <TextView style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Importar soma ao que já existe: contas e categorias são casadas pelo nome, e lançamentos iguais são ignorados." />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Regras de categorização -->
+        <include android:id="@+id/rulesTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="12dp">
+            <EditText android:id="@+id/keyword" style="@style/Input" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Palavra-chave, ex.: ifood" android:importantForAutofill="no" android:inputType="text" android:maxLength="120" />
+            <br.com.contaslt.ui.views.SegmentedControl android:id="@+id/ruleType" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <br.com.contaslt.ui.views.CategorySelectView android:id="@+id/ruleCategory" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/addRule" style="@style/Button.Primary" android:layout_width="match_parent" android:layout_height="40dp" android:layout_marginTop="8dp" android:text="Adicionar" android:textSize="14sp" app:icon="@drawable/ic_plus" app:iconGravity="textStart" app:iconSize="16dp" app:iconTint="@color/primary_foreground" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/rules" style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="vertical" android:paddingTop="0dp" android:paddingBottom="0dp" android:paddingEnd="8dp" android:visibility="gone" />
+        <TextView android:id="@+id/rulesEmpty" style="@style/Text.Muted.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Nenhuma regra ainda. Elas também são criadas automaticamente quando você categoriza uma importação." android:visibility="gone" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
