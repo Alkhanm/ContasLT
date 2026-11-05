@@ -16,7 +16,10 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       retry: false,
+      // As consultas são locais: rodam com ou sem rede (o padrão do TanStack pausa tudo quando o navegador está offline).
+      networkMode: 'always',
     },
+    mutations: { networkMode: 'always' },
   },
 })
 

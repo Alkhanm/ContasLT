@@ -2,9 +2,11 @@
 
 Controle financeiro pessoal no estilo Organizze, com foco em **contas recorrentes**, **categorização** e **importação de extratos (OFX e Excel)**. PWA instalável, tema claro/escuro com tendência ao verde escuro.
 
-- **Frontend:** Vue 3 + TypeScript + Vite + Tailwind v4 + shadcn-vue (reka-ui) + Pinia + vite-plugin-pwa
+**Local-first:** todos os dados ficam no aparelho e todas as regras de negócio rodam no app (funciona offline e abre na hora). O backend só faz login, guarda e sincroniza os dados e lê comprovantes (foto, QR code e modelo de visão). O mesmo protocolo de sincronização serve para o futuro app Android nativo. Ver [Arquitetura local-first](#arquitetura-local-first).
+
+- **Frontend:** Vue 3 + TypeScript + Vite + Tailwind v4 + shadcn-vue (reka-ui) + Pinia + vite-plugin-pwa + Dexie (IndexedDB)
 - **Backend:** Spring Boot 4.1 (Java 21) + Spring Security (JWT HS256) + Spring Data JPA + Flyway + PostgreSQL
-- **Importação:** parser OFX próprio (SGML/XML, moeda pt-BR) e Apache POI para `.xlsx/.xls`
+- **Importação (no app):** parser OFX próprio (SGML/XML, moeda pt-BR) e SheetJS para `.xlsx/.xls`
 
 ## Rodando em desenvolvimento
 
@@ -52,7 +54,8 @@ Abra http://localhost:5173, crie uma conta e pronto. O cadastro já cria categor
 ### Testes
 
 ```bash
-cd backend && ./mvnw test        # unitários + fluxo completo da API (H2 em memória)
+cd backend && ./mvnw test        # sync, migração dos dados, comprovantes/worker (H2 em memória)
+cd frontend && npm test          # regras de negócio, dados locais e sincronização (Vitest, IndexedDB falso)
 cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 ```
 
@@ -65,7 +68,7 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `DB_SSLMODE` | `disable` | `sslmode` do JDBC; `require` no Supabase |
 | `DB_POOL_MAX` / `DB_POOL_MIN` | `4` / `1` | Tamanho do pool de conexões (pequeno de propósito: pooler do Supabase) |
 | `JWT_SECRET` | chave de desenvolvimento | **Obrigatória no profile `prod`** (mínimo 32 bytes) |
-| `JWT_EXPIRATION` | `P7D` | Validade do token (ISO-8601 Duration) |
+| `JWT_EXPIRATION` | `P30D` | Validade do token (ISO-8601 Duration). Só a sincronização precisa dele: o app abre offline com os dados do aparelho |
 | `CORS_ORIGINS` | `http://localhost:[*]`, redes locais (`192.168.*`, `10.*`, `172.*`) e Tailscale (`100.*`), qualquer porta | Origens permitidas (padrões com `*` no host e `[*]` na porta). **Obrigatória no profile `prod`** |
 | `PORT` | `8080` | Porta HTTP (o Railway injeta a dele) |
 | `TOMCAT_THREADS` | `16` | Threads de requisição |
@@ -136,7 +139,7 @@ docker run --rm --network host --memory 1g --cpus 0.5 -e PORT=8590 -e SPRING_PRO
 O servidor não tem modelo de visão. Com `RECEIPT_PROVIDER=worker` (padrão no profile `prod`), "Ler comprovante" guarda a foto no Supabase e cria uma **tarefa**; a resposta volta na hora com a foto anexada, e o app consulta a tarefa enquanto o computador responde. Um serviço no seu PC, o **worker**, puxa as tarefas do servidor, lê cada foto com o Ollama local e devolve o resultado. Nada entra no seu computador: o worker só faz chamadas de saída (HTTPS para o Railway, HTTP para o Ollama em `localhost`), e se autentica com um segredo próprio, separado do login dos usuários.
 
 - **Computador ligado:** o formulário espera e é preenchido como sempre (uns 25 s).
-- **Computador desligado:** o app avisa, você salva o lançamento normalmente com a foto anexada. Quando o PC ligar, o worker lê a foto e os itens, o estabelecimento e a chave do cupom entram sozinhos no lançamento (sem sobrescrever o que você digitou). Se o total ou a data do cupom não baterem com o lançado, o lançamento mostra um aviso com "Usar o do comprovante" / "Manter o lançado". Se a leitura falhar três vezes, aparece "Tentar de novo".
+- **Computador desligado:** o app avisa, você salva o lançamento normalmente com a foto anexada. Quando o PC ligar, o worker lê a foto; na próxima sincronização o app busca a leitura (`POST /api/receipts/attach`) e os itens, o estabelecimento e a chave do cupom entram sozinhos no lançamento (sem sobrescrever o que você digitou). O servidor não grava lançamentos: só entrega a leitura, uma vez. Se o total ou a data do cupom não baterem com o lançado, o lançamento mostra um aviso com "Usar o do comprovante" / "Manter o lançado". Se a leitura falhar três vezes, aparece "Tentar de novo".
 
 Instalação, no PC com o Ollama:
 
@@ -157,9 +160,9 @@ Quem não tem a marca recebe 403 em `POST /api/receipts/scan` e no "tentar de no
 
 ### Exportar e importar os dados (premium)
 
-Em **Mais › Exportar e importar**: "Exportar dados" gera um `.zip` com `contaslt.json` e a pasta `receipts/` (fotos dos comprovantes). Só vai o que é do usuário logado: contas, categorias, regras, recorrentes e lançamentos com itens e transferências. Não é um dump do banco: o arquivo não tem ids; conta e categoria aparecem pelo nome ("Pai › Filha"), e o par de uma transferência e a regra recorrente de uma ocorrência são posições dentro do próprio arquivo.
+Em **Mais › Exportar e importar** (feito no aparelho, com os dados locais; as fotos são baixadas e enviadas pelo `/api/receipts`): "Exportar dados" gera um `.zip` com `contaslt.json` e a pasta `receipts/` (fotos dos comprovantes). Só vai o que é do usuário logado: contas, categorias, regras, recorrentes e lançamentos com itens e transferências. Não é um dump do banco: o arquivo não tem ids; conta e categoria aparecem pelo nome ("Pai › Filha"), e o par de uma transferência e a regra recorrente de uma ocorrência são posições dentro do próprio arquivo.
 
-"Importar dados" **soma** ao que a conta já tem: contas e categorias são casadas pelo nome (e criadas se faltarem), regras pela palavra-chave, recorrentes por descrição + tipo + frequência + data inicial + valor, e um lançamento é pulado se já existir um igual (mesma conta, data, tipo, valor e descrição, ou o mesmo identificador de extrato na conta, ou a mesma ocorrência da recorrente). Importar o mesmo arquivo duas vezes não duplica nada; importar depois de apagar algo por engano repõe só o que faltava. Transferências só são religadas quando as duas pernas entram juntas. Fotos entram renomeadas para o usuário atual. Rotas: `GET /api/backup/export` e `POST /api/backup/import` (multipart `file`, até 300 MB), em lotes de 500 linhas por ida ao banco.
+"Importar dados" **soma** ao que a conta já tem: contas e categorias são casadas pelo nome (e criadas se faltarem), regras pela palavra-chave, recorrentes por descrição + tipo + frequência + data inicial + valor, e um lançamento é pulado se já existir um igual (mesma conta, data, tipo, valor e descrição, ou o mesmo identificador de extrato na conta, ou a mesma ocorrência da recorrente). Importar o mesmo arquivo duas vezes não duplica nada; importar depois de apagar algo por engano repõe só o que faltava. Transferências só são religadas quando as duas pernas entram juntas. Fotos entram com nome novo, dado pelo servidor. O formato do arquivo é o mesmo da versão em que o backup rodava no servidor, então arquivos antigos continuam entrando.
 
 ### 3. Firebase Hosting (frontend)
 
@@ -174,11 +177,23 @@ O `firebase.json` devolve `index.html` para as rotas do Vue Router e põe cache 
 
 - Comprovantes: no Railway o disco não sobrevive ao deploy, por isso o Supabase Storage. Sem `SUPABASE_URL` o backend continua gravando em `STORAGE_DIR` (uso local ou um *volume* do Railway montado nessa pasta).
 - Leitura de comprovantes: não há Ollama no servidor. O padrão em produção é a fila com o worker do seu computador (acima). `RECEIPT_PROVIDER=openai` usa qualquer API de chat compatível com OpenAI que aceite imagem e `response_format` com JSON Schema; `none` deixa só o botão respondendo "não disponível".
-- Cache no frontend (mesmo esquema do Fimagion): toda leitura da API passa pelo TanStack Query com cache persistido no IndexedDB (`frontend/src/lib/queryClient.ts`, `composables/queries.ts`). A tela abre na hora com o que já foi visto, mesmo depois de recarregar ou reabrir a PWA, e o servidor só é consultado em segundo plano quando o dado tem mais de 1 minuto, ao voltar para o app, ou depois de uma gravação (`ui.dataChanged()` invalida tudo o que deriva de lançamentos e recarrega as contas). O logout apaga o cache. Ficam fora do cache as ações (salvar, excluir, importar) e a leitura de comprovante, que precisa mesmo esperar o worker. O service worker não guarda mais respostas da API: com o servidor lento, o NetworkFirst devolvia dado velho como se fosse novo.
-- Latência: o Railway (Virgínia) fica a ~150 ms do Supabase (São Paulo), então o que pesa é o número de idas ao banco por requisição, não o volume de dados. O backend foi ajustado para isso: usuário atual resolvido pelo JWT sem consulta (`CurrentUser.get()` devolve uma referência), vencimentos das recorrentes garantidos com uma consulta por mês e lembrados em memória até uma regra mudar (`RecurringBillService.ensureOccurrences`), saldos de todas as contas numa consulta só, dívida do cartão em duas, associações carregadas em lote (`default_batch_fetch_size`). Medido com os dados do demo: listagem do mês de 23 para 9 consultas, painel de 39 para 10. Para medir de novo, suba o jar com `--logging.level.org.hibernate.SQL=DEBUG` e conte as linhas por chamada.
-- CI: `.github/workflows/ci.yml` roda `mvnw test` (H2) e `npm run build` em cada push/PR.
+- Dados no aparelho: o app lê e calcula tudo localmente; o servidor só é usado para sincronizar (ao abrir, ao voltar para o app, ao reconectar, logo depois de gravar e a cada 3 minutos), para o login e para comprovantes. A latência Railway↔Supabase deixa de pesar nas telas.
+- CI: `.github/workflows/ci.yml` roda `mvnw test` (H2), `npm test` (Vitest) e `npm run build` em cada push/PR.
+
+## Arquitetura local-first
+
+O app (PWA hoje, Android nativo depois) é dono dos dados e das regras; o servidor é um armazenamento sincronizado.
+
+- **No aparelho** (`frontend/src/data`): um banco IndexedDB por usuário (Dexie) com todos os registros, espelhado em memória (`LocalStore`). Gravar atualiza a memória na hora e grava registro + `outbox` numa transação. As telas continuam chamando `src/api/index.ts` (mesma superfície de antes), que agora executa os serviços locais (`src/services`, o antigo backend portado) sobre o domínio puro (`src/domain`: datas como o java.time, recorrência, casamento com extrato, fatura, OFX/Excel, UUID v5).
+- **Formato dos registros** (`frontend/src/data/schema.ts`): o contrato entre os clientes. Ids UUID gerados no aparelho, dinheiro em centavos (inteiro), datas `AAAA-MM-DD`. O servidor não lê os campos.
+- **Sincronização** (`frontend/src/data/sync.ts`, `backend/.../sync`): `POST /api/sync/push` sobe o outbox em lotes; `GET /api/sync/pull?since=<cursor>` desce o que mudou acima da maior versão já vista. Conflito: vence a gravação com o `updatedAt` mais novo (relógio do aparelho), por registro; o push devolve, na versão do servidor, o que ele recusou. Exclusão é marcação (`deleted`), para chegar aos outros aparelhos. Entre abas, quem grava avisa pelo `BroadcastChannel` e só uma aba sincroniza por vez (Web Locks).
+- **Vencimentos de recorrentes** são gerados no aparelho com id determinístico (UUID v5 de regra + data prevista), então dois aparelhos offline geram o mesmo registro. O gerado vai com relógio mínimo: qualquer edição real (ex.: pagar) vence. O app só gera depois da primeira sincronização completa do aparelho (antes, mostra "Baixando seus dados").
+- **Primeiro acesso / cadastro:** o cadastro cria só o usuário; o app cria as categorias padrão e a "Conta principal". Sair apaga os dados do aparelho, a não ser que algo ainda não tenha subido (aí ficam guardados para o próximo login do mesmo usuário). Sessão expirada não apaga nada.
+- **Migração:** a V13 converte as tabelas relacionais antigas em `sync_records` com UUIDs determinísticos (`tabela:id`), mantendo as referências; as tabelas antigas ficam no banco, sem uso.
 
 ## Como funciona
+
+As regras abaixo rodam no app (`frontend/src/services` e `frontend/src/domain`). Nomes de classes e rotas citados vêm da época em que elas ficavam no backend; os equivalentes no app: `RecurringBillService` → `services/recurring.ts`, `OccurrenceMatcher` → `domain/matcher.ts`, `InvoicePeriod`/`CardInvoiceService` → `domain/invoice.ts`/`services/cards.ts`, `TransactionService` (e o `PUT /api/transactions/{id}?scope=`) → `services/transactions.ts`, `ImportService` → `services/imports.ts`, `TransferService` → `services/transfers.ts`, `ReportService` → `services/reports.ts`.
 
 **Contas recorrentes** são regras (valor, frequência, primeiro vencimento, fim opcional ou número de parcelas). Os vencimentos de cada mês são materializados como lançamentos sob demanda, na primeira vez que o mês é consultado, de forma idempotente. Editar a regra atualiza as ocorrências ainda não pagas; excluir remove as pendentes e preserva as pagas no histórico. Um lançamento existente (por exemplo, importado do extrato) pode virar conta recorrente pelo botão "Tornar recorrente" no próprio lançamento: ele passa a ser a primeira ocorrência da regra (`fromTransactionId` na criação), sem duplicar, e os próximos vencimentos são gerados a partir da data dele. Cada ocorrência guarda a data prevista pela regra (`scheduled_date`) separada da data real, então mover um vencimento não faz o gerador recriar o original. Ao editar uma ocorrência há dois alcances (`PUT /api/transactions/{id}?scope=THIS|FOLLOWING`): só ela, ou ela e os próximos vencimentos pendentes. No segundo caso, valor, descrição, conta e categoria passam para a regra e para as próximas ocorrências; se a data mudar, a regra é reancorada nesse vencimento (`start_number` preserva a numeração das parcelas) e os próximos passam a seguir o novo dia. Ocorrências anteriores não mudam.
 
@@ -210,36 +225,24 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | Cadastro e login (retornam token + usuário) |
 | GET | `/api/auth/me` | Usuário atual |
-| GET/POST/PUT/DELETE | `/api/accounts` | Contas (saldo = inicial + lançamentos pagos, inclusive pernas de transferência) |
-| GET/POST/PUT/DELETE | `/api/categories` | Categorias (cor + ícone; `parentId` para subcategoria) |
-| GET | `/api/transactions?month=AAAA-MM&accountId&categoryId&type&paid&search&transfers` | Lançamentos do mês + resumo (`transfers=true` só transferências, `false` sem elas) |
-| POST/PUT/DELETE | `/api/transactions/{id}` | CRUD de lançamentos (aceita `items`, `merchant`, `receiptFile`, `receiptAccessKey`) |
-| PATCH | `/api/transactions/{id}/paid` | Marcar pago/pendente |
-| GET/POST/PUT/DELETE | `/api/recurring-bills` | Contas recorrentes |
-| POST | `/api/imports/preview` (multipart `file`, `accountId`) | Lê o arquivo e sugere categorias |
-| POST | `/api/imports/confirm` | Cria os lançamentos selecionados |
-| GET | `/api/imports` | Histórico de importações |
-| DELETE | `/api/imports/{id}` | Exclui a importação e todos os lançamentos gerados por ela |
-| POST | `/api/transfers` | Cria uma transferência entre contas (gera as duas pernas já vinculadas) |
-| POST | `/api/transfers/link` | Vincula uma despesa e uma receita existentes como transferência |
-| GET | `/api/transfers/suggestions` | Pares candidatos: mesmo valor, contas diferentes, até 3 dias de diferença (`rejected` = quantos pares foram recusados) |
-| POST / DELETE | `/api/transfers/reject`, `/api/transfers/rejections` | "Não é transferência" (entre duas recorrentes vale para todos os meses) / esquecer todas as recusas |
-| DELETE | `/api/transfers/{id}` | Desvincula; os dois lançamentos continuam como despesa/receita comuns |
-| POST | `/api/receipts/scan` (multipart `file`) | Lê a foto do comprovante com o modelo de visão e devolve itens, total, data e sugestões; com o provedor `worker`, devolve `status=PENDING` e `jobId` |
-| GET | `/api/receipts/jobs/{id}` | Estado da leitura na fila; pronta, a mesma resposta do `scan` |
-| POST | `/api/transactions/{id}/receipt-scan` | `{action: ACCEPT\|DISMISS\|RETRY}` para o aviso de leitura adiada (usar o lido, manter o lançado, ler de novo) |
-| GET / POST | `/api/backup/export`, `/api/backup/import` (multipart `file`) | Exportar os dados da conta em zip e importar somando (sem duplicar). Premium |
-| POST/GET | `/api/worker/ping`, `/api/worker/jobs/claim`, `/api/worker/jobs/{id}/image`, `/api/worker/jobs/{id}/result`, `/api/worker/jobs/{id}/fail` | Rotas do worker (header `X-Worker-Token`, sem JWT) |
+| GET | `/api/sync/pull?since=<versão>&limit=1000` | Registros do usuário alterados acima da versão, em ordem (`records`, `cursor`, `hasMore`) |
+| POST | `/api/sync/push` | `{changes: [{id, entity, data, deleted, updatedAt}]}` (até 500); devolve `accepted` e, em `rejected`, a versão do servidor do que ele já tinha mais novo |
+| POST | `/api/receipts/scan` (multipart `file`) | Guarda a foto e devolve a leitura crua (`scan`) e a chave do QR (`qrAccessKey`); com o provedor `worker`, `status=PENDING` e `jobId` |
+| GET | `/api/receipts/jobs/{id}` | Estado da leitura na fila; pronta, traz `scan` |
+| POST | `/api/receipts/attach` | `{receiptFile, transactionId}`: a foto foi salva nesse lançamento do app; devolve o estado da leitura (e o resultado, uma vez) ou 204 |
+| GET | `/api/receipts/results` | Leituras terminadas de fotos já salvas em lançamentos, ainda não entregues |
+| POST | `/api/receipts/jobs/{id}/delivered`, `/api/receipts/retry` | Confirma a entrega / põe a foto de um lançamento na fila de novo (premium) |
+| POST | `/api/receipts` (multipart `file`) | Guarda uma foto sem ler (importação de backup; premium) |
 | GET | `/api/receipts/{file}` | Imagem do comprovante (só do próprio usuário) |
-| GET/POST/DELETE | `/api/category-rules` | Regras de categorização |
-| GET | `/api/dashboard?month=AAAA-MM` | Totais, categorias, vencidos, próximos 7 dias, 6 meses |
-| GET | `/api/reports/categories?month=AAAA-MM` | Despesas do mês por categoria, com subcategorias, mês anterior e 6 meses de histórico |
-| GET | `/api/reports/items?from=AAAA-MM&to=AAAA-MM&categoryId&search` | Itens de comprovante agrupados por nome: categoria, compras, total por mês e evolução do preço unitário (padrão: últimos 12 meses) |
+| POST/GET | `/api/worker/ping`, `/api/worker/jobs/claim`, `/api/worker/jobs/{id}/image`, `/api/worker/jobs/{id}/result`, `/api/worker/jobs/{id}/fail` | Rotas do worker (header `X-Worker-Token`, sem JWT) |
+
+Contas, categorias, lançamentos, recorrentes, importação, transferências, faturas, painel, relatórios e backup não têm mais rotas: rodam no app, sobre os dados locais.
 
 ## Estrutura
 
 ```
-backend/   Spring Boot (br.com.contaslt: auth, account, category, transaction, recurring, imports, dashboard)
-frontend/  Vue (src/pages, src/components/app, src/components/ui (shadcn), src/stores, src/api)
+backend/   Spring Boot (br.com.contaslt: auth, user, sync, receipt, worker; db.migration.V13 converte os dados antigos)
+frontend/  Vue (src/pages, src/components, src/stores; src/api = superfície das telas; src/services = regras de negócio;
+           src/domain = lógica pura; src/data = IndexedDB, memória e sincronização)
 docker-compose.yml  PostgreSQL 17
 ```
