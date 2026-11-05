@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra arredondada: trilho "muted" e preenchimento tingido pelo código. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape><corners android:radius="3dp" /><solid android:color="@color/muted" /></shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape><corners android:radius="3dp" /><solid android:color="@color/primary" /></shape>
+        </clip>
+    </item>
+</layer-list>

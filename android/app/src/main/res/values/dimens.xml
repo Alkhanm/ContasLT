@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Raio 0.75rem do PWA e derivados (sm/md/lg/xl/2xl). -->
+<resources>
+    <dimen name="radius_sm">8dp</dimen>
+    <dimen name="radius_md">10dp</dimen>
+    <dimen name="radius_lg">12dp</dimen>
+    <dimen name="radius_xl">16dp</dimen>
+    <dimen name="radius_2xl">22dp</dimen>
+    <dimen name="gutter">16dp</dimen>
+</resources>

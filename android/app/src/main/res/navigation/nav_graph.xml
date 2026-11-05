@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rotas do PWA (frontend/src/router/index.ts). "label" é o título do cabeçalho. -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/home">
+
+    <fragment android:id="@+id/home" android:name="br.com.contaslt.ui.home.HomeFragment" android:label="Início" />
+    <fragment android:id="@+id/transactions" android:name="br.com.contaslt.ui.transactions.TransactionsFragment" android:label="Lançamentos" />
+    <fragment android:id="@+id/recurring" android:name="br.com.contaslt.ui.recurring.RecurringFragment" android:label="Contas recorrentes" />
+    <fragment android:id="@+id/importStatement" android:name="br.com.contaslt.ui.imports.ImportFragment" android:label="Importar extrato" />
+    <fragment android:id="@+id/more" android:name="br.com.contaslt.ui.more.MoreFragment" android:label="Mais" />
+    <fragment android:id="@+id/accounts" android:name="br.com.contaslt.ui.accounts.AccountsFragment" android:label="Contas" />
+    <fragment android:id="@+id/categories" android:name="br.com.contaslt.ui.categories.CategoriesFragment" android:label="Categorias" />
+    <fragment android:id="@+id/categorySpending" android:name="br.com.contaslt.ui.reports.CategorySpendingFragment" android:label="Gastos por categoria" />
+    <fragment android:id="@+id/itemSpending" android:name="br.com.contaslt.ui.reports.ItemSpendingFragment" android:label="Gasto por itens" />
+    <fragment android:id="@+id/inbox" android:name="br.com.contaslt.ui.inbox.InboxFragment" android:label="A confirmar" />
+    <fragment android:id="@+id/notificationSettings" android:name="br.com.contaslt.ui.inbox.NotificationSettingsFragment" android:label="Notificações dos bancos" />
+</navigation>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tokens de cor do PWA (frontend/src/assets/index.css, :root (claro)). -->
+<resources>
+    <color name="background">#f3f6f4</color>
+    <color name="foreground">#14211b</color>
+    <color name="card">#ffffff</color>
+    <color name="popover">#ffffff</color>
+    <color name="primary">#1f5f43</color>
+    <color name="primary_foreground">#f6faf7</color>
+    <color name="secondary">#e6eee9</color>
+    <color name="secondary_foreground">#1c3327</color>
+    <color name="muted">#e9efeb</color>
+    <color name="muted_foreground">#5f6e66</color>
+    <color name="accent">#e1ede6</color>
+    <color name="accent_foreground">#1c3327</color>
+    <color name="destructive">#c2452d</color>
+    <color name="border">#d9e2dc</color>
+    <color name="input">#d9e2dc</color>
+    <color name="ring">#2e7d57</color>
+    <color name="income">#1e7a4c</color>
+    <color name="expense">#c2452d</color>
+    <color name="warning">#b7791f</color>
+    <color name="sidebar">#eaf1ed</color>
+</resources>

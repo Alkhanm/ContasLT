@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tipografia do PWA (Tailwind): tamanhos em sp equivalentes a text-xs/sm/base/lg/xl/2xl e pesos do Manrope. -->
+<resources>
+    <style name="Text" parent="">
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="android:textColor">@color/foreground</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:fontFeatureSettings">"tnum", "lnum"</item>
+    </style>
+    <style name="Text.Xs"><item name="android:textSize">12sp</item></style>
+    <style name="Text.Sm"><item name="android:textSize">14sp</item></style>
+    <style name="Text.Muted"><item name="android:textColor">@color/muted_foreground</item></style>
+    <style name="Text.Muted.Xs"><item name="android:textSize">12sp</item></style>
+    <style name="Text.Muted.Sm"><item name="android:textSize">14sp</item></style>
+    <style name="Text.Semibold"><item name="android:textFontWeight">600</item></style>
+    <style name="Text.Semibold.Sm"><item name="android:textSize">14sp</item></style>
+    <style name="Text.Bold"><item name="android:textFontWeight">700</item></style>
+    <style name="Text.Title"><item name="android:textSize">20sp</item><item name="android:textFontWeight">700</item><item name="android:letterSpacing">-0.02</item></style>
+    <style name="Text.Section"><item name="android:textSize">18sp</item><item name="android:textFontWeight">700</item><item name="android:letterSpacing">-0.02</item></style>
+    <style name="Text.Big"><item name="android:textSize">20sp</item><item name="android:textFontWeight">800</item><item name="android:letterSpacing">-0.02</item></style>
+    <style name="Text.Huge"><item name="android:textSize">24sp</item><item name="android:textFontWeight">800</item><item name="android:letterSpacing">-0.02</item></style>
+    <style name="Text.Label"><item name="android:textSize">12sp</item><item name="android:textFontWeight">600</item><item name="android:textColor">@color/muted_foreground</item></style>
+
+    <style name="Card">
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:padding">16dp</item>
+    </style>
+</resources>

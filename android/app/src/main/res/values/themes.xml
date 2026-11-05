@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 com as cores e a fonte do PWA; values-night troca as cores para o tema escuro. -->
+    <style name="Theme.ContasLT" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/primary_foreground</item>
+        <item name="colorPrimaryContainer">@color/accent</item>
+        <item name="colorOnPrimaryContainer">@color/accent_foreground</item>
+        <item name="colorSecondary">@color/primary</item>
+        <item name="colorOnSecondary">@color/primary_foreground</item>
+        <item name="colorSecondaryContainer">@color/secondary</item>
+        <item name="colorOnSecondaryContainer">@color/secondary_foreground</item>
+        <item name="colorTertiary">@color/warning</item>
+        <item name="colorError">@color/destructive</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorOnBackground">@color/foreground</item>
+        <item name="colorSurface">@color/background</item>
+        <item name="colorOnSurface">@color/foreground</item>
+        <item name="colorSurfaceVariant">@color/muted</item>
+        <item name="colorOnSurfaceVariant">@color/muted_foreground</item>
+        <item name="colorSurfaceContainerLowest">@color/card</item>
+        <item name="colorSurfaceContainerLow">@color/card</item>
+        <item name="colorSurfaceContainer">@color/card</item>
+        <item name="colorSurfaceContainerHigh">@color/popover</item>
+        <item name="colorSurfaceContainerHighest">@color/muted</item>
+        <item name="colorOutline">@color/border</item>
+        <item name="colorOutlineVariant">@color/border</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="fontFamily">@font/manrope</item>
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="shapeAppearanceCornerSmall">@style/Shape.Small</item>
+        <item name="shapeAppearanceCornerMedium">@style/Shape.Medium</item>
+        <item name="shapeAppearanceCornerLarge">@style/Shape.Large</item>
+    </style>
+
+    <style name="Shape.Full" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <style name="Shape.Small" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/radius_md</item>
+    </style>
+    <style name="Shape.Medium" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/radius_lg</item>
+    </style>
+    <style name="Shape.Large" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/radius_xl</item>
+    </style>
+</resources>
