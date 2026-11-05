@@ -29,6 +29,14 @@ public class LoginActivity extends AppCompatActivity {
         app = ((ContasApp) getApplication()).container();
         b = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(b.getRoot());
+        // O topo escuro vai até atrás da barra de status; o conteúdo dele desce o tamanho dela.
+        int heroTop = b.hero.getPaddingTop();
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(b.getRoot(), (v, insets) -> {
+            androidx.core.graphics.Insets bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            b.hero.setPadding(b.hero.getPaddingLeft(), heroTop + bars.top, b.hero.getPaddingRight(), b.hero.getPaddingBottom());
+            v.setPadding(0, 0, 0, bars.bottom);
+            return insets;
+        });
 
         b.mode.setOptions(new String[] {"Entrar", "Criar conta"}, new String[] {"login", "register"});
         b.mode.setOnChange(m -> {

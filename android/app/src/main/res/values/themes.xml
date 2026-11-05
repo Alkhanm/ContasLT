@@ -27,6 +27,8 @@
         <item name="colorOutlineVariant">@color/border</item>
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">@bool/light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/light_bars</item>
         <item name="fontFamily">@font/manrope</item>
         <item name="android:fontFamily">@font/manrope</item>
         <item name="shapeAppearanceCornerSmall">@style/Shape.Small</item>

@@ -83,8 +83,14 @@ public final class InboxService {
             s.occurrenceDescription = occ.occurrence.description;
             s.occurrenceDate = occ.occurrence.dueDate;
             s.occurrenceAmount = occ.occurrence.amount;
-            if (in.categoryId == null) {
+            if (in.categoryId == null && occ.occurrence.categoryId != null) {
                 in.categoryId = occ.occurrence.categoryId;
+                CategoryRec oc = Ctx.db().get(Entity.CATEGORY, occ.occurrence.categoryId);
+                if (oc != null) {
+                    s.categoryName = oc.name;
+                    s.categoryIcon = oc.icon;
+                    s.categoryColor = oc.color;
+                }
             }
         }
 

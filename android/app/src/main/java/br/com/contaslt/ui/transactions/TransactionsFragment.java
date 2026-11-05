@@ -133,6 +133,8 @@ public class TransactionsFragment extends Fragment implements TransactionRowBind
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
         b = FragmentTransactionsBinding.inflate(inflater, container, false);
+        // O LayoutManager precisa existir antes de inflar o cabeçalho com a lista como pai.
+        b.list.setLayoutManager(new LinearLayoutManager(requireContext()));
         h = FragmentTransactionsHeaderBinding.inflate(inflater, b.list, false);
         b.refresh.setColorSchemeColors(Ui.color(requireContext(), R.color.primary));
         b.refresh.setOnRefreshListener(() -> {

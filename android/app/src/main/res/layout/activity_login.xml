@@ -13,10 +13,10 @@
         android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/hero"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="#0f1f18"
-            android:fitsSystemWindows="true"
             android:orientation="vertical"
             android:paddingStart="24dp"
             android:paddingTop="32dp"

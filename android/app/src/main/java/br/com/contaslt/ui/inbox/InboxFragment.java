@@ -6,7 +6,6 @@ import java.util.List;
 import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -127,7 +126,7 @@ public class InboxFragment extends Fragment {
 
     private void bind(ItemInboxBinding row, InboxItem item, InboxService.Suggestion s) {
         row.source.setText((item.appLabel != null ? item.appLabel : item.packageName) + " · "
-            + DateUtils.getRelativeTimeSpanString(item.postedAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
+            + ago(item.postedAt));
         row.icon.bind(s.categoryIcon, s.categoryColor);
         row.description.setText(s.input.description);
         List<String> meta = new ArrayList<>();
@@ -186,6 +185,22 @@ public class InboxFragment extends Fragment {
         tv.setPadding(0, p, 0, p);
         tv.setText((item.appLabel != null ? item.appLabel : item.packageName) + ": " + text(item));
         return tv;
+    }
+
+    /** "agora", "há 5 min", "há 2 h", "ontem", "08 nov". */
+    static String ago(long at) {
+        long min = (System.currentTimeMillis() - at) / 60_000L;
+        if (min < 1) {
+            return "agora";
+        }
+        if (min < 60) {
+            return "há " + min + " min";
+        }
+        if (min < 24 * 60) {
+            return "há " + (min / 60) + " h";
+        }
+        java.time.LocalDate d = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        return d.equals(java.time.LocalDate.now().minusDays(1)) ? "ontem" : Format.dateShort(d.toString());
     }
 
     private static String text(InboxItem i) {
