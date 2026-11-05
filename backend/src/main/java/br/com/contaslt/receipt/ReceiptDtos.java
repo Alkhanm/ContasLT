@@ -3,8 +3,10 @@ package br.com.contaslt.receipt;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public final class ReceiptDtos {
 
@@ -23,31 +25,25 @@ public final class ReceiptDtos {
     }
 
     /**
-     * Resposta do endpoint de leitura: dados lidos + arquivo guardado + sugestões do app.
-     * {@code date} é a data para o lançamento: vencimento, se houver; senão emissão; senão o dia da leitura.
+     * Resposta da leitura: o servidor só guarda a foto e lê; o app calcula as sugestões (categoria, duplicata,
+     * vencimento recorrente). {@code status} DONE ({@code scan} preenchido), PENDING (na fila do worker; consulte
+     * {@code GET /api/receipts/jobs/{jobId}}) ou FAILED ({@code error}). {@code qrAccessKey} é a chave lida do QR code,
+     * mais confiável que a lida pelo modelo. {@code workerOnline} diz se vale esperar.
      */
-    public record ReceiptScanResponse(String receiptFile, String merchant, LocalDate date, boolean paid, BigDecimal total,
-            BigDecimal itemsTotal, String paymentMethod, String accessKey, List<ScannedItem> items,
-            Long suggestedCategoryId, String suggestedCategoryName,
-            Long duplicateOfTransactionId, String duplicateOfDescription, LocalDate duplicateOfDate,
-            /** Vencimento pendente de conta recorrente que este comprovante parece pagar. */
-            Long recurringMatchTransactionId, String recurringMatchDescription, LocalDate recurringMatchDate,
-            BigDecimal recurringMatchAmount, Long recurringMatchCategoryId, Long recurringMatchAccountId,
-            /**
-             * Fila do worker: {@code status} DONE (dados acima válidos), PENDING (só {@code receiptFile}; consulte
-             * {@code GET /api/receipts/jobs/{jobId}}) ou FAILED ({@code error}). {@code workerOnline} diz se vale esperar.
-             */
-            Long jobId, String status, boolean workerOnline, String error) {
+    public record ReceiptRead(String receiptFile, Long jobId, String status, boolean workerOnline, String error,
+            String qrAccessKey, ReceiptScan scan) {
+    }
 
-        public static ReceiptScanResponse pending(Long jobId, String receiptFile, boolean workerOnline) {
-            return new ReceiptScanResponse(receiptFile, "", null, true, null, BigDecimal.ZERO, "", null, List.of(),
-                null, null, null, null, null, null, null, null, null, null, null, jobId, "PENDING", workerOnline, null);
-        }
+    /** Leitura terminada de uma foto já salva num lançamento ({@code transactionId} é o UUID do registro do app). */
+    public record JobResult(Long jobId, UUID transactionId, String receiptFile, String status, String error,
+            String qrAccessKey, ReceiptScan scan) {
+    }
 
-        public static ReceiptScanResponse failed(Long jobId, String receiptFile, boolean workerOnline, String error) {
-            return new ReceiptScanResponse(receiptFile, "", null, true, null, BigDecimal.ZERO, "", null, List.of(),
-                null, null, null, null, null, null, null, null, null, null, null, jobId, "FAILED", workerOnline, error);
-        }
+    /** A foto {@code receiptFile} foi salva no lançamento {@code transactionId}. */
+    public record AttachRequest(@NotBlank String receiptFile, @NotNull UUID transactionId) {
+    }
+
+    public record Uploaded(String receiptFile) {
     }
 
     /** Tarefa reservada para o worker. */

@@ -12,12 +12,10 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import br.com.contaslt.account.AccountService;
 import br.com.contaslt.auth.AuthDtos.AuthResponse;
 import br.com.contaslt.auth.AuthDtos.LoginRequest;
 import br.com.contaslt.auth.AuthDtos.RegisterRequest;
 import br.com.contaslt.auth.AuthDtos.UserDto;
-import br.com.contaslt.category.CategoryService;
 import br.com.contaslt.common.BusinessException;
 import br.com.contaslt.config.AppProperties;
 import br.com.contaslt.user.User;
@@ -30,17 +28,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
     private final AppProperties props;
-    private final CategoryService categories;
-    private final AccountService accounts;
 
-    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, JwtEncoder jwtEncoder,
-            AppProperties props, CategoryService categories, AccountService accounts) {
+    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, JwtEncoder jwtEncoder, AppProperties props) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtEncoder = jwtEncoder;
         this.props = props;
-        this.categories = categories;
-        this.accounts = accounts;
     }
 
     @Transactional
@@ -54,8 +47,7 @@ public class AuthService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user = users.save(user);
-        categories.seedDefaults(user);
-        accounts.seedDefault(user);
+        // Categorias padrão e a conta principal são criadas pelo app no primeiro acesso (dados ficam no aparelho).
         return new AuthResponse(issueToken(user), toDto(user));
     }
 

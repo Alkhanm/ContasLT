@@ -1,8 +1,9 @@
 package br.com.contaslt.receipt;
 
+import java.util.UUID;
+
 import java.time.LocalDateTime;
 
-import br.com.contaslt.transaction.Transaction;
 import br.com.contaslt.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,9 +32,9 @@ public class ReceiptJob {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id")
-    private Transaction transaction;
+    /** Lançamento do cliente (UUID do registro local) salvo com esta foto enquanto a leitura não tinha terminado. */
+    @Column(name = "transaction_uuid")
+    private UUID transactionUuid;
 
     @Column(name = "receipt_file", nullable = false)
     private String receiptFile;
@@ -69,8 +70,8 @@ public class ReceiptJob {
     public Long getId() { return id; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
-    public Transaction getTransaction() { return transaction; }
-    public void setTransaction(Transaction transaction) { this.transaction = transaction; }
+    public UUID getTransactionUuid() { return transactionUuid; }
+    public void setTransactionUuid(UUID transactionUuid) { this.transactionUuid = transactionUuid; }
     public String getReceiptFile() { return receiptFile; }
     public void setReceiptFile(String receiptFile) { this.receiptFile = receiptFile; }
     public String getQrAccessKey() { return qrAccessKey; }
