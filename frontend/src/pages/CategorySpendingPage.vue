@@ -39,7 +39,7 @@ const totalChange = computed(() => (data.value ? change(data.value.total, data.v
 /** Linhas da lista com a variação já calculada. */
 const rows = computed(() => (data.value?.items ?? []).map((item) => ({ item, key: keyOf(item), change: change(item.total, item.previousTotal) })))
 
-function categoryQuery(id: number | null) {
+function categoryQuery(id: string | null) {
   return { categoria: id ?? 'nenhuma', tipo: 'EXPENSE' }
 }
 </script>

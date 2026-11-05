@@ -226,9 +226,15 @@ export function ensureOccurrences(month: YearMonth) {
     for (const bill of active) {
       for (const occ of between(bill, from, to)) {
         if (existing.has(`${bill.id}|${occ.date}`)) continue
-        const id = occurrenceId(bill.id, occ.date)
-        // Um vencimento com este id que existe e foi movido para outra data prevista continua sendo ele.
-        if (s.get('transaction', id)) continue
+        let id = occurrenceId(bill.id, occ.date)
+        // O id desta data já é de um vencimento que foi movido (reancorado) para outra data prevista: usa um id
+        // alternativo, também determinístico, para os outros aparelhos chegarem ao mesmo registro.
+        const taken = s.get('transaction', id)
+        if (taken) {
+          if (taken.recurringBillId === bill.id && taken.scheduledDate === occ.date) continue
+          id = occurrenceId(bill.id, `${occ.date}#2`)
+          if (s.get('transaction', id)) continue
+        }
         s.put('transaction', syncOccurrence(bill, {
           id, accountId: bill.accountId!, categoryId: null, recurringBillId: bill.id, importBatchId: null,
           transferId: null, description: '', amount: 0, type: bill.type, dueDate: occ.date, scheduledDate: occ.date,

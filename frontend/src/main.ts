@@ -19,7 +19,7 @@ app.use(VueQueryPlugin, { queryClient })
 useThemeStore()
 
 window.addEventListener('contaslt:unauthorized', () => {
-  useAuthStore().logout()
+  useAuthStore().expire()
   useCatalogStore().reset()
   router.push({ name: 'login' })
 })

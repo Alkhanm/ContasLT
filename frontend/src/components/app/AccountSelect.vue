@@ -3,15 +3,15 @@ import { computed } from 'vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCatalogStore } from '@/stores/catalog'
 
-const props = defineProps<{ modelValue: number | null; id?: string; allowAll?: boolean; size?: 'sm' | 'default' }>()
-const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
+const props = defineProps<{ modelValue: string | null; id?: string; allowAll?: boolean; size?: 'sm' | 'default' }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string | null] }>()
 
 const catalog = useCatalogStore()
 const value = computed(() => (props.modelValue == null ? 'all' : String(props.modelValue)))
 const selected = computed(() => catalog.account(props.modelValue))
 
 function onUpdate(v: unknown) {
-  emit('update:modelValue', v === 'all' || v == null ? null : Number(v))
+  emit('update:modelValue', v === 'all' || v == null ? null : String(v))
 }
 </script>
 

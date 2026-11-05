@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
 import { accountsApi, categoriesApi, dashboardApi, importsApi, recurringApi, reportsApi, rulesApi, transactionsApi, transfersApi } from '@/api'
-import type { TransactionFilter } from '@/api/types'
+import type { Id, TransactionFilter } from '@/api/types'
 import { queryClient } from '@/lib/queryClient'
 
 /** Chaves do cache. Toda leitura da API passa por aqui, para a invalidação acertar sempre a mesma chave. */
@@ -18,7 +18,7 @@ export const keys = {
   rules: ['rules'] as const,
 }
 
-export type ItemReportParams = { from: string; to: string; categoryId: number | null }
+export type ItemReportParams = { from: string; to: string; categoryId: Id | null }
 
 /** Mesmo filtro, mesma chave: campos ausentes viram null/false/'' antes de entrar na chave. */
 function normalizeFilter(f: TransactionFilter): Required<TransactionFilter> {
@@ -94,11 +94,11 @@ export function useRules() {
 // ---------- Fora de componentes (stores e formulários) ----------
 
 export function fetchAccounts(fresh = false) {
-  return queryClient.fetchQuery({ queryKey: keys.accounts, queryFn: () => accountsApi.list(true), staleTime: fresh ? 0 : 5 * 60_000 })
+  return queryClient.fetchQuery({ queryKey: keys.accounts, queryFn: () => accountsApi.list(true), staleTime: fresh ? 0 : Infinity })
 }
 
 export function fetchCategories(fresh = false) {
-  return queryClient.fetchQuery({ queryKey: keys.categories, queryFn: () => categoriesApi.list(true), staleTime: fresh ? 0 : 5 * 60_000 })
+  return queryClient.fetchQuery({ queryKey: keys.categories, queryFn: () => categoriesApi.list(true), staleTime: fresh ? 0 : Infinity })
 }
 
 export function fetchTransactions(filter: TransactionFilter) {
@@ -111,8 +111,8 @@ export function prefetchTransactions(filter: TransactionFilter) {
 }
 
 /**
- * Depois de qualquer gravação: marca como velho tudo o que deriva de lançamentos. O que está na tela refaz a
- * consulta em segundo plano; o resto só quando for aberto. Contas e categorias são recarregadas pela store.
+ * Marca como velho tudo o que deriva de lançamentos. As gravações locais já fazem isso sozinhas (ver
+ * `lib/queryClient.ts`); fica para quem quer forçar o recálculo.
  */
 export function invalidateData() {
   for (const key of [['dashboard'], ['transactions'], ['transfers'], ['reports'], ['recurring'], ['imports'], ['rules']]) {

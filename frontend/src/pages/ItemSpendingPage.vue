@@ -21,7 +21,7 @@ type RangeKey = '3' | '6' | '12' | '24' | 'all'
 type SortKey = 'total' | 'count' | 'up' | 'down' | 'name'
 
 const range = ref<RangeKey>('12')
-const categoryId = ref<number | null>(null)
+const categoryId = ref<string | null>(null)
 const search = ref('')
 const sort = ref<SortKey>('total')
 

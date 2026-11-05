@@ -21,19 +21,19 @@ import { useUiStore } from '@/stores/ui'
 
 interface ReviewRow extends PreviewRow {
   selected: boolean
-  categoryId: number | null
+  categoryId: string | null
   /** Quando há um lançamento manual parecido: vincular a ele (true) ou criar um novo (false). */
   link: boolean
   /** Linha que parece pagamento de fatura: registrar como pagamento do cartão escolhido (true) ou como despesa comum. */
   payInvoice: boolean
-  invoiceCard: number | null
+  invoiceCard: string | null
 }
 
 const catalog = useCatalogStore()
 const ui = useUiStore()
 
 const step = ref<'upload' | 'review' | 'done'>('upload')
-const accountId = ref<number | null>(null)
+const accountId = ref<string | null>(null)
 const file = ref<File | null>(null)
 const dragging = ref(false)
 const busy = ref(false)

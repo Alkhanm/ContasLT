@@ -34,8 +34,8 @@ type StatusFilter = 'all' | 'pendente' | 'pago'
 
 const typeFilter = ref<TypeFilter>((route.query.tipo as TypeFilter) || 'ALL')
 const status = ref<StatusFilter>((route.query.status as StatusFilter) || 'all')
-const accountId = ref<number | null>(route.query.conta ? Number(route.query.conta) : null)
-const categoryId = ref<number | null>(route.query.categoria && route.query.categoria !== 'nenhuma' ? Number(route.query.categoria) : null)
+const accountId = ref<string | null>(route.query.conta ? String(route.query.conta) : null)
+const categoryId = ref<string | null>(route.query.categoria && route.query.categoria !== 'nenhuma' ? String(route.query.categoria) : null)
 const uncategorized = ref(route.query.categoria === 'nenhuma')
 const search = ref('')
 const debouncedSearch = refDebounced(search, 300)
@@ -47,7 +47,7 @@ const card = computed(() => {
 const byInvoice = ref(route.query.fatura !== '0')
 const invoiceMode = computed(() => !!card.value && byInvoice.value)
 
-const busyIds = ref(new Set<number>())
+const busyIds = ref(new Set<string>())
 const matchOpen = ref(route.query.cruzar === '1')
 
 const typeOptions: { value: TypeFilter; label: string }[] = [

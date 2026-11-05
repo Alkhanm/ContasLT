@@ -12,7 +12,7 @@ import { useCatalogStore } from '@/stores/catalog'
  * Sem `type`, lista despesas e receitas agrupadas (uso em filtros).
  */
 const props = withDefaults(defineProps<{
-  modelValue: number | null
+  modelValue: string | null
   type?: TransactionType
   id?: string
   /** Oferece a opção vazia (padrão: sim). Prop booleano omitido vira false no Vue, por isso o default explícito. */
@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<{
   allowUncategorized?: boolean
   uncategorized?: boolean
 }>(), { allowNone: true, allowUncategorized: false, uncategorized: false })
-const emit = defineEmits<{ 'update:modelValue': [value: number | null]; 'update:uncategorized': [value: boolean] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string | null]; 'update:uncategorized': [value: boolean] }>()
 
 const catalog = useCatalogStore()
 const selected = computed(() => catalog.category(props.modelValue))
@@ -47,10 +47,10 @@ const noneText = computed(() => props.noneLabel ?? (props.allowNone ? 'Sem categ
 
 function onRoot(v: unknown) {
   if (props.allowUncategorized) emit('update:uncategorized', v === 'uncategorized')
-  emit('update:modelValue', v === 'none' || v === 'uncategorized' || v == null ? null : Number(v))
+  emit('update:modelValue', v === 'none' || v === 'uncategorized' || v == null ? null : String(v))
 }
 function onChild(v: unknown) {
-  emit('update:modelValue', v === 'all' || v == null ? rootId.value : Number(v))
+  emit('update:modelValue', v === 'all' || v == null ? rootId.value : String(v))
 }
 </script>
 

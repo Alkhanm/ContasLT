@@ -3,6 +3,8 @@ import { onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { CalendarDays, ChartPie, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, ShoppingBasket, Tag, Wallet } from 'lucide-vue-next'
 import MonthNavigator from './MonthNavigator.vue'
+import SyncGate from './SyncGate.vue'
+import SyncIndicator from './SyncIndicator.vue'
 import RecurringFormSheet from '@/components/app/RecurringFormSheet.vue'
 import TransactionFormSheet from '@/components/app/TransactionFormSheet.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -35,14 +37,13 @@ function isActive(name: string) {
   return route.name === name
 }
 
-function logout() {
-  auth.logout()
+async function logout() {
+  await auth.logout()
   catalog.reset()
   router.push({ name: 'login' })
 }
 
 onMounted(() => {
-  auth.loadUser()
   catalog.load()
 })
 </script>
@@ -105,6 +106,7 @@ onMounted(() => {
         <div class="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
           <h1 class="min-w-0 truncate text-lg font-bold tracking-tight md:text-xl">{{ route.meta.title }}</h1>
           <div class="ml-auto flex items-center gap-2">
+            <SyncIndicator />
             <MonthNavigator v-if="route.meta.monthNav" />
             <button
               type="button"
@@ -119,7 +121,9 @@ onMounted(() => {
       </header>
 
       <main class="mx-auto w-full max-w-5xl flex-1 px-4 pt-4 pb-36 md:pb-10">
-        <RouterView />
+        <SyncGate>
+          <RouterView />
+        </SyncGate>
       </main>
     </div>
 

@@ -7,9 +7,9 @@ import { useCatalogStore } from './catalog'
 export interface TransactionFormDefaults {
   type?: TransactionType
   dueDate?: string
-  accountId?: number | null
+  accountId?: string | null
   /** Abrir como pagamento de fatura de cartão: cartão, mês da fatura, valor e descrição sugeridos. */
-  invoice?: { cardId: number; month: string; amount?: number | null; description?: string }
+  invoice?: { cardId: string; month: string; amount?: number | null; description?: string }
 }
 
 /** Estado global de interface: formulário de lançamento e sinal de "dados mudaram". */

@@ -38,10 +38,10 @@ const form = reactive({
   amount: null as number | null,
   description: '',
   dueDate: todayIso(),
-  categoryId: null as number | null,
-  accountId: null as number | null,
+  categoryId: null as string | null,
+  accountId: null as string | null,
   /** Conta de destino, só para transferências. */
-  toAccountId: null as number | null,
+  toAccountId: null as string | null,
   paid: false,
   notes: '',
   merchant: '' as string,
@@ -51,7 +51,7 @@ const form = reactive({
   /** Em ocorrência de conta recorrente: aplicar só nela ou nela e nos próximos vencimentos. */
   scope: 'THIS' as TransactionEditScope,
   /** Pagamento de fatura de cartão: cartão e mês da fatura (AAAA-MM) cujas compras esta despesa agrega. */
-  invoiceCardId: null as number | null,
+  invoiceCardId: null as string | null,
   invoiceMonth: null as string | null,
 })
 const scopes: { value: TransactionEditScope; label: string }[] = [
@@ -75,7 +75,7 @@ const duplicate = ref<Pick<ReceiptScan, 'duplicateOfTransactionId' | 'duplicateO
 /** Vencimento pendente de conta recorrente que o comprovante lido parece pagar. */
 const recurringMatch = ref<ReceiptScan | null>(null)
 /** Quando aceito: salvar grava o comprovante por cima desse vencimento em vez de criar um lançamento. */
-const settleOccurrenceId = ref<number | null>(null)
+const settleOccurrenceId = ref<string | null>(null)
 
 function acceptRecurringMatch() {
   const m = recurringMatch.value

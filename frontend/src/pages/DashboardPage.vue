@@ -22,7 +22,7 @@ const ui = useUiStore()
 const router = useRouter()
 
 const { data, isPending: loading, error, refetch: load } = useDashboard(() => period.month)
-const busyIds = ref(new Set<number>())
+const busyIds = ref(new Set<string>())
 watch(error, (err) => { if (err) notifyError(err) })
 // A lista do mês é o próximo toque mais comum: já fica no cache enquanto o painel está na tela.
 watch(() => period.month, (month) => prefetchTransactions(defaultTransactionFilter(month)), { immediate: true })
@@ -34,7 +34,7 @@ const paidShare = computed(() => {
 
 const bills = computed(() => {
   if (!data.value) return []
-  const seen = new Set<number>()
+  const seen = new Set<string>()
   return [...data.value.overdue, ...data.value.upcoming].filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)))
 })
 const MAX_BILLS = 8

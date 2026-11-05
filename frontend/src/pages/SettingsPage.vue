@@ -29,7 +29,7 @@ const { data: rulesData, error: rulesError, refetch: loadRules } = useRules()
 const rules = computed(() => rulesData.value ?? [])
 watch(rulesError, (err) => { if (err) notifyError(err) })
 const keyword = ref('')
-const ruleCategoryId = ref<number | null>(null)
+const ruleCategoryId = ref<string | null>(null)
 const ruleType = ref<'EXPENSE' | 'INCOME'>('EXPENSE')
 const saving = ref(false)
 
@@ -119,8 +119,8 @@ async function removeRule(r: CategoryRule) {
   }
 }
 
-function logout() {
-  auth.logout()
+async function logout() {
+  await auth.logout()
   catalog.reset()
   router.push({ name: 'login' })
 }

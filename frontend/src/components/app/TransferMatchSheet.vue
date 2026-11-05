@@ -17,7 +17,7 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; linked: [] }>()
 
 const items = ref<TransferSuggestion[]>([])
-const busy = ref(new Set<number>())
+const busy = ref(new Set<string>())
 const linkingAll = ref(false)
 
 const { data, isPending: loading, error } = useTransferSuggestions(() => props.open)

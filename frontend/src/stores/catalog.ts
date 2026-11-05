@@ -1,14 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { Account, Category } from '@/api/types'
+import type { Account, Category, Id } from '@/api/types'
+import { onDataChange } from '@/data/session'
 import { fetchAccounts, fetchCategories } from '@/composables/queries'
 
 const byName = (a: Category, b: Category) => a.name.localeCompare(b.name, 'pt-BR')
 
 /**
- * Contas e categorias do usuário, reutilizadas em formulários e filtros. Espelho reativo do cache de consultas:
- * a primeira abertura vem do IndexedDB na hora, e o servidor só é consultado quando o dado está velho ou após
- * uma gravação ({@code reloadAccounts}/{@code reloadCategories}).
+ * Contas e categorias do usuário, reutilizadas em formulários e filtros. Calculadas dos dados do aparelho e
+ * recalculadas sozinhas quando qualquer dado muda (saldos mudam com quase toda gravação).
  */
 export const useCatalogStore = defineStore('catalog', () => {
   const accounts = ref<Account[]>([])
@@ -45,26 +45,30 @@ export const useCatalogStore = defineStore('catalog', () => {
     categories.value = await fetchCategories(true)
   }
 
-  function account(id: number | null | undefined) {
+  function account(id: Id | null | undefined) {
     return accounts.value.find((a) => a.id === id) ?? null
   }
 
-  function category(id: number | null | undefined) {
+  function category(id: Id | null | undefined) {
     return categories.value.find((c) => c.id === id) ?? null
   }
 
-  function childrenOf(parentId: number | null | undefined, includeArchived = false) {
+  function childrenOf(parentId: Id | null | undefined, includeArchived = false) {
     if (parentId == null) return []
     return categories.value.filter((c) => c.parentId === parentId && (includeArchived || !c.archived)).sort(byName)
   }
 
   /** "Pai › Filha" para subcategoria, ou só o nome. */
-  function categoryPath(id: number | null | undefined) {
+  function categoryPath(id: Id | null | undefined) {
     const c = category(id)
     if (!c) return null
     const parent = c.parentId != null ? category(c.parentId) : null
     return parent ? `${parent.name} › ${c.name}` : c.name
   }
+
+  onDataChange(() => {
+    if (loaded.value) void load(true)
+  })
 
   function reset() {
     accounts.value = []

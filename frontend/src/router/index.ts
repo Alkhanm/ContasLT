@@ -31,10 +31,15 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
+  }
+  // Abre o banco local do usuário antes de qualquer tela ler dados (rápido: é o IndexedDB do aparelho).
+  if (to.meta.requiresAuth || to.matched.some((r) => r.meta.requiresAuth)) {
+    await auth.ensureSession()
+    if (!auth.isAuthenticated) return { name: 'login' }
   }
   if (to.meta.guest && auth.isAuthenticated) {
     return { name: 'home' }

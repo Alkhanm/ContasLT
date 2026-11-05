@@ -25,7 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [] }>()
 
 const catalog = useCatalogStore()
-const form = reactive({ name: '', type: 'EXPENSE' as TransactionType, color: colorPalette[0]!, icon: 'tag', parentId: null as number | null })
+const form = reactive({ name: '', type: 'EXPENSE' as TransactionType, color: colorPalette[0]!, icon: 'tag', parentId: null as string | null })
 
 /** Uma categoria que já tem subcategorias não pode virar subcategoria (só há um nível). */
 const hasChildren = computed(() => !!props.category && catalog.childrenOf(props.category.id, true).length > 0)
@@ -34,7 +34,7 @@ const parent = computed(() => catalog.category(form.parentId))
 const parentValue = computed(() => (form.parentId == null ? 'none' : String(form.parentId)))
 
 function onParent(v: unknown) {
-  form.parentId = v === 'none' || v == null ? null : Number(v)
+  form.parentId = v === 'none' || v == null ? null : String(v)
   if (parent.value) form.type = parent.value.type
 }
 const errors = ref<Record<string, string>>({})
