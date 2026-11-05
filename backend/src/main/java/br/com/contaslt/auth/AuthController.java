@@ -38,6 +38,13 @@ public class AuthController {
         return auth.login(req);
     }
 
+    /** Exclui a conta e todos os dados (confirmação por e-mail e senha; usado pelo app e pela página web). */
+    @PostMapping("/delete-account")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAccount(@Valid @RequestBody br.com.contaslt.auth.AuthDtos.DeleteAccountRequest req) {
+        auth.deleteAccount(req);
+    }
+
     @GetMapping("/me")
     public UserDto me() {
         return AuthService.toDto(currentUser.load());

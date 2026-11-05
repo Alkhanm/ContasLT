@@ -10,4 +10,7 @@ interface ReceiptBlobStore {
 
     /** Vazio quando o arquivo não existe. */
     Optional<byte[]> get(String name) throws IOException;
+
+    /** Apaga todos os arquivos cujo nome começa com o prefixo (exclusão de conta). Devolve quantos. */
+    int deleteByPrefix(String prefix) throws IOException;
 }

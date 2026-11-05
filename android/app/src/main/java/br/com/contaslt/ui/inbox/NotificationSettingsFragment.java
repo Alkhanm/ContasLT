@@ -8,7 +8,6 @@ import java.util.Map;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -24,7 +23,6 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
-import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import br.com.contaslt.R;
 import br.com.contaslt.databinding.FragmentNotificationSettingsBinding;
@@ -95,7 +93,13 @@ public class NotificationSettingsFragment extends Fragment {
             ? "O ContasLT lê só as notificações dos apps marcados abaixo, no aparelho, e transforma compras, Pix e pagamentos em sugestões na caixa A confirmar."
             : "Para ler as notificações dos bancos, libere o ContasLT em Acesso a notificações. Só os apps marcados abaixo são lidos, e nada sai do aparelho.");
         b.accessButton.setText(on ? "Abrir configurações do sistema" : "Liberar acesso");
-        b.accessButton.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        b.accessButton.setOnClickListener(v -> {
+            if (on) {
+                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+            } else {
+                NotificationDisclosure.show(requireContext());
+            }
+        });
         b.accessIcon.setImageResource(on ? R.drawable.ic_bell_ring : R.drawable.ic_bell);
     }
 
@@ -169,33 +173,41 @@ public class NotificationSettingsFragment extends Fragment {
         }
     }
 
-    /** Escolher outro app instalado (lista dos apps com ícone na tela inicial). */
+    /**
+     * Adicionar um app que não está na lista conhecida: o usuário informa o nome do pacote (o app não lista os apps
+     * instalados, para não pedir visibilidade ampla de pacotes).
+     */
     private void pickApp() {
-        PackageManager pm = requireContext().getPackageManager();
-        Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> infos = pm.queryIntentActivities(launcher, 0);
-        List<String[]> apps = new ArrayList<>();
-        for (ResolveInfo ri : infos) {
-            String pkg = ri.activityInfo.packageName;
-            if (!pkg.equals(requireContext().getPackageName())) {
-                apps.add(new String[] {pkg, ri.loadLabel(pm).toString()});
-            }
-        }
-        apps.sort((x, y) -> x[1].compareToIgnoreCase(y[1]));
-        BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
-        android.widget.ListView list = new android.widget.ListView(requireContext());
-        List<String> labels = new ArrayList<>();
-        for (String[] a : apps) {
-            labels.add(a[1]);
-        }
-        list.setAdapter(new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_list_item_1, labels));
-        list.setOnItemClickListener((parent, view, pos, id) -> {
-            store.addExtraApp(apps.get(pos)[0]);
-            dialog.dismiss();
-            renderApps();
-        });
-        dialog.setContentView(list);
-        dialog.show();
+        android.content.Context c = requireContext();
+        android.widget.LinearLayout box = new android.widget.LinearLayout(c);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int p = Ui.dp(c, 20);
+        box.setPadding(p, Ui.dp(c, 8), p, 0);
+        android.widget.TextView hint = new android.widget.TextView(c, null, 0, R.style.Text_Muted_Sm);
+        hint.setText("Informe o nome do pacote do app do banco (ex.: com.nu.production). Ele aparece no endereço do app "
+            + "na Play Store, depois de \"id=\".");
+        box.addView(hint);
+        android.widget.EditText input = new android.widget.EditText(c, null, 0, R.style.Input);
+        input.setHint("com.banco.app");
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(c, 12);
+        box.addView(input, lp);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(c)
+            .setTitle("Adicionar app")
+            .setView(box)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Adicionar", (d, w) -> {
+                String pkg = input.getText().toString().trim();
+                if (pkg.matches("[A-Za-z][\\w]*(\\.[A-Za-z][\\w]*)+")) {
+                    store.addExtraApp(pkg);
+                    renderApps();
+                } else if (!pkg.isEmpty()) {
+                    com.google.android.material.snackbar.Snackbar.make(b.getRoot(), "Nome de pacote inválido", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show();
+                }
+            })
+            .show();
     }
 
     private void test() {

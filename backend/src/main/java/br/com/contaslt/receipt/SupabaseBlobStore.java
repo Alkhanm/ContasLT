@@ -73,6 +73,49 @@ final class SupabaseBlobStore implements ReceiptBlobStore {
         throw new IOException("Supabase Storage respondeu " + r.statusCode() + " ao ler " + name);
     }
 
+    /** Lista (em páginas de 1000) os objetos com o prefixo no nome e apaga em lote. */
+    @Override
+    public int deleteByPrefix(String prefix) throws IOException {
+        int total = 0;
+        for (int round = 0; round < 1000; round++) {
+            String body = "{\"prefix\":\"\",\"search\":\"" + prefix + "\",\"limit\":1000,\"offset\":0}";
+            HttpResponse<String> r = send(request("/object/list/" + bucket)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build());
+            if (r.statusCode() == 404 || r.statusCode() == 400) {
+                return total;
+            }
+            if (r.statusCode() >= 300) {
+                throw new IOException("Supabase Storage respondeu " + r.statusCode() + " ao listar " + prefix + ": " + r.body());
+            }
+            java.util.List<String> names = new java.util.ArrayList<>();
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"").matcher(r.body());
+            while (m.find()) {
+                if (m.group(1).startsWith(prefix)) {
+                    names.add(m.group(1));
+                }
+            }
+            if (names.isEmpty()) {
+                return total;
+            }
+            StringBuilder del = new StringBuilder("{\"prefixes\":[");
+            for (int i = 0; i < names.size(); i++) {
+                del.append(i > 0 ? "," : "").append('"').append(names.get(i)).append('"');
+            }
+            del.append("]}");
+            HttpResponse<String> d = send(request("/object/" + bucket)
+                .header("Content-Type", "application/json")
+                .method("DELETE", HttpRequest.BodyPublishers.ofString(del.toString()))
+                .build());
+            if (d.statusCode() >= 300) {
+                throw new IOException("Supabase Storage respondeu " + d.statusCode() + " ao apagar: " + d.body());
+            }
+            total += names.size();
+        }
+        return total;
+    }
+
     private HttpRequest upload(String name, byte[] bytes) {
         return request("/object/" + bucket + "/" + name)
             .header("Content-Type", "image/jpeg")

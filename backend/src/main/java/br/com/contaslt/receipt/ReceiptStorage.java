@@ -80,6 +80,16 @@ public class ReceiptStorage {
         }
     }
 
+    /** Exclusão de conta: apaga todas as fotos do usuário. */
+    public int deleteAll(Long userId) {
+        try {
+            return store.deleteByPrefix("u" + userId + "-");
+        } catch (IOException e) {
+            log.warn("Falha ao apagar os comprovantes do usuário {}: {}", userId, e.toString());
+            throw new BusinessException("Não foi possível apagar as fotos dos comprovantes agora. Tente de novo em instantes.");
+        }
+    }
+
     public static boolean ownedBy(Long userId, String name) {
         return name != null && name.matches("u" + userId + "-[0-9a-f-]{36}\\.jpg");
     }

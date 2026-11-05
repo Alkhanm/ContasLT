@@ -88,6 +88,7 @@ public class MoreFragment extends Fragment {
         b.userName.setText(user != null ? user.name : null);
         b.userEmail.setText(user != null ? user.email : null);
         b.logout.setOnClickListener(v -> logout());
+        b.deleteAccount.setOnClickListener(v -> confirmDeleteAccount());
 
         Views.section(b.themeTitle, "Aparência", null, null, null);
         renderThemes();
@@ -204,6 +205,58 @@ public class MoreFragment extends Fragment {
             app.auth.logout();
             return true;
         }, ok -> goToLogin(), e -> goToLogin());
+    }
+
+    // ---------- Excluir conta ----------
+
+    /** Pede a senha e apaga a conta no servidor e os dados deste aparelho. */
+    private void confirmDeleteAccount() {
+        Context c = requireContext();
+        android.widget.LinearLayout box = new android.widget.LinearLayout(c);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int p = Ui.dp(c, 20);
+        box.setPadding(p, Ui.dp(c, 8), p, 0);
+        TextView text = UiKit.text(c, R.style.Text_Muted_Sm,
+            "Apaga a sua conta e todos os dados do servidor e deste aparelho: contas, categorias, lançamentos, "
+                + "recorrentes e fotos dos comprovantes. Não dá para desfazer. Para guardar uma cópia antes, use Exportar dados.");
+        box.addView(text);
+        android.widget.EditText password = new android.widget.EditText(c, null, 0, R.style.Input);
+        password.setHint("Sua senha");
+        password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(c, 16);
+        box.addView(password, lp);
+        androidx.appcompat.app.AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(c)
+            .setTitle("Excluir minha conta?")
+            .setView(box)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Excluir", null)
+            .create();
+        dialog.setOnShowListener(d -> {
+            android.widget.Button ok = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
+            ok.setTextColor(Ui.color(c, R.color.destructive));
+            ok.setOnClickListener(v -> {
+                String pw = password.getText().toString();
+                if (pw.isEmpty()) {
+                    password.setError("Informe a senha");
+                    return;
+                }
+                ok.setEnabled(false);
+                Repo.run(getViewLifecycleOwner(), () -> {
+                    app.auth.deleteAccount(pw);
+                    return true;
+                }, done -> {
+                    dialog.dismiss();
+                    UiKit.toast(getActivity(), "Conta excluída");
+                    goToLogin();
+                }, e -> {
+                    ok.setEnabled(true);
+                    password.setError(e.status == 401 ? "Senha incorreta" : e.getMessage());
+                });
+            });
+        });
+        dialog.show();
     }
 
     private void goToLogin() {

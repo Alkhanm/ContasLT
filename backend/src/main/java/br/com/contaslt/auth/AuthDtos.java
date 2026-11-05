@@ -21,6 +21,12 @@ public final class AuthDtos {
     }
 
     /** {@code premium}: pode usar a leitura de comprovantes. */
+    /** Exclusão de conta: e-mail e senha confirmam (vale do app e da página web, sem token). */
+    public record DeleteAccountRequest(
+        @NotBlank(message = "Informe o e-mail") String email,
+        @NotBlank(message = "Informe a senha") String password) {
+    }
+
     public record UserDto(Long id, String name, String email, boolean premium) {
     }
 

@@ -5,3 +5,8 @@ build/
 *.iml
 /captures/
 .kotlin/
+
+# Chave de upload da Play Store (nunca no git)
+keystore.properties
+*.jks
+*.keystore

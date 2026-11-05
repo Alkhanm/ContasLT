@@ -52,7 +52,7 @@ public class InboxFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
         b = FragmentInboxBinding.inflate(inflater, container, false);
         store = NotificationProcessor.store(requireContext());
-        b.grant.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        b.grant.setOnClickListener(v -> NotificationDisclosure.show(requireContext()));
         b.settings.setOnClickListener(v -> NavHostFragment.findNavController(this).navigate(R.id.notificationSettings));
         return b.getRoot();
     }

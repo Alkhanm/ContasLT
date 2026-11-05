@@ -234,5 +234,10 @@ async function logout() {
       </ul>
       <p v-else class="mt-2 text-sm text-muted-foreground">Nenhuma regra ainda. Elas também são criadas automaticamente quando você categoriza uma importação.</p>
     </section>
+
+    <section class="border-t pt-6">
+      <RouterLink :to="{ name: 'delete-account' }" class="text-sm font-semibold text-destructive">Excluir minha conta</RouterLink>
+      <p class="mt-1 text-xs text-muted-foreground">Apaga a conta e todos os dados do servidor. Não dá para desfazer.</p>
+    </section>
   </div>
 </template>

@@ -12,6 +12,13 @@ const router = createRouter({
       meta: { guest: true, title: 'Entrar' },
     },
     {
+      // Pública (exigência da Play Store): excluir a conta sem precisar do app.
+      path: '/excluir-conta',
+      name: 'delete-account',
+      component: () => import('@/pages/DeleteAccountPage.vue'),
+      meta: { title: 'Excluir conta' },
+    },
+    {
       path: '/',
       component: () => import('@/components/layout/AppShell.vue'),
       meta: { requiresAuth: true },

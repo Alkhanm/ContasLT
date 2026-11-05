@@ -27,6 +27,23 @@ final class LocalBlobStore implements ReceiptBlobStore {
     }
 
     @Override
+    public int deleteByPrefix(String prefix) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return 0;
+        }
+        int n = 0;
+        try (java.util.stream.Stream<Path> files = Files.list(dir)) {
+            for (Path f : (Iterable<Path>) files::iterator) {
+                if (f.getFileName().toString().startsWith(prefix)) {
+                    Files.deleteIfExists(f);
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    @Override
     public String toString() {
         return "pasta " + dir.toAbsolutePath();
     }

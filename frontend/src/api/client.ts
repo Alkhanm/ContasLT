@@ -67,7 +67,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     throw new ApiError(0, 'Sem conexão com o servidor. Verifique sua internet e tente de novo.')
   }
 
-  if (response.status === 401 && !path.startsWith('/api/auth/login')) {
+  if (response.status === 401 && !path.startsWith('/api/auth/login') && !path.startsWith('/api/auth/delete-account')) {
     tokenStorage.set(null)
     window.dispatchEvent(new CustomEvent('contaslt:unauthorized'))
     throw new ApiError(401, 'Sua sessão expirou. Entre novamente.')

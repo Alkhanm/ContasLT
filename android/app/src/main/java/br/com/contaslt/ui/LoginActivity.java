@@ -55,6 +55,8 @@ public class LoginActivity extends AppCompatActivity {
             b.password.setSelection(b.password.getText().length());
         });
         b.server.setText(app.prefs.server());
+        // Trocar de servidor é coisa de desenvolvimento: no app da loja o campo não aparece.
+        Ui.visible(b.serverToggle, br.com.contaslt.BuildConfig.SHOW_SERVER_FIELD);
         b.serverToggle.setOnClickListener(v -> Ui.visible(b.server, b.server.getVisibility() != android.view.View.VISIBLE));
         b.submit.setOnClickListener(v -> submit());
     }
@@ -64,7 +66,11 @@ public class LoginActivity extends AppCompatActivity {
         String name = b.name.getText().toString().trim();
         String email = b.email.getText().toString().trim();
         String password = b.password.getText().toString();
-        String server = b.server.getText().toString().trim();
+        String server = b.server.getText().toString().trim().replaceAll("/+$", "");
+        if (!server.matches("https?://[\\w.-]+(:\\d+)?(/.*)?")) {
+            showError(b.formError, "Servidor inválido. Use o endereço completo, ex.: https://contaslt-production.up.railway.app");
+            return;
+        }
         b.submit.setEnabled(false);
         b.submit.setText("Aguarde…");
         Repo.run(this, () -> {
