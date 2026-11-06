@@ -694,7 +694,7 @@ public class TransactionFormSheet extends BottomSheetDialogFragment {
         Ui.visible(b.delete, editing != null);
         Ui.visible(b.makeRecurring, editing != null && editing.recurringBillId == null && !linked);
         b.save.setEnabled(!saving);
-        b.save.setText(saving ? "Salvando…" : editing != null ? "Salvar alterações" : settleOccurrenceId != null ? "Pagar vencimento"
+        b.save.setText(saving ? "Salvando…" : editing != null ? "Salvar" : settleOccurrenceId != null ? "Pagar vencimento"
             : transfer ? "Transferir" : invoice ? "Registrar fatura" : "Adicionar");
         binding = false;
     }
