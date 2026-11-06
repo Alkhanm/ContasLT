@@ -38,6 +38,8 @@ public class LoginActivity extends AppCompatActivity {
             return insets;
         });
 
+        // Campo de senha usa fonte monoespaçada por padrão; mantém a Manrope do app.
+        b.password.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(this, R.font.manrope));
         b.mode.setOptions(new String[] {"Entrar", "Criar conta"}, new String[] {"login", "register"});
         b.mode.setOnChange(m -> {
             register = "register".equals(m);
@@ -52,6 +54,7 @@ public class LoginActivity extends AppCompatActivity {
                 : PasswordTransformationMethod.getInstance());
             b.togglePassword.setImageResource(showPassword ? R.drawable.ic_eye_off : R.drawable.ic_eye);
             b.togglePassword.setContentDescription(showPassword ? "Ocultar senha" : "Mostrar senha");
+            b.password.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(this, R.font.manrope));
             b.password.setSelection(b.password.getText().length());
         });
         b.server.setText(app.prefs.server());

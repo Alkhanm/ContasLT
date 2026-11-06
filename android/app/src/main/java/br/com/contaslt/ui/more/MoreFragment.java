@@ -223,6 +223,8 @@ public class MoreFragment extends Fragment {
         android.widget.EditText password = new android.widget.EditText(c, null, 0, R.style.Input);
         password.setHint("Sua senha");
         password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        // O tipo senha troca a fonte para monoespaçada; volta a Manrope do app.
+        password.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(c, R.font.manrope));
         android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
             android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = Ui.dp(c, 16);

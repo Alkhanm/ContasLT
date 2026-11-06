@@ -192,15 +192,62 @@ cd android
 ./gradlew assembleDebug   # APK em app/build/outputs/apk/debug/
 ```
 
-O servidor padrão é o do Railway (`DEFAULT_SERVER` em `app/build.gradle.kts`). Para o backend local, toque em **Servidor** na tela de login e use `http://10.0.2.2:8080` no emulador (ou o IP da máquina na rede/Tailscale num aparelho).
+O servidor padrão é o do Railway (`DEFAULT_SERVER` em `app/build.gradle.kts`). Nos builds `debug` e `staging`, toque em **Servidor** na tela de login para usar o backend local: `http://10.0.2.2:8080` no emulador, o IP da máquina na rede/Tailscale num aparelho, ou `adb reverse tcp:8080 tcp:8080` e `http://localhost:8080`. No build da loja (`release`) o campo não aparece e só HTTPS é aceito.
+
+| Build | Para quê | R8 | HTTP sem TLS | Assinatura |
+|---|---|---|---|---|
+| `debug` | desenvolvimento | não | sim | debug |
+| `staging` | testar o build otimizado contra o backend local (id `br.com.contaslt.staging`, instala ao lado) | sim | sim | debug |
+| `release` | Play Store | sim | não | chave de upload (`keystore.properties`) |
 
 **Lançamentos pelas notificações dos bancos:** em *Mais › Notificações dos bancos*, libere o "Acesso a notificações" para o ContasLT (`BankNotificationListener`). O app lê só as notificações dos apps marcados (os bancos conhecidos instalados já vêm marcados; outros podem ser adicionados), no aparelho, sem enviar nada para fora. Cada compra, Pix ou pagamento reconhecido (`notify/BankParser`) vira uma sugestão na caixa **A confirmar**, já com conta (pelo final do cartão ou a conta/cartão padrão escolhidos para aquele app), categoria pelas regras de palavra-chave, e o vencimento recorrente pendente que ele parece pagar. Confirmar cria o lançamento (ou paga o vencimento), Editar abre o formulário preenchido, Descartar some com ela; uma notificação própria do ContasLT traz os botões Confirmar e Descartar. Textos que não viram movimento (códigos, fatura fechada, compra recusada, propaganda) são ignorados; os de apps monitorados que não forem reconhecidos ficam em "Não reconhecidas". A mesma tela tem um **Testar** para colar o texto de uma notificação e ver como ele é lido. Para testar no emulador:
 
 ```bash
-adb shell cmd notification post -S bigtext -t "Compra aprovada" teste "Compra de R\$ 45,90 APROVADA em PADARIA X para o cartão com final 1234"
+adb shell cmd notification allow_listener br.com.contaslt/br.com.contaslt.notify.BankNotificationListener
+adb shell "cmd notification post -S bigtext -t 'Compra aprovada' t1 'Compra de R\$ 45,90 APROVADA em PADARIA X para o cartão com final 1234'"
 ```
 
-(o pacote que posta pelo `adb` é `com.android.shell`: adicione-o em *Adicionar* na lista de apps lidos.) A caixa fica só no aparelho, não sincroniza; o lançamento confirmado sincroniza normalmente.
+(as aspas simples por dentro são necessárias: o `adb shell` junta e reparte os argumentos. O pacote que posta pelo `adb` é `com.android.shell`: adicione-o em *Adicionar* na lista de apps lidos, digitando o nome do pacote.) A caixa fica só no aparelho, não sincroniza; o lançamento confirmado sincroniza normalmente.
+
+### Publicar na Play Store
+
+**1. Chave de upload** (uma vez; guarde o arquivo e as senhas fora do repositório: sem eles, só o suporte do Google troca a chave):
+
+```bash
+keytool -genkeypair -v -keystore ~/contaslt-upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000
+```
+
+e crie `android/keystore.properties` (está no `.gitignore`):
+
+```
+storeFile=/home/<você>/contaslt-upload.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+Sem esse arquivo o `release` é assinado com a chave de debug, que a Play Store recusa. Na Play Console, ative a *Assinatura de apps pelo Google Play* (a chave acima é só a de upload).
+
+**2. Gerar o pacote** (cada envio precisa de um `versionCode` maior):
+
+```bash
+cd android
+./gradlew bundleRelease -PversionCode=1 -PversionName=1.0    # app/build/outputs/bundle/release/app-release.aab
+./gradlew assembleStaging                                     # mesmo build otimizado, para testar antes
+```
+
+**3. Antes de enviar a primeira versão:** o backend precisa estar com a rota de exclusão de conta (`POST /api/auth/delete-account`) no ar, e o PWA com a página `/excluir-conta`.
+
+**4. Play Console:**
+- *Política de privacidade*: URL pública (obrigatória: dados financeiros e acesso a notificações).
+- *Exclusão de conta*: no app em **Mais › Excluir minha conta**; na web, `https://<domínio do PWA>/excluir-conta`. Apaga a conta, os dados sincronizados e as fotos dos comprovantes do servidor.
+- *Segurança dos dados*: coletados e enviados ao servidor (para sincronizar): nome, e-mail, lançamentos, contas, categorias, fotos de comprovantes; criptografados em trânsito; o usuário pode pedir a exclusão. Lidos só no aparelho, sem envio: o conteúdo das notificações dos apps de banco escolhidos.
+- *Recursos financeiros*: app de controle de finanças pessoais, sem serviço financeiro (sem empréstimo, pagamento ou investimento).
+- *Ficha*: ícone 512 px e gráfico de destaque 1024×500 em `android/play/`; capturas de tela do celular; categoria Finanças.
+- *Acesso a notificações*: o app mostra um aviso de consentimento (`ui/inbox/NotificationDisclosure`) antes de abrir as configurações do sistema; descreva o mesmo uso na ficha e na política de privacidade.
+- Conta de desenvolvedor pessoal criada recentemente: o Google exige um teste fechado com pelo menos 12 testadores por 14 dias antes de liberar a produção.
+
+O app consulta só os pacotes dos bancos conhecidos (`<queries>` no `AndroidManifest.xml`, igual a `notify/BankApps.java`); para outro app, o usuário digita o nome do pacote. Não há visibilidade ampla de pacotes nem cobrança dentro do app (se um dia houver, precisa ser pelo faturamento do Google Play).
 
 ## Arquitetura local-first
 
