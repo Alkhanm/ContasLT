@@ -239,7 +239,7 @@ cd android
 **3. Antes de enviar a primeira versão:** o backend precisa estar com a rota de exclusão de conta (`POST /api/auth/delete-account`) no ar, e o PWA com a página `/excluir-conta`.
 
 **4. Play Console:**
-- *Política de privacidade*: `https://contaslt.web.app/privacidade` (`frontend/src/pages/PrivacyPage.vue`; preencha o e-mail de contato antes de publicar).
+- *Política de privacidade*: `https://contaslt.web.app/privacidade` (`frontend/src/pages/PrivacyPage.vue`).
 - *Exclusão de conta*: no app em **Mais › Excluir minha conta**; na web, `https://contaslt.web.app/excluir-conta`. Apaga a conta, os dados sincronizados e as fotos dos comprovantes do servidor.
 - *Segurança dos dados*: coletados e enviados ao servidor (para sincronizar): nome, e-mail, lançamentos, contas, categorias, fotos de comprovantes; criptografados em trânsito; o usuário pode pedir a exclusão. Lidos só no aparelho, sem envio: o conteúdo das notificações dos apps de banco escolhidos.
 - *Recursos financeiros*: app de controle de finanças pessoais, sem serviço financeiro (sem empréstimo, pagamento ou investimento).

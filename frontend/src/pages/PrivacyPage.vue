@@ -4,8 +4,7 @@
  * Ao mudar o que o app coleta, atualize este texto e a data abaixo.
  */
 const UPDATED = '6 de novembro de 2026'
-// TODO: e-mail público de contato para assuntos de privacidade.
-const CONTACT_EMAIL = 'CONTATO@EXEMPLO.COM'
+const CONTACT_EMAIL = 'halkam.dev@gmail.com'
 </script>
 
 <template>
