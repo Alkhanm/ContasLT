@@ -238,6 +238,7 @@ async function logout() {
     <section class="border-t pt-6">
       <RouterLink :to="{ name: 'delete-account' }" class="text-sm font-semibold text-destructive">Excluir minha conta</RouterLink>
       <p class="mt-1 text-xs text-muted-foreground">Apaga a conta e todos os dados do servidor. Não dá para desfazer.</p>
+      <RouterLink :to="{ name: 'privacy' }" class="mt-4 block text-sm font-semibold text-muted-foreground">Política de privacidade</RouterLink>
     </section>
   </div>
 </template>

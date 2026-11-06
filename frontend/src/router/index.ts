@@ -12,6 +12,13 @@ const router = createRouter({
       meta: { guest: true, title: 'Entrar' },
     },
     {
+      // Pública (exigência da Play Store): política de privacidade.
+      path: '/privacidade',
+      name: 'privacy',
+      component: () => import('@/pages/PrivacyPage.vue'),
+      meta: { title: 'Política de privacidade' },
+    },
+    {
       // Pública (exigência da Play Store): excluir a conta sem precisar do app.
       path: '/excluir-conta',
       name: 'delete-account',

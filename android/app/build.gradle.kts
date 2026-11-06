@@ -24,6 +24,7 @@ android {
         versionName = (project.findProperty("versionName") as String?) ?: "1.0"
         // Servidor padrão: o backend no Railway. Trocável na tela de login (ex.: http://10.0.2.2:8080 no emulador).
         buildConfigField("String", "DEFAULT_SERVER", "\"https://contaslt-production.up.railway.app\"")
+        buildConfigField("String", "PRIVACY_URL", "\"https://contaslt.web.app/privacidade\"")
         // Campo "Servidor" no login: só em debug/staging (no app da loja fica escondido).
         buildConfigField("boolean", "SHOW_SERVER_FIELD", "false")
     }

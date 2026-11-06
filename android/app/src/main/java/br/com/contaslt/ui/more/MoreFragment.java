@@ -89,6 +89,8 @@ public class MoreFragment extends Fragment {
         b.userEmail.setText(user != null ? user.email : null);
         b.logout.setOnClickListener(v -> logout());
         b.deleteAccount.setOnClickListener(v -> confirmDeleteAccount());
+        b.privacy.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW,
+            android.net.Uri.parse(br.com.contaslt.BuildConfig.PRIVACY_URL))));
 
         Views.section(b.themeTitle, "Aparência", null, null, null);
         renderThemes();

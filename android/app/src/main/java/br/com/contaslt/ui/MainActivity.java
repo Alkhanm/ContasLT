@@ -76,6 +76,13 @@ public class MainActivity extends AppCompatActivity {
         b.fab.setOnClickListener(v -> TransactionFormSheet.show(getSupportFragmentManager(), AppState.FormRequest.create()));
         b.sync.setOnClickListener(v -> app.session.scheduleSync(0));
         b.syncGateRetry.setOnClickListener(v -> app.session.scheduleSync(0));
+        b.syncGateLogout.setOnClickListener(v -> {
+            b.syncGateLogout.setEnabled(false);
+            Repo.run(this, () -> {
+                app.auth.logout();
+                return true;
+            }, ok -> toLogin(), e -> toLogin());
+        });
         b.inbox.setOnClickListener(v -> nav.navigate(R.id.inbox));
         app.session.state.observe(this, this::onSyncState);
         // Contas e categorias dos formulários e filtros acompanham qualquer mudança nos dados.
@@ -197,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
             Ui.visible(b.syncGateProgress, !failed);
             Ui.visible(b.syncGateTitle, failed);
             Ui.visible(b.syncGateRetry, failed);
+            Ui.visible(b.syncGateLogout, failed);
             b.syncGateText.setText(failed
                 ? (s.error != null ? s.error : "Sem conexão. Conecte-se para o primeiro acesso neste aparelho.")
                 : "Baixando seus dados para este aparelho…");
@@ -222,5 +230,11 @@ public class MainActivity extends AppCompatActivity {
 
     public NavController nav() {
         return nav;
+    }
+
+    /** Primeiro acesso travado (servidor errado ou fora do ar): volta para o login sem precisar limpar o app. */
+    private void toLogin() {
+        startActivity(new Intent(this, LoginActivity.class));
+        finish();
     }
 }

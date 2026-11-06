@@ -4,7 +4,7 @@ dist/
 target/
 # Ambiente
 run/
-data/
+/data/
 .env
 .env.local
 *.log

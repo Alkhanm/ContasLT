@@ -55,5 +55,6 @@
         <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="32dp" android:background="@color/border" />
         <TextView android:id="@+id/deleteAccount" style="@style/Text.Semibold.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="?attr/selectableItemBackground" android:paddingTop="6dp" android:paddingBottom="6dp" android:text="Excluir minha conta" android:textColor="@color/destructive" />
         <TextView style="@style/Text.Muted.Xs" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Apaga a conta e todos os dados do servidor e deste aparelho. Não dá para desfazer." />
+        <TextView android:id="@+id/privacy" style="@style/Text.Semibold.Sm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="?attr/selectableItemBackground" android:paddingTop="6dp" android:paddingBottom="6dp" android:text="Política de privacidade" android:textColor="@color/muted_foreground" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
