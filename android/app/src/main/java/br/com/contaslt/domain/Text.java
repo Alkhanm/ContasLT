@@ -44,7 +44,7 @@ public final class Text {
     }
 
     private static boolean isJsSpace(char c) {
-        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '﻿';
+        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '\uFEFF';
     }
 
     public static String truncate(String text, int max) {

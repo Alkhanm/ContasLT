@@ -666,9 +666,11 @@ public class TransactionFormSheet extends BottomSheetDialogFragment {
                 int start = it.length();
                 it.append(" (").append(String.valueOf(items.size())).append(")");
                 it.setSpan(new ForegroundColorSpan(Ui.color(c, R.color.muted_foreground)), start, it.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                it.setSpan(new android.text.style.TypefaceSpan(android.graphics.Typeface.create(
-                    androidx.core.content.res.ResourcesCompat.getFont(c, R.font.manrope), android.graphics.Typeface.NORMAL)),
-                    start, it.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (android.os.Build.VERSION.SDK_INT >= 28) { // TypefaceSpan(Typeface) não existe no Android 8
+                    it.setSpan(new android.text.style.TypefaceSpan(android.graphics.Typeface.create(
+                        androidx.core.content.res.ResourcesCompat.getFont(c, R.font.manrope), android.graphics.Typeface.NORMAL)),
+                        start, it.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
             }
             b.itemsTitle.setText(it);
             b.itemsChevron.setRotation(showItems ? 180 : 0);

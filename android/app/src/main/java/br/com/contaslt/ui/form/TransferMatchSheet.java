@@ -150,9 +150,11 @@ public class TransferMatchSheet extends BottomSheetDialogFragment {
             if (items.size() > 1) {
                 int start = label.length();
                 label.append(" · ").append(Format.money(total));
-                label.setSpan(new android.text.style.TypefaceSpan(android.graphics.Typeface.create(
-                    androidx.core.content.res.ResourcesCompat.getFont(c, R.font.manrope), android.graphics.Typeface.NORMAL)),
-                    start, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                if (android.os.Build.VERSION.SDK_INT >= 28) { // TypefaceSpan(Typeface) não existe no Android 8
+                    label.setSpan(new android.text.style.TypefaceSpan(android.graphics.Typeface.create(
+                        androidx.core.content.res.ResourcesCompat.getFont(c, R.font.manrope), android.graphics.Typeface.NORMAL)),
+                        start, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
                 label.setSpan(new ForegroundColorSpan((Ui.color(c, R.color.primary_foreground) & 0x00FFFFFF) | 0xCC000000),
                     start, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }

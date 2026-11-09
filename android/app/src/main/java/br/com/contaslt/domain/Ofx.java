@@ -172,7 +172,7 @@ public final class Ofx {
                 .onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(bytes)).toString();
             // O TextDecoder do navegador descarta o BOM.
-            return s.startsWith("﻿") ? s.substring(1) : s;
+            return s.startsWith("\uFEFF") ? s.substring(1) : s;
         } catch (CharacterCodingException e) {
             return windows1252(bytes);
         }
