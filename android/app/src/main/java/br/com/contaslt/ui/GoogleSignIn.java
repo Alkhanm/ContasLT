@@ -65,9 +65,12 @@ public final class GoogleSignIn {
                     if (e instanceof GetCredentialCancellationException) {
                         return;
                     }
+                    // NoCredentialException também vem quando o app não está cadastrado no Google Cloud (cliente
+                    // Android com o pacote e o SHA-1 da assinatura), não só quando falta conta no aparelho.
+                    android.util.Log.w("GoogleSignIn", "getCredential falhou", e);
                     onError.accept(e instanceof NoCredentialException
-                        ? "Nenhuma conta Google neste aparelho. Adicione uma nas configurações do Android."
-                        : "Não foi possível entrar com o Google. Tente de novo.");
+                        ? "Nenhuma conta Google disponível para este app. Confira se há uma conta Google no aparelho."
+                        : "Não foi possível entrar com o Google (" + e.getClass().getSimpleName() + "). Tente de novo.");
                 }
             });
     }
