@@ -11,7 +11,7 @@ import { idsWithChildren, requireCategoryOrNull } from './catalog'
 import { isCreditCard, requireCard, summarizeInvoice } from './cards'
 import { BusinessError, db, require, validate } from './context'
 import { transactionDto } from './mappers'
-import { applyToFollowing, ensureRange, invalidateEnsured } from './recurring'
+import { applyToFollowing, ensureRange } from './recurring'
 
 /** Lançamentos (porte de TransactionService): lista do mês com resumo e saldo por dia, CRUD e escopo de edição. */
 
@@ -262,8 +262,6 @@ export function deleteTransaction(id: Id) {
       s.remove('transfer', tr.id)
     }
   }
-  // Vencimento apagado: o gerador volta a conferir o mês (como no servidor, ele reaparece).
-  if (t.recurringBillId) invalidateEnsured()
   s.remove('transaction', id)
 }
 

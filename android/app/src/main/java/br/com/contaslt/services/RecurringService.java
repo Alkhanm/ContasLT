@@ -62,6 +62,11 @@ public final class RecurringService {
         return Ctx.require(Ctx.db().get(Entity.RECURRING_BILL, id), "Conta recorrente não encontrada");
     }
 
+    /** Vencimento que existiu e foi excluído (há só a marcação de exclusão). */
+    private static boolean isDeletedOccurrence(LocalStore s, String id) {
+        return s.get(Entity.TRANSACTION, id) == null && s.known(Entity.TRANSACTION, id);
+    }
+
     private static void check(RecurringBillInput req) {
         String description = req.description == null ? "" : Text.trim(req.description);
         Ctx.validate()
@@ -317,6 +322,10 @@ public final class RecurringService {
                             continue;
                         }
                         String id = Ids.occurrenceId(bill.id, occ.date());
+                        // Vencimento que o usuário excluiu (marcação de exclusão): não volta.
+                        if (isDeletedOccurrence(s, id)) {
+                            continue;
+                        }
                         // O id desta data já é de um vencimento que foi movido (reancorado) para outra data prevista: usa
                         // um id alternativo, também determinístico, para os outros aparelhos chegarem ao mesmo registro.
                         TransactionRec taken = s.get(Entity.TRANSACTION, id);
@@ -325,7 +334,7 @@ public final class RecurringService {
                                 continue;
                             }
                             id = Ids.occurrenceId(bill.id, occ.date() + "#2");
-                            if (s.get(Entity.TRANSACTION, id) != null) {
+                            if (s.get(Entity.TRANSACTION, id) != null || isDeletedOccurrence(s, id)) {
                                 continue;
                             }
                         }

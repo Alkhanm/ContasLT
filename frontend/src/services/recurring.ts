@@ -227,13 +227,15 @@ export function ensureOccurrences(month: YearMonth) {
       for (const occ of between(bill, from, to)) {
         if (existing.has(`${bill.id}|${occ.date}`)) continue
         let id = occurrenceId(bill.id, occ.date)
+        // Vencimento que o usuário excluiu (marcação de exclusão): não volta.
+        if (isDeletedOccurrence(id)) continue
         // O id desta data já é de um vencimento que foi movido (reancorado) para outra data prevista: usa um id
         // alternativo, também determinístico, para os outros aparelhos chegarem ao mesmo registro.
         const taken = s.get('transaction', id)
         if (taken) {
           if (taken.recurringBillId === bill.id && taken.scheduledDate === occ.date) continue
           id = occurrenceId(bill.id, `${occ.date}#2`)
-          if (s.get('transaction', id)) continue
+          if (s.get('transaction', id) || isDeletedOccurrence(id)) continue
         }
         s.put('transaction', syncOccurrence(bill, {
           id, accountId: bill.accountId!, categoryId: null, recurringBillId: bill.id, importBatchId: null,
@@ -248,6 +250,11 @@ export function ensureOccurrences(month: YearMonth) {
     }
   }
   ensured.add(month)
+}
+
+function isDeletedOccurrence(id: Id) {
+  const s = db()
+  return !s.get('transaction', id) && s.known('transaction', id)
 }
 
 /** Garante os vencimentos de todos os meses que tocam o intervalo. */

@@ -429,10 +429,6 @@ public final class TransactionsService {
                 s.remove(Entity.TRANSFER, tr.id);
             }
         }
-        // Vencimento apagado: o gerador volta a conferir o mês (como no servidor, ele reaparece).
-        if (Text.present(t.recurringBillId)) {
-            RecurringService.invalidateEnsured();
-        }
         s.remove(Entity.TRANSACTION, id);
     }
 

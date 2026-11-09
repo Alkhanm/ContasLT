@@ -2,9 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { currentMonth, plusMonthsYm } from '@/domain/dates'
 import { createAccount, deleteAccount, listAccounts, listCategories, seedDefaults, updateAccount } from './catalog'
 import { buildDashboard } from './dashboard'
-import { createRecurring, updateRecurring } from './recurring'
+import { createRecurring, invalidateEnsured, updateRecurring } from './recurring'
 import { freshStore } from './testing'
-import { createTransaction, deleteTransaction, getTransaction, listTransactions, setPaid } from './transactions'
+import { createTransaction, deleteTransaction, listTransactions, setPaid } from './transactions'
 import type { RecurringBillInput, TransactionInput } from '@/api/types'
 
 /**
@@ -142,12 +142,12 @@ describe('fluxo da API', () => {
     expect(listAccounts(true).at(-1)!.id).toBe(old.id) // arquivadas por último
   })
 
-  it('excluir um vencimento gerado: o gerador volta a conferir o mês e ele reaparece', () => {
+  it('excluir um vencimento gerado: ele não volta, mesmo quando o gerador confere o mês de novo', () => {
     const next = plusMonthsYm(currentMonth(), 2)
     const occ = listTransactions({ month: next }).items.find((t) => t.recurringBillId === billId)!
     deleteTransaction(occ.id)
+    invalidateEnsured()
     const again = listTransactions({ month: next }).items.filter((t) => t.recurringBillId === billId)
-    expect(again).toHaveLength(1)
-    expect(getTransaction(again[0].id).paid).toBe(false)
+    expect(again).toHaveLength(0)
   })
 })

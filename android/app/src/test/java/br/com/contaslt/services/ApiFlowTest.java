@@ -209,7 +209,7 @@ public class ApiFlowTest {
     }
 
     @Test
-    public void t9b_excluirVencimentoGeradoEleReaparece() {
+    public void t9b_excluirVencimentoGeradoNaoVolta() {
         String next = Dates.plusMonthsYm(Dates.currentMonth(), 2);
         Transaction occ = null;
         for (Transaction t : list(next).items) {
@@ -219,13 +219,13 @@ public class ApiFlowTest {
         }
         assertNotNull(occ);
         TransactionsService.deleteTransaction(occ.id);
+        RecurringService.invalidateEnsured();
         List<Transaction> again = new ArrayList<>();
         for (Transaction t : list(next).items) {
             if (billId.equals(t.recurringBillId)) {
                 again.add(t);
             }
         }
-        assertEquals(1, again.size());
-        assertFalse(TransactionsService.getTransaction(again.get(0).id).paid);
+        assertEquals(0, again.size());
     }
 }
