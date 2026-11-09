@@ -42,7 +42,8 @@ public class SecurityConfig {
             .addFilterBefore(new WorkerAuthFilter(props), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/delete-account", "/actuator/health").permitAll()
+                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/delete-account", "/api/auth/google",
+                    "/api/auth/forgot-password", "/api/auth/reset-password", "/actuator/health").permitAll()
                 .requestMatchers("/api/worker/**").permitAll()
                 .requestMatchers("/api/**", "/actuator/**").authenticated()
                 // Fora da API só existe o frontend estático (ver SpaConfig).

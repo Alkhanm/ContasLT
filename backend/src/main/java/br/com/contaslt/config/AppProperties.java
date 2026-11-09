@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama, OpenAi openai, Storage storage, Spa spa,
-        Worker worker, Premium premium) {
+        Worker worker, Premium premium, Mail mail, Google google) {
 
     public record Jwt(String secret, Duration expiration) {
     }
@@ -58,5 +58,19 @@ public record AppProperties(Jwt jwt, Cors cors, Receipts receipts, Ollama ollama
 
     /** Segredo que o worker apresenta em {@code X-Worker-Token} nas rotas {@code /api/worker/**}. Vazio = rotas fechadas. */
     public record Worker(String token) {
+    }
+
+    /** Envio de e-mail (código de recuperação de senha) pela API HTTP do Brevo. Sem chave: o código só vai para o log. */
+    public record Mail(String brevoApiKey, String from, String fromName) {
+        public boolean enabled() {
+            return brevoApiKey != null && !brevoApiKey.isBlank();
+        }
+    }
+
+    /** IDs de cliente OAuth aceitos como {@code aud} do ID token do Google (web; o Android usa o mesmo id web). */
+    public record Google(List<String> clientIds) {
+        public List<String> ids() {
+            return clientIds == null ? List.of() : clientIds.stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
+        }
     }
 }

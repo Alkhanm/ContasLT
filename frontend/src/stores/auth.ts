@@ -7,6 +7,7 @@ import { closeSession, openSession, syncNow, syncState, wipeSession } from '@/da
 import { clearQueries } from '@/lib/queryClient'
 import { seedDefaults } from '@/services/catalog'
 import { db } from '@/services/context'
+import { googleSignOut } from '@/lib/google'
 
 const USER_KEY = 'contaslt.user'
 
@@ -53,6 +54,24 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(name: string, email: string, password: string) {
     apply(await authApi.register(name, email, password))
     await ensureSession()
+    await seedIfNew()
+  }
+
+  /** Login com Google: entra, vincula pelo e-mail ou cria a conta (aí com as categorias padrão). */
+  async function loginWithGoogle(idToken: string) {
+    const res = await authApi.google(idToken)
+    apply(res)
+    await ensureSession()
+    if (res.created) await seedIfNew()
+  }
+
+  /** Nova senha com o código do e-mail; já entra na conta. */
+  async function resetPassword(email: string, code: string, password: string) {
+    apply(await authApi.resetPassword(email, code, password))
+    await ensureSession()
+  }
+
+  async function seedIfNew() {
     try {
       await syncNow()
     } catch {
@@ -96,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     } else {
       closeSession()
     }
+    googleSignOut()
     expire()
   }
 
@@ -109,5 +129,5 @@ export const useAuthStore = defineStore('auth', () => {
     clearQueries()
   }
 
-  return { token, user, isAuthenticated, login, register, ensureSession, logout, expire }
+  return { token, user, isAuthenticated, login, register, loginWithGoogle, resetPassword, ensureSession, logout, expire }
 })

@@ -20,16 +20,34 @@ public final class AuthDtos {
         @NotBlank(message = "Informe a senha") String password) {
     }
 
-    /** {@code premium}: pode usar a leitura de comprovantes. */
-    /** Exclusão de conta: e-mail e senha confirmam (vale do app e da página web, sem token). */
-    public record DeleteAccountRequest(
-        @NotBlank(message = "Informe o e-mail") String email,
-        @NotBlank(message = "Informe a senha") String password) {
+    /**
+     * Exclusão de conta (vale do app e da página web, sem token): confirma com e-mail e senha ou, para quem entra
+     * pelo Google, com um ID token do Google da mesma conta.
+     */
+    public record DeleteAccountRequest(String email, String password, String googleIdToken) {
     }
 
+    /** Pede o código de recuperação de senha. */
+    public record ForgotPasswordRequest(
+        @NotBlank(message = "Informe o e-mail") @Email(message = "E-mail inválido") String email) {
+    }
+
+    /** Troca a senha com o código recebido por e-mail. */
+    public record ResetPasswordRequest(
+        @NotBlank(message = "Informe o e-mail") String email,
+        @NotBlank(message = "Informe o código") String code,
+        @NotBlank(message = "Informe a nova senha") @Size(min = 6, max = 72, message = "A senha precisa ter entre 6 e 72 caracteres") String password) {
+    }
+
+    /** Login com Google: o ID token entregue pelo Google Identity Services (web) ou pelo Credential Manager (Android). */
+    public record GoogleLoginRequest(@NotBlank(message = "Token do Google ausente") String idToken) {
+    }
+
+    /** {@code premium}: pode usar a leitura de comprovantes. */
     public record UserDto(Long id, String name, String email, boolean premium) {
     }
 
-    public record AuthResponse(String token, UserDto user) {
+    /** {@code created}: a conta acabou de ser criada (o aparelho cria as categorias padrão). */
+    public record AuthResponse(String token, UserDto user, boolean created) {
     }
 }

@@ -45,6 +45,7 @@ public class LoginActivity extends AppCompatActivity {
             register = "register".equals(m);
             Ui.visible(b.nameGroup, register);
             Ui.visible(b.passwordHint, register);
+            Ui.visible(b.forgot, !register);
             b.submit.setText(register ? "Criar minha conta" : "Entrar");
             clearErrors();
         });
@@ -62,6 +63,49 @@ public class LoginActivity extends AppCompatActivity {
         Ui.visible(b.serverToggle, br.com.contaslt.BuildConfig.SHOW_SERVER_FIELD);
         b.serverToggle.setOnClickListener(v -> Ui.visible(b.server, b.server.getVisibility() != android.view.View.VISIBLE));
         b.submit.setOnClickListener(v -> submit());
+        b.forgot.setOnClickListener(v -> {
+            String server = server();
+            if (server != null) {
+                startActivity(new Intent(this, ForgotPasswordActivity.class)
+                    .putExtra(ForgotPasswordActivity.EXTRA_EMAIL, b.email.getText().toString().trim())
+                    .putExtra(ForgotPasswordActivity.EXTRA_SERVER, server));
+            }
+        });
+        Ui.visible(b.googleGroup, GoogleSignIn.available());
+        b.google.setOnClickListener(v -> google());
+    }
+
+    /** Endereço do servidor do campo (recolhido na loja), ou nulo com o erro já na tela. */
+    private String server() {
+        String server = b.server.getText().toString().trim().replaceAll("/+$", "");
+        if (!server.matches("https?://[\\w.-]+(:\\d+)?(/.*)?")) {
+            showError(b.formError, "Servidor inválido. Use o endereço completo, ex.: https://contaslt-production.up.railway.app");
+            return null;
+        }
+        return server;
+    }
+
+    private void google() {
+        clearErrors();
+        String server = server();
+        if (server == null) {
+            return;
+        }
+        GoogleSignIn.requestIdToken(this, token -> {
+            b.google.setEnabled(false);
+            b.google.setText("Aguarde…");
+            Repo.run(this, () -> {
+                app.auth.loginWithGoogle(server, token);
+                return true;
+            }, ok -> {
+                startActivity(new Intent(this, MainActivity.class));
+                finish();
+            }, e -> {
+                b.google.setEnabled(true);
+                b.google.setText("Continuar com o Google");
+                showError(b.formError, e.getMessage());
+            });
+        }, msg -> showError(b.formError, msg));
     }
 
     private void submit() {
@@ -69,9 +113,8 @@ public class LoginActivity extends AppCompatActivity {
         String name = b.name.getText().toString().trim();
         String email = b.email.getText().toString().trim();
         String password = b.password.getText().toString();
-        String server = b.server.getText().toString().trim().replaceAll("/+$", "");
-        if (!server.matches("https?://[\\w.-]+(:\\d+)?(/.*)?")) {
-            showError(b.formError, "Servidor inválido. Use o endereço completo, ex.: https://contaslt-production.up.railway.app");
+        String server = server();
+        if (server == null) {
             return;
         }
         b.submit.setEnabled(false);

@@ -87,9 +87,12 @@ cd frontend && npm run build     # type-check (vue-tsc) + build PWA
 | `SUPABASE_URL` | vazio | URL do projeto Supabase (`https://<ref>.supabase.co`, a "Project URL" em Settings › API; **não** a URL do endpoint S3). Definida, os comprovantes vão para um bucket privado do Supabase Storage em vez do disco |
 | `SUPABASE_SERVICE_KEY` | vazio | Chave secreta do projeto: `service_role` (legada, JWT) ou `sb_secret_...` (nova). Nunca a `anon`/`publishable`: o bucket é privado, sem RLS, e só a chave secreta passa |
 | `SUPABASE_BUCKET` | `receipts` | Nome do bucket (criado na primeira gravação, se não existir) |
+| `BREVO_API_KEY` | vazio | Chave da API do [Brevo](https://www.brevo.com) para mandar o código de "Esqueci minha senha". Vazio = o código só aparece no log (desenvolvimento) |
+| `MAIL_FROM` / `MAIL_FROM_NAME` | `halkam.dev@gmail.com` / `ContasLT` | Remetente dos e-mails; precisa estar verificado no Brevo (*Senders, Domains & Dedicated IPs › Senders*) |
+| `GOOGLE_CLIENT_IDS` | vazio | IDs de cliente OAuth aceitos no login com Google, separados por vírgula (o do tipo "Aplicativo da Web"). Vazio = login com Google desligado |
 | `SPRING_PROFILES_ACTIVE` | vazio | `prod` em produção: exige `JWT_SECRET` e `CORS_ORIGINS`, desliga o Ollama por padrão e esconde mensagens internas de erro |
 
-No frontend, `VITE_API_URL` define a base da API (vazio = mesma origem). O build de produção lê `frontend/.env.production` (URL do Railway, usada pelo Firebase); `prod.sh`/`install.sh` sobrescrevem com `VITE_API_URL=` para o build local falar com o próprio backend.
+No frontend, `VITE_GOOGLE_CLIENT_ID` (mesmo ID web de `GOOGLE_CLIENT_IDS`; vazio esconde o botão do Google) e `VITE_API_URL` define a base da API (vazio = mesma origem). O build de produção lê `frontend/.env.production` (URL do Railway, usada pelo Firebase); `prod.sh`/`install.sh` sobrescrevem com `VITE_API_URL=` para o build local falar com o próprio backend.
 
 ## Deploy (Railway + Supabase + Firebase Hosting)
 
@@ -122,7 +125,28 @@ SUPABASE_SERVICE_KEY=<service_role>
 # Leitura de comprovantes pelo worker do seu computador (padrão em prod): o mesmo segredo vai no .env do PC.
 WORKER_TOKEN=<openssl rand -base64 32>
 # Alternativa sem o PC: RECEIPT_PROVIDER=openai + OPENAI_API_KEY (OPENAI_URL/OPENAI_MODEL para Gemini, Groq...)
+# "Esqueci minha senha" (código por e-mail pela API HTTP do Brevo; o Railway bloqueia SMTP nos planos menores).
+BREVO_API_KEY=<xkeysib-...>
+MAIL_FROM=halkam.dev@gmail.com
+# Login com Google: ID do cliente OAuth "Aplicativo da Web".
+GOOGLE_CLIENT_IDS=<123-abc.apps.googleusercontent.com>
 ```
+
+#### E-mail (Brevo)
+
+1. Crie a conta em brevo.com (plano gratuito: 300 e-mails/dia).
+2. *Senders, Domains & Dedicated IPs › Senders › Add a sender*: `halkam.dev@gmail.com` e confirme pelo link que chega nesse e-mail.
+3. *SMTP & API › API Keys › Generate a new API key* e coloque em `BREVO_API_KEY` no Railway.
+
+Sem domínio próprio, alguns provedores podem mandar o e-mail para o spam (a tela avisa para conferir lá).
+
+#### Login com Google
+
+1. [console.cloud.google.com](https://console.cloud.google.com): crie um projeto; em *APIs e serviços › Tela de consentimento OAuth* (Google Auth Platform) preencha nome do app, e-mail de suporte, domínio `contaslt.web.app`, link da política de privacidade, e publique (tipo Externo; só usa os escopos básicos `openid`, `email`, `profile`, sem revisão do Google).
+2. *Credenciais › Criar credenciais › ID do cliente OAuth*:
+   - **Aplicativo da Web**: origens JavaScript autorizadas `https://contaslt.web.app`, `https://contaslt.firebaseapp.com` e `http://localhost:5173` (dev). Esse ID vai em `GOOGLE_CLIENT_IDS` (Railway), `VITE_GOOGLE_CLIENT_ID` (`frontend/.env.production`) e `contaslt.googleWebClientId` (`android/gradle.properties`).
+   - **Android** (um para cada chave que assina o app): pacote `br.com.contaslt` e o SHA-1 da chave. Crie um com o SHA-1 da **chave de assinatura do app** (Play Console › Teste e lançamento › Integridade do app › Assinatura de apps), um com o da **chave de upload** e um com o da chave de debug (`./gradlew signingReport`). Esses IDs não vão em lugar nenhum: só precisam existir para o Google liberar o login no app.
+3. Conta que entra pelo Google com o mesmo e-mail de uma conta existente é vinculada a ela (o Google confirma o e-mail); sem conta, é criada sem senha. Para ter senha também, use "Esqueci minha senha".
 
 A imagem já vem com a JVM ajustada para 1 GB (`JAVA_TOOL_OPTIONS` no `Dockerfile`: heap em 60% da memória, SerialGC, só o compilador C1, arquivo CDS gerado no build). Para mudar, sobrescreva `JAVA_TOOL_OPTIONS` nas variáveis. A subida leva cerca de um minuto nesse tamanho de máquina; o healthcheck espera até 5.
 
@@ -293,6 +317,9 @@ Todas as rotas exceto `/api/auth/*` exigem `Authorization: Bearer <token>`. Erro
 | Método | Rota | Descrição |
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | Cadastro e login (retornam token + usuário) |
+| POST | `/api/auth/google` | `{idToken}` do Google: entra, vincula pelo e-mail ou cria a conta (`created`) |
+| POST | `/api/auth/forgot-password`, `/api/auth/reset-password` | Código de 6 dígitos por e-mail (sempre 204, não revela se a conta existe) / `{email, code, password}` troca a senha e devolve a sessão |
+| POST | `/api/auth/delete-account` | `{email, password}` ou `{googleIdToken}`: exclui a conta e todos os dados |
 | GET | `/api/auth/me` | Usuário atual |
 | GET | `/api/sync/pull?since=<versão>&limit=1000` | Registros do usuário alterados acima da versão, em ordem (`records`, `cursor`, `hasMore`) |
 | POST | `/api/sync/push` | `{changes: [{id, entity, data, deleted, updatedAt}]}` (até 500); devolve `accepted` e, em `rejected`, a versão do servidor do que ele já tinha mais novo |

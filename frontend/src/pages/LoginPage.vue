@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Eye, EyeOff } from 'lucide-vue-next'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-vue-next'
+import { authApi } from '@/api'
 import FormField from '@/components/app/FormField.vue'
+import GoogleButton from '@/components/app/GoogleButton.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { fieldErrors, notifyError } from '@/lib/notify'
+import { fieldErrors, notifyError, notifySuccess } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 
@@ -14,25 +16,68 @@ const router = useRouter()
 const route = useRoute()
 
 const mode = ref<'login' | 'register'>('login')
-const form = reactive({ name: '', email: '', password: '' })
+/** Recuperação de senha: pede o e-mail, depois o código de 6 dígitos e a nova senha. */
+const forgot = ref<null | 'email' | 'code'>(null)
+const form = reactive({ name: '', email: '', password: '', code: '' })
 const errors = ref<Record<string, string>>({})
 const showPassword = ref(false)
 const busy = ref(false)
 
-async function submit() {
+function done() {
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+  router.replace(redirect)
+}
+
+async function run(fn: () => Promise<void>) {
   errors.value = {}
   busy.value = true
   try {
-    if (mode.value === 'login') await auth.login(form.email, form.password)
-    else await auth.register(form.name, form.email, form.password)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    router.replace(redirect)
+    await fn()
   } catch (err) {
     errors.value = fieldErrors(err)
     if (Object.keys(errors.value).length === 0) notifyError(err)
   } finally {
     busy.value = false
   }
+}
+
+function submit() {
+  return run(async () => {
+    if (mode.value === 'login') await auth.login(form.email, form.password)
+    else await auth.register(form.name, form.email, form.password)
+    done()
+  })
+}
+
+function google(idToken: string) {
+  return run(async () => {
+    await auth.loginWithGoogle(idToken)
+    done()
+  })
+}
+
+function startForgot() {
+  errors.value = {}
+  form.code = ''
+  form.password = ''
+  forgot.value = 'email'
+}
+
+function sendCode() {
+  return run(async () => {
+    await authApi.forgotPassword(form.email.trim())
+    form.code = ''
+    form.password = ''
+    forgot.value = 'code'
+  })
+}
+
+function resetPassword() {
+  return run(async () => {
+    await auth.resetPassword(form.email.trim(), form.code, form.password)
+    notifySuccess('Senha alterada')
+    done()
+  })
 }
 </script>
 
@@ -60,6 +105,43 @@ async function submit() {
 
     <section class="flex flex-1 items-center justify-center px-6 py-10">
       <div class="w-full max-w-sm">
+        <template v-if="forgot">
+          <button type="button" class="mb-4 flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground" @click="forgot = null; errors = {}">
+            <ArrowLeft class="size-4" /> Voltar para o login
+          </button>
+          <h2 class="text-xl font-bold tracking-tight">Recuperar senha</h2>
+
+          <form v-if="forgot === 'email'" class="mt-4 space-y-4" @submit.prevent="sendCode">
+            <p class="text-sm text-muted-foreground">Informe o e-mail da sua conta. Vamos mandar um código de 6 dígitos para criar uma nova senha.</p>
+            <FormField label="E-mail" for="forgot-email" :error="errors.email">
+              <Input id="forgot-email" v-model="form.email" type="email" autocomplete="email" inputmode="email" placeholder="voce@exemplo.com" />
+            </FormField>
+            <Button type="submit" class="h-11 w-full text-base font-semibold" :disabled="busy">
+              {{ busy ? 'Enviando…' : 'Enviar código' }}
+            </Button>
+          </form>
+
+          <form v-else class="mt-4 space-y-4" @submit.prevent="resetPassword">
+            <p class="text-sm text-muted-foreground">
+              Se existir uma conta com <strong class="text-foreground">{{ form.email.trim() }}</strong>, o código chega em instantes.
+              Confira também o spam. Ele vale por 15 minutos.
+            </p>
+            <FormField label="Código" for="reset-code" :error="errors.code">
+              <Input id="reset-code" v-model="form.code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" class="text-center text-lg tracking-[0.4em]" />
+            </FormField>
+            <FormField label="Nova senha" for="reset-password" :error="errors.password" hint="Pelo menos 6 caracteres">
+              <Input id="reset-password" v-model="form.password" type="password" autocomplete="new-password" />
+            </FormField>
+            <Button type="submit" class="h-11 w-full text-base font-semibold" :disabled="busy">
+              {{ busy ? 'Aguarde…' : 'Salvar nova senha' }}
+            </Button>
+            <button type="button" class="w-full text-center text-sm font-semibold text-primary" :disabled="busy" @click="sendCode">
+              Mandar outro código
+            </button>
+          </form>
+        </template>
+
+        <template v-else>
         <div role="tablist" class="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
           <button
             v-for="m in (['login', 'register'] as const)"
@@ -89,10 +171,16 @@ async function submit() {
               </button>
             </div>
           </FormField>
+          <div v-if="mode === 'login'" class="-mt-2 text-right">
+            <button type="button" class="text-xs font-semibold text-primary" @click="startForgot">Esqueci minha senha</button>
+          </div>
           <Button type="submit" class="h-11 w-full text-base font-semibold" :disabled="busy">
             {{ busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar minha conta' }}
           </Button>
         </form>
+
+        <GoogleButton class="mt-6" divider @token="google" />
+        </template>
       </div>
     </section>
   </div>

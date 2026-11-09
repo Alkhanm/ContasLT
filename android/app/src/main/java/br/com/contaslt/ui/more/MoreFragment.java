@@ -211,7 +211,7 @@ public class MoreFragment extends Fragment {
 
     // ---------- Excluir conta ----------
 
-    /** Pede a senha e apaga a conta no servidor e os dados deste aparelho. */
+    /** Pede a senha (ou o Google, para quem entra por ele) e apaga a conta no servidor e os dados deste aparelho. */
     private void confirmDeleteAccount() {
         Context c = requireContext();
         android.widget.LinearLayout box = new android.widget.LinearLayout(c);
@@ -236,6 +236,7 @@ public class MoreFragment extends Fragment {
             .setView(box)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Excluir", null)
+            .setNeutralButton(br.com.contaslt.ui.GoogleSignIn.available() ? "Usar Google" : null, null)
             .create();
         dialog.setOnShowListener(d -> {
             android.widget.Button ok = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
@@ -259,6 +260,26 @@ public class MoreFragment extends Fragment {
                     password.setError(e.status == 401 ? "Senha incorreta" : e.getMessage());
                 });
             });
+            android.widget.Button viaGoogle = dialog.getButton(android.content.DialogInterface.BUTTON_NEUTRAL);
+            if (viaGoogle != null) {
+                // Para quem entra pelo Google (conta sem senha): confirma escolhendo a mesma conta Google.
+                viaGoogle.setOnClickListener(v -> br.com.contaslt.ui.GoogleSignIn.requestIdToken(requireActivity(), token -> {
+                    ok.setEnabled(false);
+                    viaGoogle.setEnabled(false);
+                    Repo.run(getViewLifecycleOwner(), () -> {
+                        app.auth.deleteAccountWithGoogle(token);
+                        return true;
+                    }, done -> {
+                        dialog.dismiss();
+                        UiKit.toast(getActivity(), "Conta excluída");
+                        goToLogin();
+                    }, e -> {
+                        ok.setEnabled(true);
+                        viaGoogle.setEnabled(true);
+                        password.setError(e.getMessage());
+                    });
+                }, msg -> password.setError(msg)));
+            }
         });
         dialog.show();
     }

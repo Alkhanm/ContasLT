@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.com.contaslt.auth.AuthDtos.AuthResponse;
+import br.com.contaslt.auth.AuthDtos.ForgotPasswordRequest;
+import br.com.contaslt.auth.AuthDtos.GoogleLoginRequest;
+import br.com.contaslt.auth.AuthDtos.ResetPasswordRequest;
 import br.com.contaslt.auth.AuthDtos.LoginRequest;
 import br.com.contaslt.auth.AuthDtos.RegisterRequest;
 import br.com.contaslt.auth.AuthDtos.UserDto;
@@ -20,10 +23,12 @@ import jakarta.validation.Valid;
 public class AuthController {
 
     private final AuthService auth;
+    private final PasswordResetService passwordReset;
     private final CurrentUser currentUser;
 
-    public AuthController(AuthService auth, CurrentUser currentUser) {
+    public AuthController(AuthService auth, PasswordResetService passwordReset, CurrentUser currentUser) {
         this.auth = auth;
+        this.passwordReset = passwordReset;
         this.currentUser = currentUser;
     }
 
@@ -38,10 +43,28 @@ public class AuthController {
         return auth.login(req);
     }
 
-    /** Exclui a conta e todos os dados (confirmação por e-mail e senha; usado pelo app e pela página web). */
+    @PostMapping("/google")
+    public AuthResponse google(@Valid @RequestBody GoogleLoginRequest req) {
+        return auth.loginWithGoogle(req.idToken());
+    }
+
+    /** Manda o código de recuperação por e-mail. Sempre 204: não revela se o e-mail tem conta. */
+    @PostMapping("/forgot-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        passwordReset.requestCode(req.email());
+    }
+
+    /** Troca a senha com o código e já devolve a sessão. */
+    @PostMapping("/reset-password")
+    public AuthResponse resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        return auth.session(passwordReset.reset(req.email(), req.code(), req.password()));
+    }
+
+    /** Exclui a conta e todos os dados (confirmação por e-mail e senha ou pelo Google; usado pelo app e pela página web). */
     @PostMapping("/delete-account")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteAccount(@Valid @RequestBody br.com.contaslt.auth.AuthDtos.DeleteAccountRequest req) {
+    public void deleteAccount(@RequestBody br.com.contaslt.auth.AuthDtos.DeleteAccountRequest req) {
         auth.deleteAccount(req);
     }
 

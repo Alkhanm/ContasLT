@@ -25,6 +25,10 @@ android {
         // Servidor padrão: o backend no Railway. Trocável na tela de login (ex.: http://10.0.2.2:8080 no emulador).
         buildConfigField("String", "DEFAULT_SERVER", "\"https://contaslt-production.up.railway.app\"")
         buildConfigField("String", "PRIVACY_URL", "\"https://contaslt.web.app/privacidade\"")
+        // Login com Google: ID do cliente OAuth "Aplicativo da Web" (o mesmo do PWA e de GOOGLE_CLIENT_IDS no backend).
+        // Não é segredo; fica em gradle.properties (contaslt.googleWebClientId). Vazio = botão escondido.
+        val googleWebClientId = (project.findProperty("contaslt.googleWebClientId") as String?) ?: ""
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         // Campo "Servidor" no login: só em debug/staging (no app da loja fica escondido).
         buildConfigField("boolean", "SHOW_SERVER_FIELD", "false")
     }
@@ -93,6 +97,9 @@ dependencies {
     implementation(libs.work.runtime)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.credentials)
+    implementation(libs.credentials.play.services)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
 }

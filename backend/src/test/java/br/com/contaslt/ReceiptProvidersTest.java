@@ -100,7 +100,7 @@ class ReceiptProvidersTest {
         return new AppProperties(null, null, new AppProperties.Receipts(provider),
             new AppProperties.Ollama("http://127.0.0.1:1", "x", Duration.ofSeconds(1)),
             new AppProperties.OpenAi(base + "/v1/", "sk-test", "vision-test", Duration.ofSeconds(5)),
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "eyJhbGciOi.service.key", "receipts")), null, null, null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "eyJhbGciOi.service.key", "receipts")), null, null, null, null, null);
     }
 
     @Test
@@ -121,7 +121,7 @@ class ReceiptProvidersTest {
     @Test
     void newSecretKeyGoesOnlyInTheApikeyHeader() {
         var cfg = new AppProperties(null, null, new AppProperties.Receipts(Provider.NONE), null, null,
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "sb_secret_abc123", "receipts")), null, null, null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base, "sb_secret_abc123", "receipts")), null, null, null, null, null);
         ReceiptStorage storage = new ReceiptStorage(cfg);
         var img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_RGB);
         storage.store(4L, img);
@@ -131,7 +131,7 @@ class ReceiptProvidersTest {
     @Test
     void supabaseUrlPastedFromTheS3PageStillHitsTheRestApi() {
         var cfg = new AppProperties(null, null, new AppProperties.Receipts(Provider.NONE), null, null,
-            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base + "/storage/v1/s3", "eyJhbGciOi.service.key", "receipts")), null, null, null);
+            new AppProperties.Storage("/tmp", new AppProperties.Storage.Supabase(base + "/storage/v1/s3", "eyJhbGciOi.service.key", "receipts")), null, null, null, null, null);
         ReceiptStorage storage = new ReceiptStorage(cfg);
         var img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_RGB);
         ReceiptStorage.Stored stored = storage.store(3L, img);

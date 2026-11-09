@@ -5,13 +5,15 @@ import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import FormField from '@/components/app/FormField.vue'
+import GoogleButton from '@/components/app/GoogleButton.vue'
+import { GOOGLE_CLIENT_ID } from '@/lib/google'
 import { fieldErrors, notifyError } from '@/lib/notify'
 import { wipeSession } from '@/data/session'
 import { useAuthStore } from '@/stores/auth'
 
 /**
- * Excluir a conta (exigência da Play Store: também pela web, sem precisar do app). Confirma com e-mail e senha e
- * apaga o usuário, os dados sincronizados e as fotos dos comprovantes no servidor.
+ * Excluir a conta (exigência da Play Store: também pela web, sem precisar do app). Confirma com e-mail e senha (ou
+ * com o Google, para quem entra por ele) e apaga o usuário, os dados sincronizados e as fotos dos comprovantes no servidor.
  */
 const auth = useAuthStore()
 const form = reactive({ email: auth.user?.email ?? '', password: '', confirm: false })
@@ -19,7 +21,25 @@ const errors = ref<Record<string, string>>({})
 const busy = ref(false)
 const done = ref(false)
 
-async function submit() {
+/** E-mail de dentro do ID token do Google (só para saber se a conta aberta aqui é a excluída). */
+function emailOf(idToken: string): string {
+  try {
+    const payload = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return String(JSON.parse(atob(payload)).email ?? '')
+  } catch {
+    return ''
+  }
+}
+
+function submit() {
+  return remove({ email: form.email, password: form.password }, form.email)
+}
+
+function withGoogle(idToken: string) {
+  return remove({ googleIdToken: idToken }, emailOf(idToken))
+}
+
+async function remove(body: Record<string, string>, email: string) {
   errors.value = {}
   if (!form.confirm) {
     errors.value = { confirm: 'Marque a confirmação para continuar' }
@@ -27,9 +47,9 @@ async function submit() {
   }
   busy.value = true
   try {
-    await api<void>('/api/auth/delete-account', { method: 'POST', body: { email: form.email, password: form.password } })
+    await api<void>('/api/auth/delete-account', { method: 'POST', body })
     // Se esta conta estava aberta neste navegador, os dados locais também saem.
-    if (auth.user && auth.user.email.toLowerCase() === form.email.trim().toLowerCase()) {
+    if (auth.user && auth.user.email.toLowerCase() === email.trim().toLowerCase()) {
       const id = auth.user.id
       auth.expire()
       await wipeSession(id)
@@ -94,6 +114,8 @@ async function submit() {
           <Button type="submit" variant="destructive" class="h-11 w-full text-base font-semibold" :disabled="busy">
             {{ busy ? 'Excluindo…' : 'Excluir minha conta' }}
           </Button>
+          <GoogleButton divider text="signin_with" @token="withGoogle" />
+          <p v-if="GOOGLE_CLIENT_ID" class="text-center text-xs text-muted-foreground">Entra pelo Google? Marque a confirmação acima e confirme com o Google.</p>
         </form>
       </template>
     </div>

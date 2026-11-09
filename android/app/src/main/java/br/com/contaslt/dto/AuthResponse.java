@@ -4,4 +4,6 @@ package br.com.contaslt.dto;
 public class AuthResponse {
     public String token;
     public User user;
+    /** A conta acabou de ser criada (cadastro ou primeiro login com Google). */
+    public boolean created;
 }

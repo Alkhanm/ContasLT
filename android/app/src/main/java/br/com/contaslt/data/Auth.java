@@ -44,7 +44,47 @@ public final class Auth {
         body.put("password", password);
         apply(app.api.post("/api/auth/register", body, AuthResponse.class));
         ensureSession();
-        app.session.syncNow();
+        seedIfNew();
+    }
+
+    /** Login com Google: entra, vincula pelo e-mail ou cria a conta (aí com as categorias padrão). */
+    public void loginWithGoogle(String server, String idToken) {
+        app.prefs.setServer(server);
+        Map<String, String> body = new HashMap<>();
+        body.put("idToken", idToken);
+        AuthResponse res = app.api.post("/api/auth/google", body, AuthResponse.class);
+        apply(res);
+        ensureSession();
+        if (res.created) {
+            seedIfNew();
+        }
+    }
+
+    /** Manda o código de recuperação para o e-mail (o servidor não diz se a conta existe). */
+    public void forgotPassword(String server, String email) {
+        app.prefs.setServer(server);
+        Map<String, String> body = new HashMap<>();
+        body.put("email", email);
+        app.api.post("/api/auth/forgot-password", body, null);
+    }
+
+    /** Nova senha com o código do e-mail; já entra na conta. */
+    public void resetPassword(String server, String email, String code, String password) {
+        app.prefs.setServer(server);
+        Map<String, String> body = new HashMap<>();
+        body.put("email", email);
+        body.put("code", code);
+        body.put("password", password);
+        apply(app.api.post("/api/auth/reset-password", body, AuthResponse.class));
+        ensureSession();
+    }
+
+    private void seedIfNew() {
+        try {
+            app.session.syncNow();
+        } catch (RuntimeException e) {
+            // sem rede agora: as categorias padrão sobem na próxima sincronização
+        }
         if (Ctx.db().isEmpty()) {
             CatalogService.seedDefaults();
             Ctx.db().flush();
@@ -76,6 +116,7 @@ public final class Auth {
         if (u != null) {
             clearInbox(u.id);
         }
+        br.com.contaslt.ui.GoogleSignIn.signOut(app.context);
         expire();
     }
 
@@ -84,13 +125,25 @@ public final class Auth {
      * ainda não tinha subido.
      */
     public void deleteAccount(String password) {
+        Map<String, String> body = new HashMap<>();
+        User u = app.prefs.user();
+        body.put("email", u == null ? null : u.email);
+        body.put("password", password);
+        deleteAccount(body);
+    }
+
+    /** Exclusão confirmada pelo Google (contas que entram por ele e não têm senha). */
+    public void deleteAccountWithGoogle(String idToken) {
+        Map<String, String> body = new HashMap<>();
+        body.put("googleIdToken", idToken);
+        deleteAccount(body);
+    }
+
+    private void deleteAccount(Map<String, String> body) {
         User u = app.prefs.user();
         if (u == null) {
             throw new ApiException(401, "Sua sessão expirou. Entre novamente.");
         }
-        Map<String, String> body = new HashMap<>();
-        body.put("email", u.email);
-        body.put("password", password);
         app.api.post("/api/auth/delete-account", body, null);
         app.session.wipe(u.id);
         clearInbox(u.id);

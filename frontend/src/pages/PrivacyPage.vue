@@ -3,7 +3,7 @@
  * Política de privacidade (pública: exigida pela Play Store para dados financeiros e acesso a notificações).
  * Ao mudar o que o app coleta, atualize este texto e a data abaixo.
  */
-const UPDATED = '6 de novembro de 2026'
+const UPDATED = '9 de novembro de 2026'
 const CONTACT_EMAIL = 'halkam.dev@gmail.com'
 </script>
 
@@ -29,6 +29,10 @@ const CONTACT_EMAIL = 'halkam.dev@gmail.com'
         <h2 class="text-base font-bold">Dados que você informa</h2>
         <ul class="list-disc space-y-1 pl-5">
           <li><strong>Cadastro:</strong> nome, e-mail e senha. A senha é guardada apenas como hash, nunca em texto.</li>
+          <li>
+            <strong>Login com Google (opcional):</strong> recebemos do Google só o seu nome, e-mail e um identificador da
+            conta, para entrar sem senha. Não temos acesso a mais nada da sua conta Google.
+          </li>
           <li>
             <strong>Suas finanças:</strong> contas, cartões, categorias, regras de categorização, lançamentos (com
             itens e observações), contas recorrentes, transferências e extratos que você importar.
@@ -78,8 +82,9 @@ const CONTACT_EMAIL = 'halkam.dev@gmail.com'
         <h2 class="text-base font-bold">Onde os dados ficam</h2>
         <p>
           Os dados sincronizados e as fotos dos comprovantes ficam em provedores de infraestrutura contratados para
-          hospedar o serviço: Railway (servidor), Supabase (banco de dados e armazenamento das fotos) e Firebase
-          Hosting (site). Eles apenas armazenam e processam os dados em nome do ContasLT. Toda comunicação entre o app
+          hospedar o serviço: Railway (servidor), Supabase (banco de dados e armazenamento das fotos), Firebase
+          Hosting (site) e Brevo (envio do e-mail com o código de recuperação de senha, que recebe só o seu nome e
+          e-mail). Eles apenas armazenam e processam os dados em nome do ContasLT. Toda comunicação entre o app
           e o servidor é criptografada (HTTPS), e cada conta só acessa os próprios dados.
         </p>
       </section>

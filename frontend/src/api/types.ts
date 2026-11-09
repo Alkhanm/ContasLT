@@ -17,6 +17,8 @@ export interface User {
 export interface AuthResponse {
   token: string
   user: User
+  /** A conta acabou de ser criada (cadastro ou primeiro login com Google). */
+  created?: boolean
 }
 
 export interface Account {

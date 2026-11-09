@@ -23,8 +23,13 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    /** Nulo em conta criada pelo Google que ainda não definiu senha. */
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    /** Identificador da conta Google vinculada ({@code sub} do ID token), ou nulo. */
+    @Column(name = "google_sub", unique = true)
+    private String googleSub;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -56,4 +61,6 @@ public class User {
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public String getGoogleSub() { return googleSub; }
+    public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
 }

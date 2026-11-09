@@ -61,6 +61,10 @@ export const authApi = {
     api<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } }),
   register: (name: string, email: string, password: string) =>
     api<AuthResponse>('/api/auth/register', { method: 'POST', body: { name, email, password } }),
+  google: (idToken: string) => api<AuthResponse>('/api/auth/google', { method: 'POST', body: { idToken } }),
+  forgotPassword: (email: string) => api<void>('/api/auth/forgot-password', { method: 'POST', body: { email } }),
+  resetPassword: (email: string, code: string, password: string) =>
+    api<AuthResponse>('/api/auth/reset-password', { method: 'POST', body: { email, code, password } }),
   me: () => api<User>('/api/auth/me'),
 }
 
