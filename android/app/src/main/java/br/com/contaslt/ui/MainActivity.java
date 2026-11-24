@@ -59,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
         }
         b = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(b.getRoot());
+        applyInsets();
 
         NavHostFragment host = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.navHost);
         nav = host.getNavController();
@@ -100,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
         Repo.run(this, () -> {
             br.com.contaslt.notify.InboxStore inbox = br.com.contaslt.notify.NotificationProcessor.store(this);
             if (inbox != null) {
+                inbox.migrateLocal();
                 inbox.refreshCount();
             }
             return true;
@@ -163,10 +165,33 @@ public class MainActivity extends AppCompatActivity {
         // Na importação a barra inferior da revisão ("Importar N") ocupa o lugar do "+".
         fabHiddenHere = id == R.id.importStatement;
         Session.SyncState st = app.session.state.getValue();
-        Ui.visible(b.fab, !fabHiddenHere && (st == null || st.initialDone));
+        Ui.visible(b.fab, !fabHiddenHere && !keyboardOpen && (st == null || st.initialDone));
     }
 
     private boolean fabHiddenHere;
+    private boolean keyboardOpen;
+
+    /**
+     * Barras do sistema e teclado: a partir do Android 15 a janela não encolhe mais sozinha com o teclado
+     * (adjustResize), então o conteúdo desce o tamanho dele aqui. Com o teclado aberto a barra inferior e o "+" somem,
+     * para sobrar espaço e o campo focado (rolado pela tela) ficar visível.
+     */
+    private void applyInsets() {
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(b.getRoot(), (v, insets) -> {
+            androidx.core.graphics.Insets bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+            boolean open = ime.bottom > bars.bottom;
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            if (open != keyboardOpen) {
+                keyboardOpen = open;
+                Ui.visible(b.bottomNav, !open);
+                Session.SyncState st = app.session.state.getValue();
+                Ui.visible(b.fab, !fabHiddenHere && !open && (st == null || st.initialDone));
+            }
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
+    }
 
     private void onSyncState(Session.SyncState s) {
         int icon;
@@ -198,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
 
         boolean gate = !s.initialDone;
         Ui.visible(b.syncGate, gate);
-        Ui.visible(b.fab, !gate && !fabHiddenHere);
+        Ui.visible(b.fab, !gate && !fabHiddenHere && !keyboardOpen);
         if (gate) {
             boolean failed = s.status == Session.Status.OFFLINE || s.status == Session.Status.ERROR;
             Ui.visible(b.syncGateProgress, !failed);

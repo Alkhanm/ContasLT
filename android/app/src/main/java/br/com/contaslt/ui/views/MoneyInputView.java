@@ -41,7 +41,7 @@ public class MoneyInputView extends LinearLayout {
         prefix.setText("R$");
         prefix.setTextColor(Ui.color(context, R.color.muted_foreground));
         addView(prefix);
-        input = new EditText(context, null, 0, R.style.Text_Huge);
+        input = Ui.editable(new EditText(context, null, 0, R.style.Text_Huge));
         input.setBackground(null);
         input.setPadding(Ui.dp(context, 8), 0, 0, 0);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);

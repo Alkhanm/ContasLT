@@ -222,7 +222,7 @@ public class MoreFragment extends Fragment {
             "Apaga a sua conta e todos os dados do servidor e deste aparelho: contas, categorias, lançamentos, "
                 + "recorrentes e fotos dos comprovantes. Não dá para desfazer. Para guardar uma cópia antes, use Exportar dados.");
         box.addView(text);
-        android.widget.EditText password = new android.widget.EditText(c, null, 0, R.style.Input);
+        android.widget.EditText password = Ui.editable(new android.widget.EditText(c, null, 0, R.style.Input));
         password.setHint("Sua senha");
         password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         // O tipo senha troca a fonte para monoespaçada; volta a Manrope do app.

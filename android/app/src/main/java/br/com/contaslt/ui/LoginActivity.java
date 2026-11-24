@@ -32,9 +32,11 @@ public class LoginActivity extends AppCompatActivity {
         // O topo escuro vai até atrás da barra de status; o conteúdo dele desce o tamanho dela.
         int heroTop = b.hero.getPaddingTop();
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(b.getRoot(), (v, insets) -> {
+            // O teclado também: sem ele no padding, o Android 15+ deixa os campos atrás do teclado.
             androidx.core.graphics.Insets bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            androidx.core.graphics.Insets ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
             b.hero.setPadding(b.hero.getPaddingLeft(), heroTop + bars.top, b.hero.getPaddingRight(), b.hero.getPaddingBottom());
-            v.setPadding(0, 0, 0, bars.bottom);
+            v.setPadding(0, 0, 0, Math.max(bars.bottom, ime.bottom));
             return insets;
         });
 

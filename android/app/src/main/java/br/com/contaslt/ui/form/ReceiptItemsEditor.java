@@ -270,7 +270,7 @@ public class ReceiptItemsEditor extends LinearLayout {
     }
 
     private static EditText field(Context c, int inputType, int sp) {
-        EditText e = new EditText(c, null, 0, R.style.Input);
+        EditText e = Ui.editable(new EditText(c, null, 0, R.style.Input));
         e.setInputType(inputType);
         e.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         e.setMinHeight(0);

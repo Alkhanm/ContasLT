@@ -17,6 +17,20 @@ public final class Ui {
     private Ui() {
     }
 
+    /**
+     * Campo criado no código com um estilo próprio ({@code new EditText(c, null, 0, R.style.X)}) não herda o estilo
+     * padrão de EditText, que é o que o torna focável e clicável: sem isto o campo aparece mas não aceita toque nem
+     * abre o teclado.
+     */
+    public static <T extends android.widget.EditText> T editable(T e) {
+        e.setFocusable(true);
+        e.setFocusableInTouchMode(true);
+        e.setClickable(true);
+        e.setLongClickable(true);
+        e.setCursorVisible(true);
+        return e;
+    }
+
     public static int dp(Context ctx, float dp) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, ctx.getResources().getDisplayMetrics()));
     }
