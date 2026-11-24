@@ -47,6 +47,13 @@ public final class InboxService {
     private InboxService() {
     }
 
+    /** Com a conta/cartão padrão configurados neste aparelho (ou os gravados no item, vindos do celular). */
+    public static Suggestion suggest(InboxItem item, InboxStore store) {
+        String account = store == null ? null : store.defaultAccount(item.packageName);
+        String card = store == null ? null : store.defaultCard(item.packageName);
+        return suggest(item, account != null ? account : item.defaultAccountId, card != null ? card : item.defaultCardId);
+    }
+
     public static Suggestion suggest(InboxItem item, String defaultAccountId, String defaultCardId) {
         Suggestion s = new Suggestion();
         TransactionInput in = new TransactionInput();
@@ -56,7 +63,7 @@ public final class InboxService {
         in.dueDate = item.date;
         in.paid = true;
         in.merchant = item.counterpart;
-        in.notes = "Via notificação" + (item.appLabel != null ? " · " + item.appLabel : "");
+        in.notes = notes(item);
 
         AccountRec account = account(item, defaultAccountId, defaultCardId);
         in.accountId = account == null ? null : account.id;
@@ -102,6 +109,27 @@ public final class InboxService {
         }
         s.input = in;
         return s;
+    }
+
+    /**
+     * Observação do lançamento: origem, horário e o texto original da notificação (o que o banco escreveu além do
+     * que virou descrição: favorecido, conta, chave Pix...). Mesmo formato do PWA (services/inbox.ts).
+     */
+    static String notes(InboxItem item) {
+        java.time.LocalDateTime at = java.time.Instant.ofEpochMilli(item.postedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        StringBuilder sb = new StringBuilder("Via notificação");
+        if (item.appLabel != null) {
+            sb.append(" · ").append(item.appLabel);
+        }
+        if (item.postedAt > 0) {
+            sb.append(String.format(java.util.Locale.ROOT, " · %02d/%02d %02d:%02d", at.getDayOfMonth(), at.getMonthValue(), at.getHour(), at.getMinute()));
+        }
+        String raw = ((item.title == null ? "" : item.title.trim()) + "\n" + (item.text == null ? "" : item.text.trim())).trim();
+        if (!raw.isEmpty()) {
+            sb.append("\n").append(raw);
+        }
+        String out = sb.toString();
+        return out.length() > 500 ? out.substring(0, 499) + "…" : out;
     }
 
     /** Confirma: paga o vencimento recorrente casado, ou cria o lançamento. Devolve o lançamento. */

@@ -18,6 +18,7 @@
 
             <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="12dp" android:background="@color/border" />
             <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/notifySwitch" style="@style/Text.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Avisar a cada movimento lido, com o botão Confirmar" />
+            <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/syncSwitch" style="@style/Text.Sm" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mostrar a caixa A confirmar também no site e em outros aparelhos (guarda as sugestões na sua conta)" />
         </LinearLayout>
 
         <include android:id="@+id/appsTitle" layout="@layout/view_section_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" />

@@ -68,6 +68,14 @@ public class NotificationSettingsFragment extends Fragment {
                 requestPostPermission();
             }
         });
+        b.syncSwitch.setChecked(store != null && store.syncConsent());
+        b.syncSwitch.setOnCheckedChangeListener((v, on) -> {
+            if (store != null) {
+                store.setSyncConsent(on);
+                Repo.runAction(getViewLifecycleOwner(), b.getRoot(), on ? store::migrateLocal : store::unsync, () -> {
+                });
+            }
+        });
         b.testButton.setOnClickListener(v -> test());
         return b.getRoot();
     }
@@ -90,14 +98,14 @@ public class NotificationSettingsFragment extends Fragment {
         boolean on = listenerEnabled();
         b.accessTitle.setText(on ? "Acesso às notificações liberado" : "Acesso às notificações desligado");
         b.accessText.setText(on
-            ? "O ContasLT lê só as notificações dos apps marcados abaixo, no aparelho, e transforma compras, Pix e pagamentos em sugestões na caixa A confirmar."
-            : "Para ler as notificações dos bancos, libere o ContasLT em Acesso a notificações. Só os apps marcados abaixo são lidos, e nada sai do aparelho.");
+            ? "O ContasLT lê só as notificações dos apps marcados abaixo e transforma compras, Pix e pagamentos em sugestões na caixa A confirmar."
+            : "Para ler as notificações dos bancos, libere o ContasLT em Acesso a notificações. Só os apps marcados abaixo são lidos.");
         b.accessButton.setText(on ? "Abrir configurações do sistema" : "Liberar acesso");
         b.accessButton.setOnClickListener(v -> {
             if (on) {
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
             } else {
-                NotificationDisclosure.show(requireContext());
+                NotificationDisclosure.show(requireContext(), store);
             }
         });
         b.accessIcon.setImageResource(on ? R.drawable.ic_bell_ring : R.drawable.ic_bell);
@@ -187,7 +195,7 @@ public class NotificationSettingsFragment extends Fragment {
         hint.setText("Informe o nome do pacote do app do banco (ex.: com.nu.production). Ele aparece no endereço do app "
             + "na Play Store, depois de \"id=\".");
         box.addView(hint);
-        android.widget.EditText input = new android.widget.EditText(c, null, 0, R.style.Input);
+        android.widget.EditText input = Ui.editable(new android.widget.EditText(c, null, 0, R.style.Input));
         input.setHint("com.banco.app");
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
@@ -219,6 +227,8 @@ public class NotificationSettingsFragment extends Fragment {
             InboxItem item = NotificationProcessor.toItem(requireContext(), "teste", "Teste", text, System.currentTimeMillis());
             item.appLabel = "Teste";
             item.hash = item.hash + ":" + item.id;
+            item.defaultAccountId = store.defaultAccount(item.packageName);
+            item.defaultCardId = store.defaultCard(item.packageName);
             store.add(item);
             return item;
         }, item -> {

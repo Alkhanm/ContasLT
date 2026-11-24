@@ -133,6 +133,42 @@ export interface TransferRejectionRec {
   createdAt: string
 }
 
+export type BankNotificationStatus = 'PENDING' | 'CONFIRMED' | 'DISCARDED'
+export type BankNotificationKind = 'CARD' | 'PIX' | 'BOLETO' | 'TRANSFER' | 'OTHER'
+
+/**
+ * Movimento lido da notificação de um app de banco no celular (só o app Android lê notificações; o PWA mostra a
+ * caixa "A confirmar" e confirma ou descarta). Só as reconhecidas viram registro; as outras ficam no aparelho.
+ */
+export interface BankNotificationRec {
+  id: Id
+  /** Pacote do app do banco no Android. */
+  packageName: string
+  appLabel: string | null
+  title: string | null
+  /** Todo o texto da notificação (texto, expandido, linhas, subtexto...). */
+  text: string | null
+  /** Epoch ms em que a notificação chegou. */
+  postedAt: number
+  hash: string
+  notificationKey?: string | null
+  status: BankNotificationStatus
+  type: TransactionType
+  amount: Cents
+  kind: BankNotificationKind
+  /** Estabelecimento ou pessoa. */
+  counterpart: string | null
+  cardLast4: string | null
+  date: IsoDate
+  description: string
+  /** Conta e cartão padrão do app do banco, configurados no celular. */
+  defaultAccountId?: Id | null
+  defaultCardId?: Id | null
+  /** Lançamento criado (ou vencimento pago) ao confirmar. */
+  transactionId: Id | null
+  createdAt: string
+}
+
 export interface EntityMap {
   account: AccountRec
   category: CategoryRec
@@ -142,12 +178,14 @@ export interface EntityMap {
   transaction: TransactionRec
   transfer: TransferRec
   transferRejection: TransferRejectionRec
+  bankNotification: BankNotificationRec
 }
 
 export type Entity = keyof EntityMap
 
 export const ENTITIES: Entity[] = [
   'account', 'category', 'categoryRule', 'recurringBill', 'importBatch', 'transaction', 'transfer', 'transferRejection',
+  'bankNotification',
 ]
 
 /** Registro com o "relógio" da última gravação (epoch ms), usado para decidir conflitos. */

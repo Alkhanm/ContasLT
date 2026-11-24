@@ -3,7 +3,7 @@
  * Política de privacidade (pública: exigida pela Play Store para dados financeiros e acesso a notificações).
  * Ao mudar o que o app coleta, atualize este texto e a data abaixo.
  */
-const UPDATED = '9 de novembro de 2026'
+const UPDATED = '16 de novembro de 2026'
 const CONTACT_EMAIL = 'halkam.dev@gmail.com'
 </script>
 
@@ -53,11 +53,15 @@ const CONTACT_EMAIL = 'halkam.dev@gmail.com'
           <strong>A confirmar</strong>.
         </p>
         <ul class="list-disc space-y-1 pl-5">
-          <li>A leitura é feita inteiramente no aparelho. O texto das notificações não é enviado ao servidor nem a ninguém.</li>
-          <li>Notificações de outros apps são ignoradas e não são guardadas.</li>
+          <li>A leitura é feita no aparelho. Notificações de outros apps são ignoradas e não são guardadas.</li>
           <li>
-            Só vira dado sincronizado o lançamento que você confirmar, como se tivesse digitado à mão. As sugestões e
-            as notificações não reconhecidas ficam apenas no aparelho e saem quando você descarta, limpa ou sai da conta.
+            Se você aceitar no aviso do app (ou ligar em Notificações dos bancos), as sugestões reconhecidas, com o
+            texto da notificação que as originou, são guardadas na sua conta, para você confirmar também no site ou em
+            outro aparelho. Elas não são compartilhadas com terceiros e são apagadas 30 dias depois de confirmadas ou
+            descartadas, ou quando você desliga essa opção. Sem aceitar, ficam só no aparelho.
+          </li>
+          <li>
+            As notificações não reconhecidas ficam apenas no aparelho e saem quando você limpa a lista ou sai da conta.
           </li>
           <li>Você pode desligar o acesso a qualquer momento nas configurações do Android.</li>
         </ul>

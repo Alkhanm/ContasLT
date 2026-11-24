@@ -40,6 +40,7 @@ import * as transfers from '@/services/transfers'
 import * as reports from '@/services/reports'
 import * as backup from '@/services/backup'
 import * as receipts from '@/services/receipts'
+import * as inbox from '@/services/inbox'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -150,6 +151,16 @@ export const rulesApi = {
   list: () => local<CategoryRule[]>(() => catalog.listRules()),
   create: (keyword: string, categoryId: Id) => local<CategoryRule>(() => catalog.createRule(keyword, categoryId)),
   remove: (id: Id) => local<void>(() => catalog.deleteRule(id)),
+}
+
+/** Caixa "A confirmar": movimentos lidos das notificações dos bancos pelo app Android (sincronizados). */
+export const inboxApi = {
+  list: () => local<inbox.InboxSuggestion[]>(() => inbox.listInbox()),
+  count: () => local<number>(() => inbox.pendingCount()),
+  confirm: (id: Id) => local<Transaction>(() => inbox.confirm(id)),
+  /** O lançamento foi salvo pelo formulário (Editar). */
+  markConfirmed: (id: Id, transactionId: Id) => local<void>(() => inbox.markConfirmed(id, transactionId)),
+  discard: (id: Id) => local<void>(() => inbox.discard(id)),
 }
 
 export const dashboardApi = {

@@ -35,6 +35,7 @@ const router = createRouter({
         { path: 'gastos/categorias', name: 'category-spending', component: () => import('@/pages/CategorySpendingPage.vue'), meta: { title: 'Gastos por categoria', monthNav: true } },
         { path: 'gastos/itens', name: 'item-spending', component: () => import('@/pages/ItemSpendingPage.vue'), meta: { title: 'Gasto por itens' } },
         { path: 'recorrentes', name: 'recurring', component: () => import('@/pages/RecurringPage.vue'), meta: { title: 'Contas recorrentes' } },
+        { path: 'a-confirmar', name: 'inbox', component: () => import('@/pages/InboxPage.vue'), meta: { title: 'A confirmar' } },
         { path: 'importar', name: 'import', component: () => import('@/pages/ImportPage.vue'), meta: { title: 'Importar extrato' } },
         { path: 'categorias', name: 'categories', component: () => import('@/pages/CategoriesPage.vue'), meta: { title: 'Categorias' } },
         { path: 'contas', name: 'accounts', component: () => import('@/pages/AccountsPage.vue'), meta: { title: 'Contas' } },

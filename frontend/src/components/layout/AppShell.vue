@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { CalendarDays, ChartPie, Ellipsis, FileUp, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, ShoppingBasket, Tag, Wallet } from 'lucide-vue-next'
+import { CalendarDays, ChartPie, Ellipsis, FileUp, Inbox, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Repeat, ShoppingBasket, Tag, Wallet } from 'lucide-vue-next'
 import MonthNavigator from './MonthNavigator.vue'
 import SyncGate from './SyncGate.vue'
 import SyncIndicator from './SyncIndicator.vue'
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCatalogStore } from '@/stores/catalog'
 import { useUiStore } from '@/stores/ui'
 import { cn } from '@/lib/utils'
+import { useInboxCount } from '@/composables/queries'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +33,15 @@ const secondaryNav = [
   { name: 'settings', label: 'Mais', icon: Ellipsis },
 ]
 const mobileNav = [...mainNav.slice(0, 2), { name: 'recurring', label: 'Recorrentes', icon: CalendarDays }, mainNav[3]!, secondaryNav[secondaryNav.length - 1]!]
+/** Caixa "A confirmar" (notificações dos bancos lidas pelo app Android): só aparece com algo pendente. */
+const { data: inboxCount } = useInboxCount()
+const showInbox = computed(() => (inboxCount.value ?? 0) > 0 || route.name === 'inbox')
+const sideNav = computed(() => [
+  ...mainNav.slice(0, 2),
+  ...(showInbox.value ? [{ name: 'inbox', label: 'A confirmar', icon: Inbox }] : []),
+  ...mainNav.slice(2),
+  ...secondaryNav,
+])
 
 function isActive(name: string) {
   return route.name === name
@@ -72,7 +82,7 @@ onMounted(() => {
       </div>
       <nav class="flex flex-1 flex-col gap-0.5 px-3" aria-label="Principal">
         <RouterLink
-          v-for="item in [...mainNav, ...secondaryNav]"
+          v-for="item in sideNav"
           :key="item.name"
           :to="{ name: item.name }"
           :title="ui.sidebarCollapsed ? item.label : undefined"
@@ -83,6 +93,10 @@ onMounted(() => {
           <component :is="item.icon" class="size-[18px] shrink-0" />
           <span v-if="!ui.sidebarCollapsed" class="truncate">{{ item.label }}</span>
           <span v-else class="sr-only">{{ item.label }}</span>
+          <span
+            v-if="item.name === 'inbox' && inboxCount && !ui.sidebarCollapsed"
+            class="ml-auto rounded-full bg-primary px-1.5 text-[11px] leading-5 font-bold text-primary-foreground"
+          >{{ inboxCount }}</span>
         </RouterLink>
       </nav>
       <div class="border-t px-3 py-3">

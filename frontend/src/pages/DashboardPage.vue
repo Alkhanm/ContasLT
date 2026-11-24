@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeftRight, CalendarCheck, ChevronRight, Wallet } from 'lucide-vue-next'
+import { RouterLink, useRouter } from 'vue-router'
+import { ArrowLeftRight, CalendarCheck, ChevronRight, Inbox, Wallet } from 'lucide-vue-next'
 import { transactionsApi } from '@/api'
-import { defaultTransactionFilter, prefetchTransactions, useDashboard } from '@/composables/queries'
+import { defaultTransactionFilter, prefetchTransactions, useDashboard, useInboxCount } from '@/composables/queries'
 import type { CategoryTotal, ReceiptScanAction, Transaction } from '@/api/types'
 import CategoryBars from '@/components/app/CategoryBars.vue'
 import EmptyState from '@/components/app/EmptyState.vue'
@@ -17,6 +17,8 @@ import { notifyError, notifySuccess } from '@/lib/notify'
 import { usePeriodStore } from '@/stores/period'
 import { useUiStore } from '@/stores/ui'
 
+/** Movimentos lidos das notificações dos bancos (app Android) aguardando confirmação. */
+const { data: inboxCount } = useInboxCount()
 const period = usePeriodStore()
 const ui = useUiStore()
 const router = useRouter()
@@ -83,6 +85,18 @@ function openCategory(item: CategoryTotal) {
 
   <div v-else-if="data" class="grid gap-6 md:grid-cols-5">
     <div class="space-y-6 md:col-span-3">
+      <RouterLink
+        v-if="inboxCount"
+        :to="{ name: 'inbox' }"
+        class="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 transition-colors hover:bg-primary/10"
+      >
+        <Inbox class="size-5 shrink-0 text-primary" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold">{{ inboxCount === 1 ? '1 lançamento a confirmar' : `${inboxCount} lançamentos a confirmar` }}</span>
+          <span class="block truncate text-xs text-muted-foreground">Lidos das notificações dos bancos no celular</span>
+        </span>
+        <ChevronRight class="size-4 shrink-0 text-muted-foreground" />
+      </RouterLink>
       <section class="rounded-2xl border bg-card p-4 md:p-5">
         <div class="grid grid-cols-3 divide-x">
           <div class="pr-3">

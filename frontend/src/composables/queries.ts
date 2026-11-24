@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
-import { accountsApi, categoriesApi, dashboardApi, importsApi, recurringApi, reportsApi, rulesApi, transactionsApi, transfersApi } from '@/api'
+import { accountsApi, categoriesApi, dashboardApi, importsApi, inboxApi, recurringApi, reportsApi, rulesApi, transactionsApi, transfersApi } from '@/api'
 import type { Id, TransactionFilter } from '@/api/types'
 import { queryClient } from '@/lib/queryClient'
 
@@ -16,6 +16,8 @@ export const keys = {
   recurring: ['recurring'] as const,
   imports: ['imports'] as const,
   rules: ['rules'] as const,
+  inbox: ['inbox'] as const,
+  inboxCount: ['inbox', 'count'] as const,
 }
 
 export type ItemReportParams = { from: string; to: string; categoryId: Id | null }
@@ -87,6 +89,14 @@ export function useImportHistory() {
   return useQuery({ queryKey: keys.imports, queryFn: () => importsApi.history() })
 }
 
+export function useInbox() {
+  return useQuery({ queryKey: keys.inbox, queryFn: () => inboxApi.list() })
+}
+
+export function useInboxCount() {
+  return useQuery({ queryKey: keys.inboxCount, queryFn: () => inboxApi.count() })
+}
+
 export function useRules() {
   return useQuery({ queryKey: keys.rules, queryFn: () => rulesApi.list() })
 }
@@ -115,7 +125,7 @@ export function prefetchTransactions(filter: TransactionFilter) {
  * `lib/queryClient.ts`); fica para quem quer forçar o recálculo.
  */
 export function invalidateData() {
-  for (const key of [['dashboard'], ['transactions'], ['transfers'], ['reports'], ['recurring'], ['imports'], ['rules']]) {
+  for (const key of [['dashboard'], ['transactions'], ['transfers'], ['reports'], ['recurring'], ['imports'], ['rules'], ['inbox']]) {
     void queryClient.invalidateQueries({ queryKey: key })
   }
 }

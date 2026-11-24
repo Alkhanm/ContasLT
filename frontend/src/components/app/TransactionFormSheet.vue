@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 import { ArrowLeftRight, Camera, ChevronDown, Clock, CreditCard, Repeat, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { receiptsApi, transactionsApi, transfersApi } from '@/api'
 import { fetchTransactions } from '@/composables/queries'
-import type { Account, ReceiptScan, ReceiptScanAction, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
+import type { Account, ReceiptScan, ReceiptScanAction, Transaction, TransactionEditScope, TransactionInput, TransactionItemInput, TransactionPage, TransactionType } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -369,6 +369,19 @@ watch(() => ui.transactionFormOpen, async (open) => {
     form.items = []
     showItems.value = false
     revokeReceiptUrl()
+    const p = d.prefill
+    if (p) {
+      form.kind = p.input.type
+      form.amount = p.input.amount
+      form.description = p.input.description
+      form.dueDate = p.input.dueDate
+      form.categoryId = p.input.categoryId
+      if (p.input.accountId) form.accountId = p.input.accountId
+      form.paid = p.input.paid
+      form.notes = p.input.notes ?? ''
+      form.merchant = p.input.merchant ?? ''
+      settleOccurrenceId.value = p.settleOccurrenceId ?? null
+    }
   }
 })
 
@@ -426,17 +439,20 @@ async function save() {
         invoiceCardId: type.value === 'EXPENSE' && !onCard.value ? form.invoiceCardId : null,
         invoiceMonth: type.value === 'EXPENSE' && !onCard.value ? form.invoiceMonth : null,
       }
+      const prefill = editing.value ? undefined : ui.formDefaults.prefill
+      let saved: Transaction
       if (editing.value) {
         const scope = editing.value.recurringBillId ? form.scope : undefined
-        await transactionsApi.update(editing.value.id, input, scope)
+        saved = await transactionsApi.update(editing.value.id, input, scope)
         notifySuccess(scope === 'FOLLOWING' ? 'Este e os próximos vencimentos atualizados' : 'Lançamento atualizado')
       } else if (settleOccurrenceId.value) {
-        await transactionsApi.update(settleOccurrenceId.value, input)
-        notifySuccess('Vencimento pago com o comprovante')
+        saved = await transactionsApi.update(settleOccurrenceId.value, input)
+        notifySuccess(prefill ? 'Vencimento pago' : 'Vencimento pago com o comprovante')
       } else {
-        await transactionsApi.create(input)
+        saved = await transactionsApi.create(input)
         notifySuccess(type.value === 'INCOME' ? 'Receita adicionada' : isInvoice.value ? 'Fatura registrada' : onCard.value ? 'Compra no cartão registrada' : 'Despesa adicionada')
       }
+      await prefill?.onSaved?.(saved)
     }
     ui.closeTransactionForm()
     ui.dataChanged()

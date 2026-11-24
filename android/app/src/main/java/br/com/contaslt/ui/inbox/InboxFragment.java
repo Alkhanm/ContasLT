@@ -52,7 +52,7 @@ public class InboxFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
         b = FragmentInboxBinding.inflate(inflater, container, false);
         store = NotificationProcessor.store(requireContext());
-        b.grant.setOnClickListener(v -> NotificationDisclosure.show(requireContext()));
+        b.grant.setOnClickListener(v -> NotificationDisclosure.show(requireContext(), store));
         b.settings.setOnClickListener(v -> NavHostFragment.findNavController(this).navigate(R.id.notificationSettings));
         return b.getRoot();
     }
@@ -69,6 +69,9 @@ public class InboxFragment extends Fragment {
         super.onResume();
         boolean granted = NotificationManagerCompat.getEnabledListenerPackages(requireContext()).contains(requireContext().getPackageName());
         Ui.visible(b.accessCard, !granted);
+        if (granted) {
+            NotificationDisclosure.askSyncOnce(requireContext(), store, this::load);
+        }
         load();
     }
 
@@ -78,12 +81,12 @@ public class InboxFragment extends Fragment {
         }
         Repo.run(getViewLifecycleOwner(), b.getRoot(), () -> {
             List<Row> rows = new ArrayList<>();
-            for (InboxItem i : store.all()) {
-                if (InboxItem.PENDING.equals(i.status)) {
-                    rows.add(new Row(i, InboxService.suggest(i, store.defaultAccount(i.packageName), store.defaultCard(i.packageName))));
-                } else if (InboxItem.UNRECOGNIZED.equals(i.status)) {
-                    rows.add(new Row(i, null));
-                }
+            store.migrateLocal();
+            for (InboxItem i : store.pending()) {
+                rows.add(new Row(i, InboxService.suggest(i, store)));
+            }
+            for (InboxItem i : store.unrecognized()) {
+                rows.add(new Row(i, null));
             }
             return rows;
         }, this::render);

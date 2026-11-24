@@ -18,6 +18,8 @@ public class ContasApp extends Application {
         br.com.contaslt.services.ReceiptsService.setApi(container.api);
         br.com.contaslt.ui.TxActions.retryReceipt = br.com.contaslt.services.ReceiptsService::retryReceipt;
         container.session.onAfterSync(br.com.contaslt.services.ReceiptsService::processPendingReceipts);
+        // Caixa "A confirmar" sincronizada: o que foi confirmado/descartado no PWA some da barra de notificações.
+        container.session.onDataChange(origin -> br.com.contaslt.notify.NotificationProcessor.onDataChanged(this));
     }
 
     public AppContainer container() {

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { Transaction, TransactionType } from '@/api/types'
+import type { Transaction, TransactionInput, TransactionType } from '@/api/types'
 import { invalidateData } from '@/composables/queries'
 import { useCatalogStore } from './catalog'
 
@@ -10,6 +10,8 @@ export interface TransactionFormDefaults {
   accountId?: string | null
   /** Abrir como pagamento de fatura de cartão: cartão, mês da fatura, valor e descrição sugeridos. */
   invoice?: { cardId: string; month: string; amount?: number | null; description?: string }
+  /** Formulário já preenchido (ex.: sugestão da caixa "A confirmar"); `onSaved` recebe o lançamento salvo. */
+  prefill?: { input: TransactionInput; settleOccurrenceId?: string | null; onSaved?: (tx: Transaction) => void | Promise<void> }
 }
 
 /** Estado global de interface: formulário de lançamento e sinal de "dados mudaram". */

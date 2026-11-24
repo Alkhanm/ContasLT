@@ -13,9 +13,12 @@ public final class Entity<T extends Rec> {
     public static final Entity<TransactionRec> TRANSACTION = new Entity<>("transaction", TransactionRec.class);
     public static final Entity<TransferRec> TRANSFER = new Entity<>("transfer", TransferRec.class);
     public static final Entity<TransferRejectionRec> TRANSFER_REJECTION = new Entity<>("transferRejection", TransferRejectionRec.class);
+    /** Movimentos lidos das notificações dos bancos (caixa "A confirmar"). */
+    public static final Entity<br.com.contaslt.notify.InboxItem> BANK_NOTIFICATION =
+        new Entity<>("bankNotification", br.com.contaslt.notify.InboxItem.class);
 
     public static final List<Entity<?>> ALL = java.util.Collections.unmodifiableList(java.util.Arrays.asList(ACCOUNT, CATEGORY, CATEGORY_RULE, RECURRING_BILL, IMPORT_BATCH,
-        TRANSACTION, TRANSFER, TRANSFER_REJECTION));
+        TRANSACTION, TRANSFER, TRANSFER_REJECTION, BANK_NOTIFICATION));
 
     /**
      * updatedAt dos vencimentos de recorrente gerados automaticamente: qualquer edição real vence um vencimento

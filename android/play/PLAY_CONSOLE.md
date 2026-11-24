@@ -29,9 +29,10 @@ Checklist na ordem da tela "Termine de configurar seu app". Marque conforme for 
     | Informações pessoais › Endereço de e-mail | Obrigatório | Gerenciamento de conta |
     | Informações financeiras › Outras informações financeiras (lançamentos, contas, cartões) | Obrigatório | |
     | Fotos e vídeos › Fotos (comprovantes) | Opcional | |
+    | Informações financeiras › Outras informações financeiras (sugestões lidas das notificações dos bancos, com o texto da notificação) | Opcional | |
 
-  - **Não** declarar as notificações dos bancos: são processadas só no aparelho, nunca enviadas (o Google não
-    considera isso coleta).
+  - As sugestões da caixa A confirmar (texto das notificações reconhecidas) vão para o servidor quando o usuário
+    aceita o aviso: declarar como coletadas (opcional, para funcionalidade do app), não compartilhadas.
   - Railway, Supabase e Firebase são provedores de serviço: não conta como compartilhamento.
 - [ ] **Apps governamentais:** Não.
 - [ ] **Recursos financeiros:** se houver opção de controle de gastos / orçamento / finanças pessoais, marcar essa;
@@ -60,7 +61,7 @@ Controle de gastos com lançamentos automáticos das notificações do seu banco
 O ContasLT organiza suas finanças pessoais sem planilha: contas, cartões, lançamentos, contas recorrentes e relatórios, tudo no celular e sincronizado com a versão web.
 
 LANÇAMENTOS A PARTIR DAS NOTIFICAÇÕES DO BANCO
-Libere o acesso às notificações e escolha os apps dos seus bancos. Compras, Pix e pagamentos viram sugestões na caixa "A confirmar", já com valor, data, conta, categoria e até o vencimento recorrente que aquele pagamento quita. Um toque confirma. A leitura acontece só no seu aparelho: o texto das notificações não é enviado a lugar nenhum.
+Libere o acesso às notificações e escolha os apps dos seus bancos. Compras, Pix e pagamentos viram sugestões na caixa "A confirmar", já com valor, data, conta, categoria e até o vencimento recorrente que aquele pagamento quita. Um toque confirma, no celular ou no site. Só os apps que você escolher são lidos, e nada é compartilhado com terceiros.
 
 TUDO QUE VOCÊ PRECISA PARA CONTROLAR O MÊS
 • Saldo, receitas e despesas do mês e gastos por categoria
